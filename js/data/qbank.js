@@ -38,12 +38,36 @@ function placeAnswer(id, choices, ans, whyNot) {
   };
 }
 
+const ADDQ_COUNT = {};   // questions declared per ORIGINAL module id (keeps ids stable)
 function addQ(moduleId, rows) {
   const topic = moduleId.split("-")[0];
-  const start = STARTER_QUESTIONS.filter(q => q.module === moduleId).length;
+  const start = ADDQ_COUNT[moduleId] || 0;
+  ADDQ_COUNT[moduleId] = start + rows.length;
   rows.forEach((r, i) => {
     const [lv, q, A, B, C, ans, why, whyNot, trap, calc, los] = r;
     const id = `b-${moduleId}-${String(start + i + 1).padStart(2, "0")}`;
+    const p = placeAnswer(id, [A, B, C], ans, whyNot);
+    // Map the question to its 2027 module (null = retired from the 2027 curriculum)
+    const mod = typeof mapQuestionModule === "function" ? mapQuestionModule(id, moduleId, [q, why, whyNot, trap].join(" ")) : moduleId;
+    if (!mod) return;
+    STARTER_QUESTIONS.push({
+      id, module: mod, topic, level: LEVEL_CODE[lv] || "exam", los: los || "",
+      q, A: p.choices[0], B: p.choices[1], C: p.choices[2], ans: p.ans,
+      why, whyNot: p.whyNot, trap: trap || "", calc: calc || ""
+    });
+  });
+}
+
+// Questions written directly for the 2027 module list (no remapping).
+// Ids use the "n27-" prefix so they never clash with older ids.
+function addQ27(moduleId, rows) {
+  const topic = moduleId.split("-")[0];
+  const key = "27|" + moduleId;
+  const start = ADDQ_COUNT[key] || 0;
+  ADDQ_COUNT[key] = start + rows.length;
+  rows.forEach((r, i) => {
+    const [lv, q, A, B, C, ans, why, whyNot, trap, calc, los] = r;
+    const id = `n27-${moduleId}-${String(start + i + 1).padStart(2, "0")}`;
     const p = placeAnswer(id, [A, B, C], ans, whyNot);
     STARTER_QUESTIONS.push({
       id, module: moduleId, topic, level: LEVEL_CODE[lv] || "exam", los: los || "",

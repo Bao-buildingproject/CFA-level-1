@@ -297,7 +297,7 @@ function moduleCardHtml(m) {
   return `
     <div class="card module-card">
       <div class="mc-top">
-        <a href="#/module/${m.id}" style="color:inherit"><div class="mc-num">MODULE ${m.n} · READING ${m.r}</div><h3>${esc(m.title)}</h3></a>
+        <a href="#/module/${m.id}" style="color:inherit"><div class="mc-num">MODULE ${m.n} · VOL ${m.vol}</div><h3>${esc(m.title)}</h3></a>
       </div>
       ${bellCurve(mp.pct, { width: 280, height: 74, compact: true, tip: moduleTip(m, mp) })}
       <div class="mc-foot">
@@ -336,7 +336,7 @@ function renderModule(moduleId) {
 
   view.innerHTML = `
     <a href="#/topic/${m.topic}" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} ${t.name}</a>
-    ${pageHeader(esc(m.title), `${t.name} · Module ${m.n} of ${mods.length} · Reading ${m.r} · SchweserNotes Book ${m.book}`)}
+    ${pageHeader(esc(m.title), `${t.name} · Learning Module ${m.n} of ${mods.length} · Curriculum Vol ${m.vol} · SchweserNotes Book ${m.book}`)}
 
     <div class="grid grid-2">
       <div class="card">
@@ -375,8 +375,8 @@ function renderModule(moduleId) {
       <a class="card card-link" href="${book.url}" target="_blank" rel="noopener">
         <div class="row-gap"><div class="book-n">${book.n}</div><div><div class="stat-label">SchweserNotes Book ${book.n}</div><h3>${esc(book.title)}</h3><p class="text-3 small">Opens in Google Drive</p></div></div>
       </a>
-      <a class="card card-link" href="${LES_URL}" target="_blank" rel="noopener">
-        <div class="row-gap"><div class="book-n" style="background:var(--accent-soft);color:var(--accent)">CFA</div><div><div class="stat-label">CFA Institute curriculum</div><h3>Learning Ecosystem — Reading ${m.r}</h3><p class="text-3 small">Official readings and practice</p></div></div>
+      <a class="card card-link" href="${(CURRICULUM_VOLUMES.find(v => v.vol === m.vol) || {}).url || LES_URL}" target="_blank" rel="noopener">
+        <div class="row-gap"><div class="book-n" style="background:var(--accent-soft);color:var(--accent)">V${m.vol}</div><div><div class="stat-label">CFA Institute curriculum</div><h3>Curriculum 2027 · Vol ${m.vol}, LM ${m.n}</h3><p class="text-3 small">Opens the volume PDF in Google Drive</p></div></div>
       </a>
     </div>
 
@@ -410,7 +410,7 @@ function moduleChecklistHtml(mods, kind) {
       <label class="check-chip" style="padding:6px"><input type="checkbox" data-read="${m.id}|${kind}" ${rd[kind] ? "checked" : ""} aria-label="Mark ${esc(m.title)} as read"></label>
       <a class="list-main" href="#/module/${m.id}" style="color:inherit">
         <div class="list-title">${m.n}. ${esc(m.title)}</div>
-        <div class="list-meta">Reading ${m.r} · ${mp.pct}% complete</div>
+        <div class="list-meta">${moduleLabel(m)} · ${mp.pct}% complete</div>
       </a>
       <div style="width:90px" class="hide-mobile">${bellCurve(mp.pct, { width: 90, height: 34, compact: true, showLabel: false, tip: moduleTip(m, mp) })}</div>
     </div>`;
@@ -428,7 +428,7 @@ function renderSchweser() {
         const br = bm.filter(m => (DATA.reading[m.id] || {}).schweser).length;
         return `<div class="card book-card">
           <div class="row-gap" style="align-items:flex-start;flex-wrap:nowrap"><div class="book-n">${b.n}</div>
-            <div style="flex:1;min-width:0"><div class="stat-label">Book ${b.n} · Readings ${bm[0].r}–${bm.at(-1).r}</div><h3 style="margin:2px 0 10px">${esc(b.title)}</h3>
+            <div style="flex:1;min-width:0"><div class="stat-label">Book ${b.n} · ${b.topics.join(", ")} · 2026 edition</div><h3 style="margin:2px 0 10px">${esc(b.title)}</h3>
               ${progressBar(pct(br, bm.length), "success")}<div class="text-2 small" style="margin-top:6px">${br}/${bm.length} readings read</div></div></div>
           <a class="btn btn-secondary btn-sm" style="margin-top:14px" href="${b.url}" target="_blank" rel="noopener">${icon("external", 16)} Open PDF in Drive</a>
         </div>`;
@@ -448,8 +448,16 @@ function renderCurriculum() {
   const rows = readingTable("curriculum");
   const total = MODULES.length, read = rows.reduce((s, r) => s + r.read, 0);
   view.innerHTML = `
-    ${pageHeader("Curriculum", `Level I · 2027 topic weights · 93 learning modules (2026 module list) · ${read}/${total} read`,
+    ${pageHeader("Curriculum", `CFA Program 2027 Level I · 10 volumes · 102 learning modules · ${read}/${total} read`,
       `<a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} Learning Ecosystem</a>`)}
+    <div class="section-title">2027 curriculum volumes</div>
+    <div class="grid grid-3" style="margin-bottom:16px">${CURRICULUM_VOLUMES.map(v => {
+      const mods = modulesOf(v.topic); const rd = mods.filter(m => (DATA.reading[m.id] || {}).curriculum).length;
+      return `<a class="card card-link" href="${v.url}" target="_blank" rel="noopener">
+        <div class="row-gap" style="flex-wrap:nowrap;align-items:flex-start"><div class="book-n" style="background:var(--accent-soft);color:var(--accent)">V${v.vol}</div>
+          <div style="flex:1;min-width:0"><div class="stat-label">Volume ${v.vol} · ${mods.length} modules</div><h3 style="margin:2px 0 8px">${esc(v.title)}</h3>
+            ${progressBar(pct(rd, mods.length), "success")}<div class="text-3 small" style="margin-top:4px">${rd}/${mods.length} read · opens PDF</div></div></div></a>`;
+    }).join("")}</div>
     <div class="card">
       <div class="card-head"><h2>Topics</h2><span class="text-3 small">exam weight · modules read</span></div>
       <div class="table-wrap"><table class="table">

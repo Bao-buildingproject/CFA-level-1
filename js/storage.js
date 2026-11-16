@@ -88,6 +88,9 @@ function normalizeQuestion(q) {
 // ones (so corrections reach you) but keep YOUR attempts and progress.
 function syncBuiltinQuestions(data) {
   if (typeof STARTER_QUESTIONS === "undefined") return;
+  const starterIds = new Set(STARTER_QUESTIONS.map(s => s.id));
+  // Remove built-in questions that were retired (e.g. GIPS, no longer in Level I 2027)
+  data.questions = data.questions.filter(q => !q.builtIn || starterIds.has(q.id));
   const byId = new Map(data.questions.map(q => [q.id, q]));
   STARTER_QUESTIONS.forEach(s => {
     const content = {
@@ -102,10 +105,32 @@ function syncBuiltinQuestions(data) {
   });
 }
 
-// The 93 official Learning Modules become the chapter list of every topic.
+// The official Learning Modules become the chapter list of every topic.
 // Your status on a module is kept; extra chapters you added yourself stay too.
+const STATUS_RANK = { not_started: 0, learning: 1, done: 2, reviewed: 3 };
+
+// One-time move from the 2026 module list to the 2027 one
+function migrateTo2027(data) {
+  const old = data.chapters.filter(c => c.module);
+  const keep = data.chapters.filter(c => !c.module);
+  const status = {}, reading = {};
+  old.forEach(c => newModulesForOld(c.id).forEach(nid => {
+    if (!status[nid] || STATUS_RANK[c.status] > STATUS_RANK[status[nid].status]) status[nid] = c;
+  }));
+  Object.entries(data.reading || {}).forEach(([oid, r]) => newModulesForOld(oid).forEach(nid => {
+    reading[nid] = { schweser: !!(r.schweser || (reading[nid] || {}).schweser), curriculum: !!(r.curriculum || (reading[nid] || {}).curriculum) };
+  }));
+  data.chapters = keep.concat(Object.entries(status).map(([nid, c]) => ({ ...c, id: nid })));
+  data.reading = reading;
+  data.curriculumYear = CURRICULUM_YEAR;
+}
+
 function syncModules(data) {
   if (typeof MODULES === "undefined") return;
+  if (data.curriculumYear !== CURRICULUM_YEAR && data.chapters.some(c => c.module)) migrateTo2027(data);
+  data.curriculumYear = CURRICULUM_YEAR;
+  const valid = new Set(MODULES.map(m => m.id));
+  data.chapters = data.chapters.filter(c => !c.module || valid.has(c.id));
   const byId = new Map(data.chapters.map(c => [c.id, c]));
   MODULES.forEach(m => {
     const c = byId.get(m.id);

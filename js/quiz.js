@@ -138,7 +138,8 @@ function questionMetaHtml(q) {
 }
 
 // ================= PRACTICE PAGE (#/practice) =================
-const practiceCfg = { topic: "", module: "", mode: "all", level: "", count: 20 };
+const practiceCfg = { topic: "", module: "", mode: "all", level: "", count: 20, order: "mixed" };
+const LEVEL_RANK = { foundation: 0, application: 1, exam: 2 };
 let bankFilter = "";
 
 function renderQuestions() {
@@ -173,6 +174,8 @@ function renderQuestions() {
           <option value="">All levels</option>${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}" ${practiceCfg.level === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
         <div class="field full"><span class="field-label">Questions</span>
           <div class="segmented" id="qz-mode">${modes.map(([k, v]) => `<button data-mode="${k}" class="${practiceCfg.mode === k ? "active" : ""}">${v}</button>`).join("")}</div></div>
+        <div class="field full"><span class="field-label">Order</span>
+          <div class="segmented" id="qz-order">${[["mixed", "Mixed"], ["easy", "Easy → Hard"], ["hard", "Hard → Easy"]].map(([k, v]) => `<button data-order="${k}" class="${practiceCfg.order === k ? "active" : ""}">${v}</button>`).join("")}</div></div>
         <div class="field full"><span class="field-label">How many</span>
           <div class="segmented" id="qz-count">${[10, 20, 30, 0].map(n => `<button data-count="${n}" class="${practiceCfg.count === n ? "active" : ""}">${n || "All"}</button>`).join("")}</div></div>
       </div>
@@ -240,9 +243,17 @@ function renderQuestions() {
     practiceCfg.count = +b.dataset.count;
     view.querySelectorAll("[data-count]").forEach(x => x.classList.toggle("active", x === b));
   });
+  view.querySelectorAll("[data-order]").forEach(b => b.onclick = () => {
+    practiceCfg.order = b.dataset.order;
+    view.querySelectorAll("[data-order]").forEach(x => x.classList.toggle("active", x === b));
+  });
   document.getElementById("btn-qz-start").onclick = () => {
     let list = shuffle(pool());
     if (practiceCfg.count) list = list.slice(0, practiceCfg.count);
+    if (practiceCfg.order !== "mixed") {
+      const dir = practiceCfg.order === "easy" ? 1 : -1;
+      list.sort((a, b) => dir * (LEVEL_RANK[a.level] - LEVEL_RANK[b.level]));
+    }
     if (list.length) startQuiz(list);
   };
   updateAvail();
