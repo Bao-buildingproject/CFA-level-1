@@ -176,7 +176,7 @@ function renderSettings() {
         <p class="text-2 small">Export after each study session and upload the file to Google Drive. To move to another device, import the newest file there.</p>
         <div class="row-gap" style="margin-top:16px">
           <button class="btn btn-primary" id="btn-export">${icon("download", 18)} Export</button>
-          <label class="btn btn-secondary">${icon("upload", 18)} Import<input type="file" id="file-import" accept=".json,application/json" hidden></label>
+          ${isOwner() ? `<label class="btn btn-secondary">${icon("upload", 18)} Import<input type="file" id="file-import" accept=".json,application/json" hidden></label>` : ""}
         </div>
       </div>
 
@@ -204,13 +204,30 @@ function renderSettings() {
           <div class="stat"><span class="stat-label">Questions</span><span class="stat-value" style="font-size:1.3rem">${DATA.questions.length}</span></div>
           <div class="stat"><span class="stat-label">Mock exams</span><span class="stat-value" style="font-size:1.3rem">${DATA.mocks.length}</span></div>
         </div>
-        <button class="btn btn-soft-danger" id="btn-reset" style="margin-top:16px">${icon("trash", 18)} Delete all data</button>
+        ${isOwner() ? `<button class="btn btn-soft-danger" id="btn-reset" style="margin-top:16px">${icon("trash", 18)} Delete all data</button>` : ""}
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div><h2>Owner mode</h2><p class="text-2 small">${isOwner() ? "Unlocked — editing tools are visible" : ownerHash() ? "Locked — editing tools are hidden" : "Not set up yet"}</p></div>
+          <span class="badge ${isOwner() ? "badge-success" : ""}">${isOwner() ? "Unlocked" : "Locked"}</span></div>
+        <p class="text-2 small">Adding, importing or deleting questions and flashcards, restoring backups and deleting data are hidden unless the owner unlocks them.</p>
+        <div class="row-gap" style="margin-top:14px">
+          ${!ownerHash() ? `<button class="btn btn-primary" id="btn-owner-setup">Set owner password</button>`
+            : isOwner() ? `<button class="btn btn-secondary" id="btn-owner-lock">Lock</button><button class="btn btn-ghost" id="btn-owner-change">Change password</button>`
+            : `<button class="btn btn-primary" id="btn-owner-unlock">Owner login</button>`}
+        </div>
       </div>
     </div>`;
 
   document.getElementById("btn-export").onclick = () => { exportData(); toast("Backup downloaded — upload it to Google Drive"); renderSettings(); };
 
-  document.getElementById("file-import").onchange = async e => {
+  const ob = id => document.getElementById(id);
+  if (ob("btn-owner-setup")) ob("btn-owner-setup").onclick = async () => { if (await setupOwner()) renderSettings(); };
+  if (ob("btn-owner-unlock")) ob("btn-owner-unlock").onclick = async () => { if (await unlockOwner()) renderSettings(); };
+  if (ob("btn-owner-lock")) ob("btn-owner-lock").onclick = () => { lockOwner(); renderSettings(); };
+  if (ob("btn-owner-change")) ob("btn-owner-change").onclick = async () => { if (await unlockOwner() && await setupOwner()) renderSettings(); };
+
+  if (ob("file-import")) ob("file-import").onchange = async e => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
@@ -234,7 +251,7 @@ function renderSettings() {
     view.querySelectorAll("[data-theme]").forEach(x => x.classList.toggle("active", x === b));
   });
 
-  document.getElementById("btn-reset").onclick = async () => {
+  if (ob("btn-reset")) ob("btn-reset").onclick = async () => {
     if (!await confirmDialog({ title: "Delete all data?", message: "This erases chapters, cards, questions and mock history on this device. Export a backup first.", confirmText: "Delete everything", danger: true, requireText: "DELETE" })) return;
     DATA = upgrade({}); saveData(); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
   };
@@ -337,7 +354,7 @@ function renderProfiles() {
           </div>
           ${p.id === cur.id ? "" : `<button class="btn btn-primary btn-sm" data-switch="${p.id}">Switch</button>`}
           <button class="icon-btn" data-rename="${p.id}" aria-label="Rename ${esc(p.name)}" title="Rename">${icon("settings", 18)}</button>
-          ${PROFILES.list.length > 1 ? `<button class="icon-btn danger" data-delprof="${p.id}" aria-label="Delete ${esc(p.name)}" title="Delete">${icon("trash", 18)}</button>` : ""}
+          ${PROFILES.list.length > 1 && isOwner() ? `<button class="icon-btn danger" data-delprof="${p.id}" aria-label="Delete ${esc(p.name)}" title="Delete">${icon("trash", 18)}</button>` : ""}
         </div>`).join("")}</div>
     </div>
 

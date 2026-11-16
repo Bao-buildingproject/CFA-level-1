@@ -188,7 +188,7 @@ function renderQuestions() {
     ${perTopic ? `<div class="card section"><div class="card-head"><h2>By topic</h2></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>Topic</th><th class="num">Qs</th><th class="num">Tried</th><th class="num">Accuracy</th><th class="num">Mistakes</th></tr></thead><tbody>${perTopic}</tbody></table></div></div>` : ""}
 
-    <div class="card section">
+    ${isOwner() ? `<div class="card section">
       <div class="tabs">
         <button class="tab active" data-pane="add">Add question</button>
         <button class="tab" data-pane="import">Import CSV</button>
@@ -207,7 +207,7 @@ function renderQuestions() {
         <select class="select" id="q-filter" style="max-width:320px">${topicOptions(bankFilter, true)}</select>
         <div id="q-list" class="list" style="margin-top:8px"></div>
       </div>
-    </div>`;
+    </div>` : ""}`;
 
   // ---- practice config ----
   const pool = () => {
@@ -264,6 +264,7 @@ function renderQuestions() {
     view.querySelectorAll("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== tab.dataset.pane);
   });
 
+  if (!isOwner()) return;
   bindAddQuestionForm();
 
   document.getElementById("btn-q-template").onclick = () => downloadFile("questions-template.csv",

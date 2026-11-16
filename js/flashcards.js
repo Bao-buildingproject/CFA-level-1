@@ -154,7 +154,7 @@ function renderFlashcards() {
       </div>
     </div>
 
-    <div class="card section">
+    ${isOwner() ? `<div class="card section">
       <div class="tabs" role="tablist">
         <button class="tab active" data-pane="add">Add card</button>
         <button class="tab" data-pane="import">Import CSV</button>
@@ -185,7 +185,7 @@ function renderFlashcards() {
         <select class="select" id="fc-filter" style="max-width:320px">${topicOptions(cardsFilter, true)}</select>
         <div id="card-list" class="list" style="margin-top:8px"></div>
       </div>
-    </div>`;
+    </div>` : ""}`;
 
   // tabs
   view.querySelectorAll("[data-pane]").forEach(tab => tab.onclick = () => {
@@ -195,6 +195,7 @@ function renderFlashcards() {
 
   document.getElementById("btn-start").onclick = () => startReview(todayQueue());
 
+  if (!isOwner()) return;
   document.getElementById("btn-add-card").onclick = () => {
     const frontEl = document.getElementById("fc-front"), backEl = document.getElementById("fc-back");
     const front = frontEl.value.trim(), back = backEl.value.trim();

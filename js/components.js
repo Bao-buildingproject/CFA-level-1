@@ -292,3 +292,37 @@ function avatarHtml(profile, size = 32) {
   const initials = (profile.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
   return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.4)}px;background:${AVATAR_COLORS[profile.color % AVATAR_COLORS.length]}" aria-hidden="true">${esc(initials)}</span>`;
 }
+
+
+// ---------- Owner mode ----------
+// Editing tools (add / import / delete questions and cards, restore or wipe
+// data) are hidden until the owner unlocks them with a password.
+// The password is stored only as a SHA-256 hash in this browser.
+const OWNER_KEY = "cfaStudy_owner";
+const OWNER_SESSION = "cfaStudy_owner_unlocked";
+function ownerHash() { try { return localStorage.getItem(OWNER_KEY); } catch (e) { return null; } }
+function isOwner() { try { return !!ownerHash() && sessionStorage.getItem(OWNER_SESSION) === ownerHash(); } catch (e) { return false; } }
+async function hashOwnerPassword(pw) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-owner:" + pw));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function setupOwner() {
+  const pw = await promptDialog({ title: "Create owner password", message: "Only someone with this password can see and use the editing tools on this browser.", label: "Password (at least 6 characters)", type: "password", maxlength: 64, confirmText: "Continue", validate: v => v.length >= 6 ? "" : "Use at least 6 characters" });
+  if (pw === null) return false;
+  const again = await promptDialog({ title: "Confirm password", label: "Type it again", type: "password", maxlength: 64, confirmText: "Save", validate: v => v === pw ? "" : "Passwords do not match" });
+  if (again === null) return false;
+  const h = await hashOwnerPassword(pw);
+  try { localStorage.setItem(OWNER_KEY, h); sessionStorage.setItem(OWNER_SESSION, h); } catch (e) { return false; }
+  toast("Owner password set — editing tools unlocked");
+  return true;
+}
+async function unlockOwner() {
+  const pw = await promptDialog({ title: "Owner login", label: "Owner password", type: "password", maxlength: 64, confirmText: "Unlock" });
+  if (pw === null) return false;
+  const h = await hashOwnerPassword(pw);
+  if (h !== ownerHash()) { toast("Wrong password", "error"); return false; }
+  try { sessionStorage.setItem(OWNER_SESSION, h); } catch (e) { /* ignore */ }
+  toast("Editing tools unlocked");
+  return true;
+}
+function lockOwner() { try { sessionStorage.removeItem(OWNER_SESSION); } catch (e) { /* ignore */ } toast("Editing tools locked"); }
