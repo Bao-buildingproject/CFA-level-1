@@ -197,3 +197,17 @@ a { color: var(--primary); }
 .grade-btns .btn { margin: 0; min-height: 56px; }
 .kbd { font-size: 0.7rem; opacity: 0.7; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
 code { background: var(--primary-soft); padding: 1px 4px; border-radius: 4px; }
+
+/* ===== Phase 4: question bank ===== */
+.q-text { font-size: 1.1rem; font-weight: 600; margin: 10px 0 14px; white-space: pre-wrap; }
+.choice {
+  display: flex; gap: 10px; align-items: flex-start;
+  width: 100%; text-align: left; font: inherit; color: var(--text);
+  background: var(--bg); border: 2px solid var(--border); border-radius: 10px;
+  padding: 12px; margin: 8px 0; min-height: 52px; cursor: pointer;
+}
+.choice .letter { font-weight: 700; color: var(--primary); min-width: 1.2em; }
+.choice.right { border-color: var(--good); background: color-mix(in srgb, var(--good) 15%, var(--bg)); }
+.choice.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, var(--bg)); }
+.choice.dim { opacity: 0.55; }
+.choice:disabled { cursor: default; }

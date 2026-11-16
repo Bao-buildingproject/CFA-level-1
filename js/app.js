@@ -75,6 +75,7 @@ function renderDashboard() {
       <div class="muted">${weekText} · ${phase}</div>
     </section>
     ${cardsNotice()}
+    ${mistakesNotice()}
     ${paceNotice()}
     ${backupNotice()}
     <a class="btn secondary" style="width:100%;text-align:center;margin-bottom:16px"
@@ -173,7 +174,7 @@ function showMsg(type, text) {
 const ROUTES = {
   dashboard: renderDashboard,
   flashcards: renderFlashcards,
-  questions: () => renderComingSoon("Question bank", "Phase 4"),
+  questions: renderQuestions,
   settings: renderSettings
 };
 
@@ -199,4 +200,10 @@ function cardsNotice() {
   return n
     ? `<div class="notice warn">🃏 <a href="#flashcards">${n} card(s) to review today</a></div>`
     : `<div class="notice ok">🃏 All cards reviewed for today.</div>`;
+}
+
+// ---------- Mistake log reminder on Home ----------
+function mistakesNotice() {
+  const n = DATA.questions.filter(q => q.inMistakeLog).length;
+  return n ? `<div class="notice warn">❌ <a href="#questions">${n} question(s) in your mistake log</a></div>` : "";
 }
