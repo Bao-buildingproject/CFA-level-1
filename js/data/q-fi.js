@@ -185,3 +185,53 @@ addQ("FI-19", [
   ["e", "A conditional prepayment rate (CPR) of 6% per year corresponds to a single monthly mortality (SMM) closest to:", "0.50%", "0.51%", "0.60%", "B",
     "SMM = 1 − (1 − 0.06)^(1/12) = 0.514%.", "A divides 6% by 12 (ignores compounding).", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 3) ----
+addQ("FI-02", [
+  ["a", "A bond is issued in one country but denominated in a currency other than that country's own currency. It is best described as a:", "Eurobond", "Domestic bond", "Foreign bond issued in the local currency", "A",
+    "Eurobonds sit outside the jurisdiction of any single currency's home country and are often lightly regulated.", "", "", "", "LOS 48.b"]
+]);
+addQ("FI-03", [
+  ["f", "Bonds rated BB+ or lower (by S&P / Fitch) are generally classified as:", "High-yield (non-investment grade)", "Investment grade", "Government bonds", "A",
+    "BBB− is the lowest investment-grade rating.", "", "", "", "LOS 49.a"]
+]);
+addQ("FI-04", [
+  ["a", "Compared with investment-grade issuers, high-yield issuers' long-term bonds are more likely to:", "Include more restrictive covenants and be secured or callable", "Have no covenants", "Have lower coupons", "A",
+    "Lenders demand more protection and higher yields from riskier issuers.", "", "", "", "LOS 50.c"]
+]);
+addQ("FI-05", [
+  ["f", "The most recently issued government bond of a given maturity, usually the most liquid, is called:", "On-the-run", "Off-the-run", "Seasoned", "A",
+    "Older issues are \"off-the-run\" and usually trade at slightly higher yields.", "", "", "", "LOS 51.b"]
+]);
+addQ("FI-06", [
+  ["a", "All else equal, as a premium bond approaches maturity with no change in yield, its price will:", "Move toward par (decrease)", "Increase further above par", "Stay constant", "A",
+    "Prices converge to par at maturity (pull to par).", "", "", "", "LOS 52.b"],
+  ["e", "Which bond's price is MOST sensitive to a change in market yield?", "20-year, 2% coupon", "5-year, 8% coupon", "20-year, 8% coupon", "A",
+    "Longer maturity and lower coupon both increase price sensitivity.", "", "", "", "LOS 52.b"]
+]);
+addQ("FI-09", [
+  ["a", "When the spot curve slopes upward, the forward curve is:", "Above the spot curve", "Below the spot curve", "Identical to the spot curve", "A",
+    "Rising spot rates imply forward rates higher than the spot rates.", "", "", "", "LOS 55.c"]
+]);
+addQ("FI-10", [
+  ["f", "The three sources of return on a fixed-rate bond are:", "Coupon payments, reinvestment income, and capital gain or loss", "Dividends, splits and buybacks", "Coupons only", "A",
+    "Capital gains or losses arise from selling before maturity or from amortization toward par.", "", "", "", "LOS 56.a"]
+]);
+addQ("FI-13", [
+  ["e", "For high-yield bonds, empirical duration is often LOWER than analytical duration because:", "Credit spreads tend to narrow when government yields rise", "High-yield bonds have no coupons", "Analytical duration ignores maturity", "A",
+    "The spread change partly offsets the benchmark rate change, dampening price moves.", "", "", "", "LOS 59.d"]
+]);
+addQ("FI-14", [
+  ["a", "A limitation of credit ratings is that they:", "Can lag market pricing of credit risk", "Are always updated daily", "Cover only government bonds", "A",
+    "Spreads often move before rating changes.", "", "", "", "LOS 60.b"]
+]);
+addQ("FI-18", [
+  ["e", "Unlike a typical ABS, a covered bond:", "Gives investors recourse to both the issuer and a cover pool that stays on its balance sheet", "Is issued through a bankruptcy-remote SPE", "Has no collateral", "A",
+    "Dual recourse and a dynamic cover pool make covered bonds very safe.", "", "", "", "LOS 64.a"]
+]);
+addQ("FI-19", [
+  ["a", "A mortgage with a high loan-to-value (LTV) ratio is generally:", "Riskier, because the borrower has less equity in the property", "Safer for the lender", "Not affected by house prices", "A",
+    "Lower borrower equity raises default probability and loss severity.", "", "", "", "LOS 65.b"],
+  ["e", "Commercial MBS often include features such as prepayment penalties and defeasance mainly to provide:", "Call (prepayment) protection to investors", "Extra liquidity to borrowers", "Inflation protection", "A",
+    "CMBS also carry balloon risk at maturity.", "", "", "", "LOS 65.d"]
+]);

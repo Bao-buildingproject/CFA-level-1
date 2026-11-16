@@ -83,3 +83,18 @@ addQ("CI-07", [
   ["f", "Outsourcing manufacturing to focus on design and marketing is typical of:", "An asset-light business model", "A capital-intensive model", "A conglomerate model", "A",
     "Asset-light firms own few fixed assets and rely on partners.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 1) ----
+addQ("CI-05", [
+  ["f", "Spending required to comply with new safety regulations is best classified as a:", "Regulatory or compliance project", "Expansion project", "Going-concern project", "A",
+    "Capital investment types: going concern (maintenance), regulatory/compliance, expansion and other.", "", "", "", "LOS 24.a"],
+  ["a", "The right to stop a project and sell its assets if results are poor is a(n):", "Abandonment option", "Timing option", "Fundamental option", "A",
+    "Real options add value because management can react to new information.", "B lets the firm delay an investment.", "", "", "LOS 24.d"],
+  ["e", "A common pitfall in capital allocation is:", "Using accounting income instead of incremental cash flows", "Ignoring sunk costs", "Including opportunity costs", "A",
+    "Decisions should rely on incremental after-tax cash flows; B and C are correct practices.", "", "", "", "LOS 24.c"]
+]);
+
+addQ("CI-06", [
+  ["a", "All else equal, a company is likely to use MORE debt when it has:", "Stable, predictable cash flows and tangible assets", "Highly volatile cash flows", "Mostly intangible assets and early-stage operations", "A",
+    "Stable cash flows and collateral reduce default risk, so lenders offer more debt at lower cost.", "B and C point toward more equity.", "", "", "LOS 25.b"]
+]);

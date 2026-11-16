@@ -92,3 +92,64 @@ addQ("EQ-08", [
   ["f", "Asset-based valuation is MOST appropriate for:", "A company being liquidated or a holding company", "A fast-growing software company", "A company with mostly intangible assets", "A",
     "When assets can be valued reliably and are the main value source.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 2) ----
+addQ("EQ-01", [
+  ["f", "Which is a main function of the financial system?", "Allowing people to save, borrow and share risk", "Setting product prices", "Collecting income taxes", "A",
+    "It also determines equilibrium interest rates and allocates capital.", "", "", "", "LOS 39.a"],
+  ["a", "A \"good-till-cancelled\" order is an example of a:", "Validity instruction", "Execution instruction", "Clearing instruction", "A",
+    "Validity instructions say WHEN an order may be filled; execution instructions say HOW (market, limit).", "", "", "", "LOS 39.g"],
+  ["a", "A financial system is operationally efficient when:", "Trading costs are low", "Prices reflect all information", "There are no regulations", "A",
+    "Informational efficiency is about prices; operational efficiency is about costs.", "B describes informational efficiency.", "", "", "LOS 39.k"],
+  ["f", "A dealer differs from a broker because a dealer:", "Trades from its own inventory", "Only finds counterparties for clients", "Cannot hold securities", "A",
+    "Brokers act as agents; dealers act as principals.", "", "", "", "LOS 39.d"]
+]);
+
+addQ("EQ-02", [
+  ["a", "An index rises from 100 to 104 and its stocks pay dividends worth 1 index point. Price return and total return are:", "4% and 5%", "5% and 4%", "4% and 4%", "A",
+    "Price return ignores income; total return adds the dividends.", "", "", "", "LOS 40.b"],
+  ["a", "A float-adjusted market-cap index weights each stock by:", "Shares available to the public times price", "All shares outstanding times price", "Price only", "A",
+    "Shares held by insiders or governments are excluded.", "", "", "", "LOS 40.d"],
+  ["e", "Compared with equity indexes, fixed-income indexes are harder to build and replicate mainly because:", "There are very many issues that change frequently and trade rarely", "Bonds have no prices", "Bonds never mature", "A",
+    "Large universes, high turnover and illiquidity make bond indexes costly to track.", "", "", "", "LOS 40.j"]
+]);
+
+addQ("EQ-03", [
+  ["f", "If an analyst estimates a stock's intrinsic value at 50 and it trades at 42, the analyst believes the stock is:", "Undervalued", "Overvalued", "Fairly valued", "A",
+    "Market value below estimated intrinsic value suggests a buying opportunity — if the estimate is right.", "", "", "", "LOS 41.b"],
+  ["a", "Which factor most likely REDUCES market efficiency?", "Limits on short selling", "Many active, informed participants", "Low trading costs", "A",
+    "Restrictions on arbitrage let mispricings persist.", "", "", "", "LOS 41.c"]
+]);
+
+addQ("EQ-04", [
+  ["a", "Compared with common stock of the same company, preferred stock generally has:", "Lower risk and lower expected return", "Higher risk and higher expected return", "Identical risk", "A",
+    "Preferred dividends are fixed and paid first, so return potential is limited.", "", "", "", "LOS 42.e"],
+  ["e", "A company's ROE is 15% but investors require only 10%. This suggests that:", "The company is creating value for shareholders", "The company is destroying value", "The share price must fall", "A",
+    "ROE is an accounting return; cost of equity is the market's required return. ROE above it signals value creation.", "", "", "", "LOS 42.h"]
+]);
+
+addQ("EQ-05", [
+  ["a", "Working capital that grows much faster than revenue most likely indicates:", "Cash being tied up in receivables or inventory", "Better cash generation", "Lower capital needs", "A",
+    "Analysts check whether growth is consuming cash.", "", "", "", "LOS 43.d"]
+]);
+
+addQ("EQ-06", [
+  ["f", "Commercial industry classification systems such as GICS group companies mainly by:", "Their principal business activity", "Their share price", "Their country only", "A",
+    "Companies are classified by the products or services that generate most of their revenue.", "", "", "", "LOS 44.b"],
+  ["a", "When estimating an industry's size and growth, an analyst would most likely look at:", "Total industry revenue and its historical growth relative to GDP", "One company's dividend", "The CEO's salary", "A",
+    "Industry size and growth set the context for each company's forecast.", "", "", "", "LOS 44.c"]
+]);
+
+addQ("EQ-07", [
+  ["a", "When forecasting capital expenditures, analysts often separate:", "Maintenance capex from growth capex", "Revenue from taxes", "Dividends from interest", "A",
+    "Maintenance capex keeps existing capacity; growth capex expands it.", "", "", "", "LOS 45.d"]
+]);
+
+addQ("EQ-08", [
+  ["a", "A stock trades at 60 and the company pays a 20% stock dividend. All else equal, the share price should become:", "60", "50", "48", "B",
+    "Shares rise by 20% with no change in company value: 60/1.2 = 50. Shareholders' wealth is unchanged.", "C applies a 20% price cut instead of dividing.", "", "", "LOS 46.c"],
+  ["f", "An investor who buys a stock ON the ex-dividend date:", "Does not receive the upcoming dividend", "Receives the upcoming dividend", "Receives double the dividend", "A",
+    "Buyers on or after the ex-dividend date aren't on the holder-of-record list in time.", "", "", "", "LOS 46.d"],
+  ["e", "The constant-growth (Gordon) model is MOST appropriate for a company that:", "Is mature and pays dividends growing at a stable rate below the required return", "Pays no dividends", "Is growing at 40% a year", "A",
+    "The model needs g < r and steady, sustainable growth.", "", "", "", "LOS 46.i"]
+]);

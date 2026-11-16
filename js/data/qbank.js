@@ -2,7 +2,7 @@
 // qbank.js — loader for the built-in question bank.
 // All questions are ORIGINAL practice questions written for this
 // app (not copied from CFA Institute or Kaplan Schweser materials).
-// Row format: [level, question, A, B, C, answer, why, whyNot, trap, calc]
+// Row format: [level, question, A, B, C, answer, why, whyNot, trap, calc, los]
 // level: f = Foundation, a = Application, e = Exam style
 // ============================================================
 
@@ -42,11 +42,11 @@ function addQ(moduleId, rows) {
   const topic = moduleId.split("-")[0];
   const start = STARTER_QUESTIONS.filter(q => q.module === moduleId).length;
   rows.forEach((r, i) => {
-    const [lv, q, A, B, C, ans, why, whyNot, trap, calc] = r;
+    const [lv, q, A, B, C, ans, why, whyNot, trap, calc, los] = r;
     const id = `b-${moduleId}-${String(start + i + 1).padStart(2, "0")}`;
     const p = placeAnswer(id, [A, B, C], ans, whyNot);
     STARTER_QUESTIONS.push({
-      id, module: moduleId, topic, level: LEVEL_CODE[lv] || "exam",
+      id, module: moduleId, topic, level: LEVEL_CODE[lv] || "exam", los: los || "",
       q, A: p.choices[0], B: p.choices[1], C: p.choices[2], ans: p.ans,
       why, whyNot: p.whyNot, trap: trap || "", calc: calc || ""
     });

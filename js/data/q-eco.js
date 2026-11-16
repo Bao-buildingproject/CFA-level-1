@@ -94,3 +94,44 @@ addQ("ECO-08", [
   ["a", "From the previous setup, the EUR trades at a forward:", "Premium, because EUR interest rates are lower", "Discount, because EUR interest rates are lower", "Premium, because EUR interest rates are higher", "A",
     "The lower-rate currency trades at a forward premium so that covered returns are equal.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 1) ----
+addQ("ECO-01", [
+  ["a", "In long-run equilibrium under monopolistic competition, firms typically:", "Earn zero economic profit and have excess capacity", "Earn positive economic profit forever", "Produce where price equals marginal cost", "A",
+    "Entry drives profit to zero, but price stays above marginal cost and output is below the minimum-cost level.", "B: low barriers allow entry. C describes perfect competition.", "", "", "LOS 12.c"],
+  ["e", "The kinked demand curve model of oligopoly assumes rivals will:", "Match price cuts but not price increases", "Match price increases but not cuts", "Ignore all price changes", "A",
+    "Demand is elastic above the current price and inelastic below it, so prices tend to be sticky.", "", "", "", "LOS 12.d"],
+  ["f", "When long-run average total cost falls as output increases, the firm enjoys:", "Economies of scale", "Diseconomies of scale", "Constant returns to scale", "A",
+    "Larger scale spreads fixed costs and allows specialization.", "", "", "", "LOS 12.a"]
+]);
+
+addQ("ECO-02", [
+  ["a", "Credit cycles are best described as:", "Expansions and contractions in the availability and cost of credit that can amplify the business cycle", "Cycles that only affect government bonds", "Shorter and milder than business cycles", "A",
+    "Easy credit fuels booms (e.g. in housing); tight credit deepens downturns. Credit cycles tend to be longer than business cycles.", "", "", "", "LOS 13.b"]
+]);
+
+addQ("ECO-03", [
+  ["f", "Compared with monetary policy, fiscal policy is carried out through:", "Government spending and taxation", "Interest rates and the money supply", "Exchange rate pegs only", "A",
+    "Governments run fiscal policy; central banks run monetary policy.", "B describes monetary policy.", "", "", "LOS 14.a"]
+]);
+
+addQ("ECO-04", [
+  ["f", "Which quality is MOST important for an effective central bank?", "Independence from short-term political pressure", "Frequent surprise policy changes", "Keeping its targets secret", "A",
+    "Independence, credibility and transparency help anchor inflation expectations.", "B and C reduce credibility.", "", "", "LOS 15.c"],
+  ["e", "Loose fiscal policy combined with tight monetary policy will most likely lead to:", "Higher interest rates and a larger public sector share of GDP", "Lower interest rates and lower output", "Falling government spending", "A",
+    "Government borrowing rises while the central bank keeps money tight, pushing rates up.", "", "", "", "LOS 15.d"],
+  ["a", "A central bank that announces a numerical inflation goal and adjusts policy to hit it is using:", "Inflation targeting", "Exchange rate targeting", "A currency board", "A",
+    "The public target improves transparency and anchors expectations.", "", "", "", "LOS 15.c"]
+]);
+
+addQ("ECO-05", [
+  ["f", "Which organization's main role is to support the stability of the international monetary system and lend to countries with balance-of-payments problems?", "International Monetary Fund (IMF)", "World Trade Organization (WTO)", "World Bank", "A",
+    "The WTO handles trade rules; the World Bank funds long-term development.", "", "", "", "LOS 16.c"],
+  ["a", "Rising geopolitical risk is most likely to affect investments through:", "Higher risk premiums and greater market volatility", "Guaranteed higher returns", "Lower volatility everywhere", "A",
+    "Investors demand compensation for uncertainty; analysts use scenario analysis to assess the impact.", "", "", "", "LOS 16.f"]
+]);
+
+addQ("ECO-06", [
+  ["a", "An import quota differs from a tariff mainly because a quota:", "Limits the quantity imported, and the extra profit (quota rent) may go to license holders", "Raises government revenue directly", "Lowers domestic prices", "A",
+    "Both raise domestic prices; a tariff gives revenue to the government, a quota creates rents for whoever holds the import rights.", "", "", "", "LOS 17.b"]
+]);

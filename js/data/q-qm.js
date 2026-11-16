@@ -143,3 +143,32 @@ addQ("QM-11", [
   ["f", "Analyzing the tone of management's language in earnings call transcripts is an application of:", "Natural language processing", "Monte Carlo simulation", "Linear programming", "A",
     "NLP lets computers analyze and interpret human language, such as text and speech.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 1) ----
+addQ("QM-01", [
+  ["a", "An investor puts 1,000 into a fund each month. The unit price is 10 in month 1 and 20 in month 2. Her average cost per unit is closest to:", "15.00", "13.33", "14.14", "B",
+    "Units bought: 100 + 50 = 150 for 2,000 → 13.33. This is the harmonic mean of the prices — the right average for cost averaging.", "A is the arithmetic mean. C is the geometric mean.", "Harmonic ≤ geometric ≤ arithmetic.", "", "LOS 1.b"],
+  ["a", "A portfolio earned a nominal return of 8% while inflation was 3%. The real return is closest to:", "5.00%", "4.85%", "11.24%", "B",
+    "(1.08 / 1.03) − 1 = 4.85%. Real return = growth in purchasing power.", "A is the approximation 8% − 3%. C multiplies instead of dividing.", "", "", "LOS 1.e"],
+  ["e", "An investor has 100 of equity, borrows 50 at 4%, and invests all 150 in assets that return 10%. Her leveraged return on equity is:", "10%", "13%", "15%", "B",
+    "Gain 15 − interest 2 = 13 on equity of 100 → 13%. Leverage helps because the asset return (10%) exceeds the borrowing cost (4%).", "A is the unlevered return. C ignores the interest cost.", "Leverage magnifies losses too.", "", "LOS 1.e"]
+]);
+
+addQ("QM-03", [
+  ["e", "Monthly returns are 5%, −2%, 8% and −6%. Using a target of 0%, the target downside deviation (sample) is closest to:", "3.65%", "4.47%", "3.16%", "A",
+    "Only returns below target count: (−2)² + (−6)² = 40. Divide by n − 1 = 3 → 13.33; √ = 3.65%.", "B divides by the number of below-target observations (2). C divides by n (4).", "Downside deviation ignores returns above the target.", "", "LOS 3.b"],
+  ["a", "The correlation between ice-cream sales and stock returns in a sample is 0.6. The BEST conclusion is that:", "Correlation alone does not show that one causes the other", "Ice-cream sales cause higher stock returns", "The relationship must be nonlinear", "A",
+    "Correlation measures linear co-movement only; it can be spurious or driven by a third variable.", "B confuses correlation with causation. C is not implied.", "", "", "LOS 3.d"]
+]);
+
+addQ("QM-10", [
+  ["e", "A regression slope is estimated at 0.80 with a standard error of 0.25. The critical t-value is 2.0. Testing H₀: b₁ = 0, the analyst should:", "Reject H₀ because t = 3.2", "Fail to reject H₀ because t = 0.31", "Fail to reject H₀ because t = 3.2", "A",
+    "t = (0.80 − 0)/0.25 = 3.2 > 2.0 → the slope is statistically significant.", "B inverts the ratio. C draws the wrong conclusion.", "", "", "LOS 10.c"],
+  ["a", "In the log-lin model ln(Y) = b₀ + b₁X, the slope b₁ is interpreted as the:", "Relative (percentage) change in Y for a one-unit change in X", "Absolute change in Y for a one-unit change in X", "Absolute change in Y for a 1% change in X", "A",
+    "Taking logs of Y turns the slope into a growth-rate effect — useful for data that grow exponentially.", "B is the lin-lin model. C is the lin-log model.", "", "", "LOS 10.f"]
+]);
+
+addQ("QM-11", [
+  ["f", "Which is the BEST example of fintech applied to investment management?", "Using algorithms to execute trades automatically", "Printing quarterly reports", "Holding cash in a bank vault", "A",
+    "Fintech covers technology-driven innovation in financial services, such as algorithmic trading and robo-advice.", "", "", "", "LOS 11.a"]
+]);

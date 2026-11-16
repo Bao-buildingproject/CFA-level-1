@@ -73,3 +73,29 @@ addQ("ALT-07", [
   ["e", "A permissionless blockchain is one in which:", "Anyone can join and validate transactions", "Only approved members can participate", "A central bank controls all records", "A",
     "Permissioned networks restrict who can participate.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 4) ----
+addQ("ALT-01", [
+  ["a", "A hurdle rate in a private fund means that the general partner:", "Earns incentive fees only after investors receive a minimum return", "Is paid a fixed salary", "Cannot charge management fees", "A",
+    "A catch-up clause may then let the GP receive a larger share until the agreed split is reached.", "", "", "", "LOS 76.c"]
+]);
+addQ("ALT-03", [
+  ["e", "Private equity often appears to have low correlation with public equity. A key reason is that:", "Returns are based on infrequent appraisals that smooth values", "Private firms are unaffected by the economy", "Private equity is risk-free", "A",
+    "True economic correlation is likely higher than measured.", "", "", "", "LOS 78.c"]
+]);
+addQ("ALT-04", [
+  ["f", "Infrastructure assets such as toll roads and utilities are often attractive because they offer:", "Long-lived, relatively stable cash flows", "Very high short-term growth", "Daily liquidity", "A",
+    "Demand is often inelastic and contracts may be inflation-linked.", "", "", "", "LOS 79.d"],
+  ["a", "Returns from direct real estate investment typically come from:", "Rental income and capital appreciation", "Coupons and amortization only", "Dividends from listed shares", "A",
+    "Real estate also offers some inflation hedging.", "", "", "", "LOS 79.b"]
+]);
+addQ("ALT-06", [
+  ["a", "Compared with investing through a hedge fund's pooled vehicle, a separately managed account (SMA) offers the investor:", "Greater transparency and control over the holdings", "Lower minimum investment", "Higher fees with less information", "A",
+    "SMAs hold the assets in the investor's own name.", "", "", "", "LOS 81.b"],
+  ["e", "A fund of hedge funds gives investors diversification across managers but typically involves:", "An additional layer of fees", "No fees", "Guaranteed returns", "A",
+    "Investors pay both the underlying funds' fees and the fund-of-funds fee.", "", "", "", "LOS 81.b"]
+]);
+addQ("ALT-07", [
+  ["a", "A key difference between most cryptocurrencies and traditional assets like stocks is that cryptocurrencies:", "Do not generate cash flows such as dividends or interest", "Pay fixed coupons", "Are backed by company assets", "A",
+    "Their value depends on supply, demand and adoption, which makes valuation difficult.", "", "", "", "LOS 82.b"]
+]);

@@ -68,3 +68,39 @@ addQ("PM-06", [
   ["e", "Allocating a firm's total risk tolerance across activities or managers is called:", "Risk budgeting", "Risk shifting", "Risk avoidance", "A",
     "It links risk-taking to expected return.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 4) ----
+addQ("PM-01", [
+  ["f", "Historically, which asset class has had the HIGHEST average return and the highest volatility?", "Small-cap stocks", "Treasury bills", "Long-term government bonds", "A",
+    "Higher risk has been rewarded with higher average returns over long periods.", "", "", "", "LOS 83.a"],
+  ["a", "The minimum-variance frontier shows:", "The portfolios with the lowest risk for each level of expected return", "Only portfolios containing the risk-free asset", "Portfolios with the highest risk", "A",
+    "The upper half of it, above the global minimum-variance portfolio, is the efficient frontier.", "", "", "", "LOS 83.g"]
+]);
+addQ("PM-02", [
+  ["a", "The capital market line (CML) is the capital allocation line that uses:", "The market portfolio as the risky portfolio", "Any single stock", "Only bonds", "A",
+    "If investors share expectations, the optimal risky portfolio is the market portfolio.", "", "", "", "LOS 84.b"],
+  ["a", "A company uses the CAPM to estimate the required return on a new project. This is an application in:", "Capital budgeting", "Inventory accounting", "Revenue recognition", "A",
+    "The CAPM gives the discount rate for project cash flows.", "", "", "", "LOS 84.h"]
+]);
+addQ("PM-03", [
+  ["f", "Compared with pension funds, property and casualty insurers generally have:", "Shorter time horizons and higher liquidity needs", "Longer horizons and no liquidity needs", "No regulation", "A",
+    "Claims can arise suddenly, so they keep liquid portfolios.", "", "", "", "LOS 85.c"],
+  ["a", "A major trend in the asset management industry has been the growth of:", "Passive investing", "Paper-based trading", "Fixed brokerage commissions", "A",
+    "Low-cost index funds and ETFs have gained market share.", "", "", "", "LOS 85.e"]
+]);
+addQ("PM-04", [
+  ["a", "When specifying asset classes for strategic asset allocation, assets within a class should be:", "Similar to each other, and classes should have low correlation with each other", "As different as possible within each class", "Perfectly correlated across classes", "A",
+    "Homogeneous within, distinct between — so allocations are meaningful.", "", "", "", "LOS 86.f"],
+  ["e", "Temporarily overweighting equities because they look cheap is an example of:", "Tactical asset allocation", "Strategic asset allocation", "Rebalancing to target", "A",
+    "Tactical moves are short-term deviations from the strategic (long-term) mix.", "", "", "", "LOS 86.g"]
+]);
+addQ("PM-05", [
+  ["e", "Investors following the crowd into rising stocks can contribute to:", "Momentum and asset bubbles", "Perfect market efficiency", "Lower volatility", "A",
+    "Herding can push prices away from fundamental value.", "", "", "", "LOS 87.c"]
+]);
+addQ("PM-06", [
+  ["f", "Effective risk governance starts with:", "The board setting risk tolerance and oversight from the top", "Each trader choosing their own limits", "The external auditor", "A",
+    "Risk governance is a top-down process.", "", "", "", "LOS 88.c"],
+  ["a", "Which is a NON-financial risk?", "Operational risk such as a system failure", "Market risk", "Credit risk", "A",
+    "Non-financial risks include operational, legal, compliance and model risk.", "", "", "", "LOS 88.f"]
+]);

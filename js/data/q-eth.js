@@ -67,3 +67,23 @@ addQ("ETH-05", [
   ["a", "A supervisor learns an employee may be violating trading rules. Under IV(C), she should:", "Investigate promptly and limit the employee's activity while investigating", "Ignore it until the employee is convicted", "Only send a reminder email", "A",
     "Supervisors must make reasonable efforts to prevent and detect violations.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 4) ----
+addQ("ETH-01", [
+  ["a", "A profession differs from an ordinary job mainly because it:", "Uses specialized knowledge, follows a code of ethics and regulates itself", "Pays higher salaries", "Has no rules", "A",
+    "Professions build trust through standards, education and self-regulation.", "", "", "", "LOS 89.c"],
+  ["e", "Which statement about ethics and the law is MOST accurate?", "Some legal actions can still be unethical", "Everything legal is ethical", "Laws always change faster than ethical standards", "A",
+    "Laws set a minimum; ethical standards often require more.", "", "", "", "LOS 89.g"]
+]);
+addQ("ETH-02", [
+  ["a", "Which is NOT one of the components of the CFA Institute Code of Ethics?", "Maximize returns for the employer at any cost", "Act with integrity and competence", "Maintain and improve professional competence", "A",
+    "The Code stresses integrity, putting clients first, independent judgment, professionalism, market integrity and competence.", "", "", "", "LOS 90.b"]
+]);
+addQ("ETH-03", [
+  ["a", "To prevent violations, a firm requires employees to get approval before personal trades and bans trading before research is released (blackout periods). These are examples of:", "Compliance procedures supporting priority of transactions", "Fair dealing violations", "Misrepresentation", "A",
+    "Recommended procedures help firms and members comply with the Standards.", "", "", "", "LOS 91.b"]
+]);
+addQ("ETH-04", [
+  ["a", "Independent verification under GIPS:", "Is optional and tests firm-wide policies and procedures", "Is required for every firm", "Certifies the performance of a single composite only", "A",
+    "Verification is recommended, not required, and covers the whole firm.", "", "", "", "LOS 92.e"]
+]);

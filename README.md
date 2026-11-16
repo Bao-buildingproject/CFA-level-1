@@ -6,7 +6,7 @@ A personal study app for the CFA Level I exam (May 2027). Plain HTML, CSS and Ja
 
 ## Features
 - **93 Learning Modules** (2026 Level I) across 10 topics, each with a normal-distribution completion chart, study status, reading checkboxes and a timed **module test**
-- **Built-in question bank** — 390 original practice questions (Foundation / Application / Exam style) mapped to modules. Written for this app; not copied from CFA Institute or Kaplan Schweser materials. Numeric answers verified by script
+- **Built-in question bank** — 496 original practice questions (Foundation / Application / Exam style) mapped to modules and tagged with LOS numbers from the SchweserNotes 2026 reading list. Written for this app; not copied from CFA Institute or Kaplan Schweser materials. Numeric answers verified by script
 - **SchweserNotes** and **Curriculum** pages — reading checklists per module (book PDFs stay private in Google Drive)
 - **Dashboard** — exam countdown, today's tasks, syllabus progress, pace vs. the 25-week plan
 - **Study plan** — 10 topics, chapters with status (Not started → Learning → Done → Reviewed), CFA Learning Ecosystem score and mistake log

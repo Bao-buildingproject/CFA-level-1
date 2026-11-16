@@ -98,3 +98,29 @@ addQ("DER-10", [
   ["a", "For the same stock (up 120, down 80) and call (strike 100), the hedge ratio is:", "0.25", "0.50", "1.00", "B",
     "Δ = (20 − 0)/(120 − 80) = 0.5 shares per call.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 3) ----
+addQ("DER-04", [
+  ["a", "In derivative pricing, the forward price is best viewed as:", "A no-arbitrage price based on the spot price and the cost of carry", "The market's forecast of the future spot price", "A random value set by dealers", "A",
+    "Replication and arbitrage — not expectations — determine the forward price.", "", "", "", "LOS 69.b"]
+]);
+addQ("DER-06", [
+  ["e", "If interest rates are positively correlated with the underlying's price, futures prices tend to be:", "Higher than equivalent forward prices", "Lower than forward prices", "Always equal to forward prices", "A",
+    "Daily gains on a long futures position are reinvested at higher rates, making futures more attractive.", "", "", "", "LOS 71.b"]
+]);
+addQ("DER-07", [
+  ["a", "For a swap, the \"price\" is the fixed swap rate, while the \"value\":", "Starts at zero and changes as rates move", "Is always zero", "Equals the notional principal", "A",
+    "Price is fixed at inception; value reflects later market changes.", "", "", "", "LOS 72.b"]
+]);
+addQ("DER-08", [
+  ["f", "A put option with a strike of 50 when the stock trades at 45 is:", "In the money", "Out of the money", "At the money", "A",
+    "A put is in the money when the stock price is below the strike.", "", "", "", "LOS 73.a"]
+]);
+addQ("DER-09", [
+  ["e", "Under put–call forward parity: forward price 108, strike 100, r = 5% for 1 year, European call 9. The European put is closest to:", "1.38", "5.24", "16.62", "A",
+    "PV(F) + p = c + PV(X) → p = 9 + 100/1.05 − 108/1.05 = 9 + 95.24 − 102.86 = 1.38.", "B uses the spot-price version with S = 100. C adds instead of subtracting.", "", "", "LOS 74.b"]
+]);
+addQ("DER-10", [
+  ["a", "In risk-neutral pricing, a derivative's value is found by:", "Discounting expected payoffs (using risk-neutral probabilities) at the risk-free rate", "Using investors' actual probabilities and risk preferences", "Taking the average of up and down prices", "A",
+    "Because the derivative can be replicated, investors' risk attitudes don't matter.", "", "", "", "LOS 75.b"]
+]);

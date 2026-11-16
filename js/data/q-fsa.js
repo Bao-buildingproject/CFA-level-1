@@ -136,3 +136,83 @@ addQ("FSA-12", [
   ["f", "Testing a forecast under bull, base and bear assumptions is called:", "Scenario analysis", "Regression analysis", "Common-size analysis", "A",
     "Scenarios show the range of possible outcomes.", "", ""]
 ]);
+
+// ---- Added to cover remaining LOS (SchweserNotes Book 2) ----
+addQ("FSA-01", [
+  ["f", "What is usually the FIRST step of a financial statement analysis project?", "State the purpose and context of the analysis", "Calculate ratios", "Write the conclusions", "A",
+    "You first decide what question you're answering (e.g. lend or not?), then collect and process data, analyze, conclude and follow up.", "", "", "", "LOS 27.a"],
+  ["a", "In the US, a company's annual report filed with the securities regulator that includes audited statements is the:", "Form 10-K", "Form 10-Q", "Proxy statement", "A",
+    "10-Q is the quarterly report; the proxy statement covers matters for shareholder votes, such as executive pay.", "", "", "", "LOS 27.c"]
+]);
+
+addQ("FSA-02", [
+  ["f", "Recording the cost of goods sold in the same period as the related revenue follows the:", "Matching principle", "Going-concern assumption", "Historical cost principle", "A",
+    "Expenses are recognized when the related revenue is recognized.", "", "", "", "LOS 28.b"],
+  ["a", "A company changes its accounting policy (not an estimate). Under IFRS and US GAAP the change is generally applied:", "Retrospectively, restating prior periods", "Only to future periods", "Only in the notes, without restating", "A",
+    "Retrospective application keeps periods comparable. Changes in ESTIMATES are applied prospectively.", "", "Policy change → retrospective; estimate change → prospective.", "", "LOS 28.c"],
+  ["a", "In a common-size income statement, each line item is shown as a percentage of:", "Revenue", "Total assets", "Net income", "A",
+    "It makes companies of different sizes comparable and shows cost structure.", "", "", "", "LOS 28.e"]
+]);
+
+addQ("FSA-03", [
+  ["a", "Under IFRS, costs of developing an internally generated brand are:", "Expensed as incurred", "Capitalized as an intangible asset", "Recorded as goodwill", "A",
+    "Internally generated brands and goodwill can't be capitalized; purchased intangibles can.", "", "", "", "LOS 29.a"],
+  ["a", "In a common-size balance sheet, each item is expressed as a percentage of:", "Total assets", "Revenue", "Shareholders' equity", "A",
+    "Vertical common-sizing divides by total assets.", "", "", "", "LOS 29.e"]
+]);
+
+addQ("FSA-04", [
+  ["a", "Revenue is 1,000 and accounts receivable increased by 50 during the year. Cash collected from customers is:", "1,050", "950", "1,000", "B",
+    "Cash collected = revenue − increase in receivables = 950. Part of the sales hasn't been collected yet.", "A adds the increase. C ignores it.", "", "", "LOS 30.c"],
+  ["e", "Under IFRS, dividends RECEIVED may be classified as:", "Operating or investing cash flow", "Financing only", "Operating only", "A",
+    "IFRS allows a choice; US GAAP requires operating.", "", "", "", "LOS 30.d"],
+  ["f", "The statement of cash flows links the income statement and balance sheet because it:", "Explains the change in cash between two balance sheet dates", "Replaces the income statement", "Shows only non-cash items", "A",
+    "Net income and balance sheet changes are reconciled to the change in cash.", "", "", "", "LOS 30.a"]
+]);
+
+addQ("FSA-06", [
+  ["f", "A company's inventory note should disclose:", "The cost formula used (e.g. FIFO) and any write-downs", "Only the auditor's name", "Its share price", "A",
+    "Disclosures help analysts compare companies using different methods.", "", "", "", "LOS 32.c"]
+]);
+
+addQ("FSA-07", [
+  ["a", "A machine with a carrying amount of 30 is sold for 35. The company reports:", "A gain of 5", "A loss of 5", "Revenue of 35", "A",
+    "Gain on derecognition = proceeds − carrying amount = 5. It's not revenue.", "", "", "", "LOS 33.b"],
+  ["f", "An intangible asset with an INDEFINITE useful life is:", "Not amortized but tested for impairment at least annually", "Amortized over 40 years", "Expensed immediately", "A",
+    "Finite-life intangibles are amortized; indefinite-life ones are tested for impairment.", "", "", "", "LOS 33.a"]
+]);
+
+addQ("FSA-08", [
+  ["a", "Share-based compensation granted to employees is generally measured at:", "Fair value at the grant date and expensed over the service period", "The share price on the day it vests", "Zero, because no cash is paid", "A",
+    "Even though no cash is paid, the award is an expense.", "", "", "", "LOS 34.c"]
+]);
+
+addQ("FSA-09", [
+  ["a", "Pre-tax income is 1,000 and income tax expense is 250. The statutory rate is 30%. The effective tax rate is:", "25%", "30%", "20%", "A",
+    "ETR = tax expense / pre-tax income = 25%. The gap with 30% comes from permanent differences or different rates abroad.", "", "", "", "LOS 35.c"],
+  ["f", "Income tax expense on the income statement equals:", "Taxes payable plus the change in deferred taxes", "Taxes payable only", "Pre-tax income × statutory rate always", "A",
+    "Expense = current tax (payable) + deferred tax expense (ΔDTL − ΔDTA).", "", "", "", "LOS 35.a"]
+]);
+
+addQ("FSA-10", [
+  ["a", "Which is a common motivation for management to issue low-quality financial reports?", "Meeting analysts' earnings expectations", "Paying lower audit fees", "Increasing disclosure", "A",
+    "Pressure to hit targets, bonuses and debt covenants can motivate manipulation.", "", "", "", "LOS 36.d"],
+  ["a", "A company highlights \"adjusted EBITDA\" that excludes many recurring costs. An analyst should:", "Reconcile it to the GAAP/IFRS figure and question the adjustments", "Use it instead of net income", "Ignore all reported numbers", "A",
+    "Non-GAAP measures can flatter results; regulators require reconciliation to the nearest standard measure.", "", "", "", "LOS 36.f"],
+  ["f", "Which is a mechanism that disciplines financial reporting quality?", "Independent external audits", "Higher executive bonuses", "Fewer disclosures", "A",
+    "Auditors, regulators and private contracting (e.g. lenders) all discipline reporting.", "", "", "", "LOS 36.e"]
+]);
+
+addQ("FSA-11", [
+  ["f", "Same-store sales growth is an industry-specific ratio mainly used for:", "Retailers", "Banks", "Insurance companies", "A",
+    "It removes the effect of opening or closing stores.", "", "", "", "LOS 37.e"],
+  ["a", "Net income is 50 and average total assets are 500. ROA is:", "10%", "5%", "50%", "A",
+    "ROA = 50/500 = 10%.", "", "", "", "LOS 37.b"]
+]);
+
+addQ("FSA-12", [
+  ["a", "An analyst who sticks too closely to management's guidance when forecasting is most likely showing:", "Anchoring bias", "Conservatism in accounting", "Survivorship bias", "A",
+    "Behavioral biases such as anchoring and overconfidence can distort forecasts.", "", "", "", "LOS 38.b"],
+  ["e", "When choosing the explicit forecast horizon, an analyst should generally forecast until:", "The company's growth and margins reach a sustainable, steady state", "Exactly one year ahead", "The next earnings release only", "A",
+    "After the explicit period, a terminal value assumes steady growth.", "", "", "", "LOS 38.e"]
+]);
