@@ -1,0 +1,60 @@
+// Question Bank PDFs in your Google Drive ("Question Of CFA level 1").
+// Only file names and links are stored here — no question content.
+// Links open only for your Google account.
+const QBANK_FOLDERS = {
+  ETH: "1I7YLHZinZrITaRpnwVQxEy3WjPy6Oj-W", QM: "1wLd-LbbTEAUdFGmiV3mN4vwscoHrD_Bw", ECO: "1e_0jZCyDcGv3uc5pQBsD4fWpojBh1Mdv",
+  FSA: "1Yez84ju5tOqmQGRS_MLq33KM0rqjsouw", CI: "1mndPAq0EYeaL7uh8T3mXS2_Uw7RUc3wK", EQ: "1ZPgWTjYf0tm6a6cG5h6enpXBXULb96UF",
+  FI: "1EBKz8Wv1JVA2e9kG0WcjHObDGuvVURe8", DER: "1sDEU_J-X4xqgqidnHGBbVTcI82WRWp5h", ALT: "17_Sx_4gOSI5z3xORj4v-8OgzqnC7i_0x",
+  PM: "1yYour8TGGSaPwVkEcEKavHMv6KsH9eCF"
+};
+
+// [number, title, Questions file id]
+const QBANK_FILES = {
+  ETH: [],
+  QM: [[1, "Rates and Returns", "1GK7PZgljs8tzNA6RZ-9X_eT06QOsUCrH"], [2, "The Time Value of Money in Finance", "1m3QNkxWiKxT7wcRvjGwULQ-mnaIuKrVf"],
+    [3, "Statistical Measures of Asset Returns", "1xXmOEKeIx42KqFyH8gS9r5n22_gH_Dps"], [4, "Probability Trees and Conditional Expectations", "1uUhzBhoypaNygW09HQBAsnsvMKNyFLaL"],
+    [5, "Portfolio Mathematics", "1sLEIx84IWX2q7pPNPVdFQRFODRvc2Kh6"], [6, "Simulation Methods", "1rLspV_vyHh8p0rECuMmeXBxiUm0UM-pS"],
+    [7, "Estimation and Inference", "11l5JviNJf3ovmPJvs1ByZ3c4GBPW1zQY"], [8, "Hypothesis Testing", "1KQRNxRb9dH-6lXSZssEjkV1TUusYhZbU"],
+    [9, "Parametric and Non-Parametric Tests of Independence", "1uIFfKcODMoPnd3y__0y8Y9KG6oBdYo3W"], [10, "Simple Linear Regression", "1E6HwTG-XwKmEpLcLbmADbnBUBIxJWHyl"],
+    [11, "Introduction to Big Data Techniques", "1pJRL2TVsqMIuDLOjHqTMz8MQc7W8qkVe"]],
+  ECO: [[1, "Firms and Market Structures", "1P5zaPnAeVPl8qdpe832ce3AN9nLOu0rv"], [2, "Understanding Business Cycles", "108yQPSj5tocC6tAgoRduo7HjJOFwfCqW"],
+    [3, "Fiscal Policy", "1jds98W_meGglR4UsK2gJNJ-x6e9343rl"], [4, "Monetary Policy", "1VmXVbqvo5I2A47BGtehDi3KDfsw68g_e"],
+    [5, "Introduction to Geopolitics", "1ET8fv-vE2UCtR-xjRqTFwgXgYw65yPT1"], [6, "International Trade", "1pQzmoudyuo9Qky-CX14HOwh-XQfmMmRf"],
+    [7, "Capital Flows and the FX Market", "1hJ0aYVQC3AlnPwq8Dr0N4m3uOsdwdNDJ"], [8, "Exchange Rate Calculations", "1ti98ZiHHh4Dk11YZzdPunbD6HjHrgbAN"]],
+  FSA: [[1, "Introduction to Financial Statement Analysis", "1SnjKCbEodAL2H0AqLbwBRTtoxH8XRDYi"], [2, "Analyzing Income Statements", "1ShYajDO9AOFYe38hhI6iOzDOZw1pT4oL"],
+    [3, "Analyzing Balance Sheets", "1IyxN0lWq0vQftasWpS_U_nZFpXuVGv7U"], [4, "Analyzing Statements of Cash Flows I", "1z3lRHJLLdrwRL_sywaV3cbsHJSQuhojQ"],
+    [5, "Analyzing Statements of Cash Flows II", "1j45ms75mPxgzH8bpolk8inQ42jn4OAsK"], [6, "Analysis of Inventories", "1-KaW-bwuUeMkS26U_J5qia6hGYcQE0U9"],
+    [7, "Analysis of Long-Term Assets", "1Lec8TAnlzY5NiXHI2zM2vw4w-hXcgRkC"], [8, "Topics in Long-Term Liabilities and Equity", "1dxfb90bWQKQEGihjmt5xZOPVOCFGLkFP"],
+    [9, "Analysis of Income Taxes", "1994z4SR89nQQCgL_7Y7ghGPTwfv17Lwd"], [10, "Financial Reporting Quality", "1Tm-AH6DFerz2hVhqnrjJ_quf5Y5rpVGO"],
+    [11, "Financial Analysis Techniques", "1xoqZV45gDLxELG0dSHbcffVmsGF_0CvB"], [12, "Introduction to Financial Statement Modeling", "1EXjtPp6w0wlObir-QLevnEqJdNcjAEDP"]],
+  CI: [[1, "Organizational Forms, Corporate Issuer Features, and Ownership", "14p5ufBYwTSCW3qRNazv7b9jU-77eb1fX"], [2, "Investors and Other Stakeholders", "1r1IUsfatbNQ1_Zqoqjg3SijlhlKEemeN"],
+    [3, "Corporate Governance", "16i5678d9zFROIX1AkagkB3Fd7dVDBK8U"], [4, "Working Capital and Liquidity", "1fbD7eWFdfDs8cdpICBucJm-CH9315GOr"],
+    [5, "Capital Investments and Capital Allocation", "17zFjW5Ug7ICywOmg2ZqA61GeTm_2_tSs"], [6, "Capital Structure", "1jS0u_KxvdO5VpwpD_-SKxs_A0GspzyjL"],
+    [7, "Business Models", "1hCxJDOLXt0jTWgoBl9CS62RCSQ3807th"]],
+  EQ: [[1, "Market Organization and Structure", "1qjVapvC2xhMGnKitQ3EV72ZR3Cz7YrtN"], [2, "Security Market Indexes", "1LeyoXvtkylt0N2PL3g00FWUwrzGk2eHH"],
+    [3, "Market Efficiency", "1vpsq9bPUMRfSAE769r8W-QxLqjWxMDWY"], [4, "Overview of Equity Securities", "1Qmj6e4Fs3YbdzLDeA21rwD-pBJHzL9h2"],
+    [5, "Company Analysis: Past and Present", "1s8qIODAn1qd27VuNmPCcFdw-BrB7r1Il"], [6, "Industry and Competitive Analysis", "1k92RHoeeG2FWVmDXD6YRSB9QT5QRVEVs"],
+    [7, "Company Analysis: Forecasting", "1z6MXGmOOdS7vcl0_zFfwjJkmWOcUqOLL"], [8, "Equity Valuation: Concepts and Basic Tools", "1bZsWfXemA0XHm08lQNCxEoo8KSGtWIuX"]],
+  FI: [[1, "Fixed-Income Instrument Features", "1CKLl6FVkgk95vlkRwjbPvJp2bfmwQLdF"], [2, "Fixed-Income Cash Flows and Types", "1e1XGQpN13B83FkQWNlsTTnI1qf2tujZf"],
+    [3, "Fixed-Income Issuance and Trading", "1etIwxtI5LQicgEwzHqG4WeJLUKo1zbPj"], [4, "Fixed-Income Markets for Corporate Issuers", "1vcHKSt30vnGnutpdlOkcMqp7shPzbW03"],
+    [5, "Fixed-Income Markets for Government Issuers", "1LGtHN8sQny6gyAP_3PdExaAFlk8MaL8n"], [6, "Bond Valuation: Prices and Yields", "19xojHHC-tDwQn3CuZ7H1xS4wxLkS_W16"],
+    [7, "Yield and Yield Spread Measures for Fixed-Rate Bonds", "1ec12pUoCAvSoQ6ajxcSZtbPHDUzroWqk"], [8, "Yield and Yield Spread Measures for Floating-Rate Instruments", "12Lit9k3TtcmpnScayGOAJFRBNHbgh5lJ"],
+    [9, "The Term Structure of Interest Rates", "19fxcwU6YiclrIadZh_3bOvxdK28ZezzM"], [10, "Interest Rate Risk and Return", "1ul41R6_sqPXWzsB0XtPdaNubTAXxDn94"],
+    [11, "Yield-Based Bond Duration Measures and Properties", "14-LADFFM5Qpu9CMjP0NTKQQU-okwWu0j"], [12, "Yield-Based Bond Convexity and Portfolio Properties", "1DOQ7-jIqjvU5-dhxCTIuevzoEN5G1ZV4"],
+    [13, "Curve-Based and Empirical Fixed-Income Risk Measures", "1ZGS8fxC5Ayppar4d_2AORySFewl1sujI"], [14, "Credit Risk", "1to6z_P-wlrnMnj-HOd36RHmw1_29rZ99"],
+    [15, "Credit Analysis for Government Issuers", "1p_B4GLZGTcYgsIaGLxh-4DDLJeU-YE0U"], [16, "Credit Analysis for Corporate Issuers", "1REj-iKnWrH860RtsGreg7azWhDmlSsLS"],
+    [17, "Fixed-Income Securitization", "1JbZTaOaopojrP1TOoLfeSL4HwZTABpdC"], [18, "Asset-Backed Security (ABS) Instrument and Market Features", "1IRA68HHuZb4xx0MQ5MbAth8-uvFTGREd"],
+    [19, "Mortgage-Backed Security (MBS) Instrument and Market Features", "1JPg2vrgovUnyHnEx7PnY1MKF-0Iqhphv"]],
+  DER: [[1, "Derivative Instrument and Derivative Market Features", "1tYk0dKZwUByc29YgxiN-ALPf4mla6OMY"], [2, "Forward Commitment and Contingent Claim Features and Instruments", "1tL1SaZYGAG3CSe9Re-hHhc0tkedySuTv"],
+    [3, "Derivative Benefits, Risks, and Issuer and Investor Uses", "16wlTz9ftGK8roETsZqOUIpclX4SFO2jO"], [4, "Arbitrage, Replication, and the Cost of Carry", "1WlMjmopEUQEfsTRmeIOZ5iTt4w9AAhgl"],
+    [5, "Pricing and Valuation of Forward Contracts", "1H-m42KyaOVk0_cSL6XRetQ_ykKJ3bZTr"], [6, "Pricing and Valuation of Futures Contracts", "1NTyhPh34VBdu5CiRs-NVB0rFVaAdXkoZ"],
+    [7, "Pricing and Valuation of Interest Rates and Other Swaps", "100GYqCYIoSGN4HsXQ8S7bdBikbZ-HhDb"], [8, "Pricing and Valuation of Options", "1DZRn_s7nwLxL-YasyHoCJZiXSy1oz7OE"],
+    [9, "Option Replication Using Put–Call Parity", "1UmWz4_zntzSeSM86UisuK2nqhRnliuX_"], [10, "Valuing a Derivative Using a One-Period Binomial Model", "19YTi7AVxz3oo23aNCZpd4-Gc7_Zra04v"]],
+  ALT: [[1, "Alternative Investment Features, Methods, and Structures", "1nttvzCEktfssvXr2otjo2NujPiSA4eLO"], [2, "Alternative Investment Performance and Returns", "1Cj1_iRynjquV7WYFSNsUwBPOnHaLuYnm"],
+    [3, "Investments in Private Capital: Equity and Debt", "1ezrpzjuNQXMn_dfOa3HmXiTQMVC9hDSi"], [4, "Real Estate and Infrastructure", "1GA3eFH7EzVcZotT8HZrorOu6CQlz-O_h"],
+    [5, "Natural Resources", "1hWqWhA5BsMVrtyROfvuSj6U0IUM7Ya3z"], [6, "Hedge Funds", "1mTbwuC3kYQJTMI9Ltgr3YstuG9lg3w-4"],
+    [7, "Introduction to Digital Assets", "1b6UZ5nghDtHZ6cEJP7UhKiUCAoFbdsyz"]],
+  PM: [[1, "Portfolio Risk and Return: Part I", "10letWyYYSOW5XO6nRB_DZMmd7-rXaDO3"], [2, "Portfolio Risk and Return: Part II", "1GNJjdHDDo-6k9ktLIGxa7gR1b8SYvMoe"],
+    [3, "Portfolio Management: An Overview", "1TyeO_uIy6jNPYmyy09MN3R3-BBZetK44"], [4, "Basics of Portfolio Planning and Construction", "1p_h14-AE4Cz1TulDsXPdAVwmzMYrBSof"],
+    [5, "The Behavioral Biases of Individuals", "1pxL0_JQP_Mm5jgA4Xp5IWB7MkCu0f27W"], [6, "Introduction to Risk Management", "1dR-lhEllR4bdPKEfCPnJHjjWU0DgIztM"]]
+};

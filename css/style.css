@@ -581,3 +581,14 @@ details.disclosure > div { padding-top: var(--space-3); }
 .exhibit-table td.num, .exhibit-table th.num { white-space: nowrap; }
 .exhibit-table tr.ex-section td { font-weight: 600; background: var(--surface-2); }
 .exhibit p { margin-top: 6px; }
+
+/* ---------- Question Bank tracker ---------- */
+.qb-row + .qb-row { border-top: 1px solid var(--border); }
+.qb-row .list-item { border-bottom: none; }
+.qb-title { background: none; border: none; padding: 0; font: inherit; font-weight: 500; color: var(--text); text-align: left; cursor: pointer; }
+.qb-title:hover { color: var(--primary); }
+.qb-panel { padding: 4px 0 16px; }
+.qb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; max-width: 640px; }
+.pal-btn.qb-r { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.pal-btn.qb-w { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.pal-btn.qb-g { background: var(--warning-soft); color: var(--warning); border-color: transparent; }

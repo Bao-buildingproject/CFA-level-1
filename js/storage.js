@@ -68,6 +68,7 @@ function defaultData() {
     practiceLog: [],          // scores from CFA Learning Ecosystem
     lesMistakes: [],          // missed Learning Ecosystem questions (references only)
     reading: {},              // per module: { schweser: bool, curriculum: bool }
+    qbt: {},                  // Question Bank tracker: { fileId: { count, marks } }
     mocks: [],                // finished mock exams
     activeMock: null,         // mock in progress (survives a page reload)
     dailyLog: {}
