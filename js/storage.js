@@ -44,8 +44,17 @@ function defaultData() {
     chapters: [],
     flashcards: [],
     questions: [],
+    practiceLog: [],   // scores from CFA Learning Ecosystem practice sets
+    lesMistakes: [],   // references to questions missed on Learning Ecosystem
     dailyLog: {}
   };
+}
+
+// Make user text safe to show inside HTML (stops "<" breaking the page)
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 // ---------- Load & save ----------

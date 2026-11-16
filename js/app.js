@@ -52,16 +52,20 @@ function renderDashboard() {
 
   const topicRows = TOPICS.map(t => {
     const p = topicProgress(t.id);
+    const ps = practiceSummary(t.id);
+    const open = DATA.lesMistakes.filter(m => m.topic === t.id && !m.resolved).length;
     return `
-      <div style="margin:10px 0">
+      <a class="topic-row" href="#topic/${t.id}">
         <div style="display:flex;justify-content:space-between">
           <strong>${t.order}. ${t.name}</strong>
-          <span class="muted" style="white-space:nowrap;margin-left:8px">${p.done}/${p.total} · ${p.pct}%</span>
+          <span class="muted" style="white-space:nowrap;margin-left:8px">${p.done}/${p.total} · ${p.pct}% ›</span>
         </div>
         <div class="bar"><div style="width:${p.pct}%"></div></div>
-        <div class="muted">Exam weight ${t.weight} · plan ${t.plannedWeeks} wk</div>
-      </div>`;
+        <div class="muted">Weight ${t.weight} · plan ${t.plannedWeeks} wk${ps.pct !== null ? ` · practice ${ps.pct}%` : ""}${open ? ` · ❌ ${open} to retry` : ""}</div>
+      </a>`;
   }).join("");
+
+  const all = overallProgress();
 
   view.innerHTML = `
     <section class="card">
@@ -70,10 +74,18 @@ function renderDashboard() {
       <div>days until <strong>${DATA.settings.examDate}</strong></div>
       <div class="muted">${weekText} · ${phase}</div>
     </section>
+    ${paceNotice()}
     ${backupNotice()}
+    <a class="btn secondary" style="width:100%;text-align:center;margin-bottom:16px"
+       href="${LES_URL}" target="_blank" rel="noopener">🔗 Open CFA Practice (Learning Ecosystem)</a>
+    <section class="card">
+      <h2>Overall progress</h2>
+      <div class="bar"><div style="width:${all.pct}%"></div></div>
+      <div class="muted">${all.done}/${all.total} chapters done · ${all.pct}%</div>
+    </section>
     <section class="card">
       <h2>Progress by topic</h2>
-      <p class="muted">Chapters will be added in Phase 2.</p>
+      <p class="muted">Tap a topic to add chapters and log practice.</p>
       ${topicRows}
     </section>`;
 }
@@ -165,10 +177,12 @@ const ROUTES = {
 };
 
 function router() {
-  const tab = location.hash.replace("#", "") || "dashboard";
-  (ROUTES[tab] || renderDashboard)();
+  // e.g. "#topic/FSA" -> tab "topic", param "FSA"
+  const [tab, param] = (location.hash.replace("#", "") || "dashboard").split("/");
+  if (tab === "topic") renderTopic(param);
+  else (ROUTES[tab] || renderDashboard)();
   document.querySelectorAll(".tabs a").forEach(a =>
-    a.classList.toggle("active", a.dataset.tab === tab)
+    a.classList.toggle("active", a.dataset.tab === (tab === "topic" ? "dashboard" : tab))
   );
   window.scrollTo(0, 0);
 }
