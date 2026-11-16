@@ -74,6 +74,7 @@ function renderDashboard() {
       <div>days until <strong>${DATA.settings.examDate}</strong></div>
       <div class="muted">${weekText} · ${phase}</div>
     </section>
+    ${cardsNotice()}
     ${paceNotice()}
     ${backupNotice()}
     <a class="btn secondary" style="width:100%;text-align:center;margin-bottom:16px"
@@ -171,7 +172,7 @@ function showMsg(type, text) {
 // ================= ROUTER (switch tabs by #hash) =================
 const ROUTES = {
   dashboard: renderDashboard,
-  flashcards: () => renderComingSoon("Flashcards", "Phase 3"),
+  flashcards: renderFlashcards,
   questions: () => renderComingSoon("Question bank", "Phase 4"),
   settings: renderSettings
 };
@@ -190,3 +191,12 @@ function router() {
 window.addEventListener("hashchange", router);
 updateMiniCountdown();
 router();
+
+// ---------- Flashcards reminder on Home ----------
+function cardsNotice() {
+  const n = todayQueue().length;
+  if (!DATA.flashcards.length) return "";
+  return n
+    ? `<div class="notice warn">🃏 <a href="#flashcards">${n} card(s) to review today</a></div>`
+    : `<div class="notice ok">🃏 All cards reviewed for today.</div>`;
+}
