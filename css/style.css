@@ -592,3 +592,4 @@ details.disclosure > div { padding-top: var(--space-3); }
 .pal-btn.qb-r { background: var(--success-soft); color: var(--success); border-color: transparent; }
 .pal-btn.qb-w { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
 .pal-btn.qb-g { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+.qb-skipped .qb-title { color: var(--text-3); text-decoration: line-through; }

@@ -11,6 +11,14 @@ function qbState(fileId) {
   return DATA.qbt[fileId] || (DATA.qbt[fileId] = { count: 0, marks: {} });
 }
 
+// A set is skipped if it's outside the 2027 curriculum (unless you un-skip it) or you skipped it
+function qbSkipped(fileId) {
+  const st = (DATA.qbt || {})[fileId];
+  if (st && typeof st.skip === "boolean") return st.skip;
+  return QBANK_NOT_2027.has(fileId);
+}
+let qbShowSkipped = false;
+
 function qbStats(fileId) {
   const s = (DATA.qbt || {})[fileId] || { count: 0, marks: {} };
   const vals = Object.values(s.marks);
@@ -23,8 +31,9 @@ function qbStats(fileId) {
 function qbTopicStats(topic) {
   const files = QBANK_FILES[topic] || [];
   let count = 0, done = 0, right = 0;
-  files.forEach(f => { const s = qbStats(f[2]); count += s.count; done += s.done; right += s.right; });
-  return { files: files.length, count, done, right, pct: done ? pct(right, done) : null };
+  const active = files.filter(f => !qbSkipped(f[2]));
+  active.forEach(f => { const s = qbStats(f[2]); count += s.count; done += s.done; right += s.right; });
+  return { files: active.length, skipped: files.length - active.length, count, done, right, pct: done ? pct(right, done) : null };
 }
 
 // Share of practice per topic, from the 2027 weights (midpoints, scaled to 100)
@@ -41,22 +50,23 @@ function renderQBank() {
   const all = topics.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; a.files += s.files; return a; }, { done: 0, right: 0, files: 0 });
 
   view.innerHTML = `
-    ${pageHeader("Question Bank", `Your PDF question sets · sorted by 2027 exam weight · ${all.files} sets`)}
+    ${pageHeader("Question Bank", `Your PDF question sets · sorted by 2027 exam weight · ${all.files} active sets`,
+      `<label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
     <div class="grid grid-stats">
       <div class="card stat"><span class="stat-label">Questions marked</span><span class="stat-value">${all.done}</span></div>
       <div class="card stat"><span class="stat-label">Accuracy</span><span class="stat-value">${all.done ? pct(all.right, all.done) + "%" : "–"}</span></div>
-      <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
+      <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
       <div class="card stat"><span class="stat-label">How to use</span><span class="stat-hint">Open the Questions PDF, answer, check the Answers PDF, then tap each number: right → wrong → guessed.</span></div>
     </div>
     ${topics.map(t => {
-      const files = QBANK_FILES[t.id] || [];
+      const files = (QBANK_FILES[t.id] || []).filter(f => qbShowSkipped || !qbSkipped(f[2]));
       const ts = qbTopicStats(t.id);
       const folder = `https://drive.google.com/drive/folders/${QBANK_FOLDERS[t.id]}`;
       return `
       <div class="card section">
         <div class="card-head" style="flex-wrap:wrap">
           <div><h2>${t.name}</h2>
-            <p class="text-2 small">2027 weight ${t.weight} · aim for about <strong>${weightShare(t)} of every 100</strong> practice questions · ${ts.done} marked${ts.pct !== null ? ` · ${ts.pct}% right` : ""}</p></div>
+            <p class="text-2 small">2027 weight ${t.weight} · aim for about <strong>${weightShare(t)} of every 100</strong> practice questions · ${ts.done} marked${ts.pct !== null ? ` · ${ts.pct}% right` : ""}${ts.skipped ? ` · ${ts.skipped} skipped` : ""}</p></div>
           <a class="btn btn-ghost btn-sm" href="${folder}" target="_blank" rel="noopener">${icon("external", 16)} Folder (answers)</a>
         </div>
         ${files.length ? `<div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div>`
@@ -73,13 +83,15 @@ function qbRowHtml(t, f) {
   const s = qbStats(id);
   const st = qbState(id);
   const open = qbOpen === id;
+  const skipped = qbSkipped(id);
   return `
-    <div class="qb-row">
+    <div class="qb-row${skipped ? " qb-skipped" : ""}">
       <div class="list-item">
         <div class="list-main">
           <button class="qb-title" data-qbtoggle="${id}" aria-expanded="${open}">${n}. ${esc(title)}</button>
-          <div class="list-meta">${s.count ? `${s.done}/${s.count} marked${s.pct !== null ? ` · ${s.pct}% right` : ""}${s.redo.length ? ` · <span style="color:var(--danger)">redo ${s.redo.length}</span>` : ""}` : "Not started"}</div>
+          <div class="list-meta">${skipped ? `<span class="badge">Skipped${QBANK_NOT_2027.has(id) ? " · not in 2027" : ""}</span> ` : ""}${s.count ? `${s.done}/${s.count} marked${s.pct !== null ? ` · ${s.pct}% right` : ""}${s.redo.length ? ` · <span style="color:var(--danger)">redo ${s.redo.length}</span>` : ""}` : "Not started"}</div>
         </div>
+        <button class="btn btn-ghost btn-sm" data-qbskip="${id}">${skipped ? "Unskip" : "Skip"}</button>
         <a class="btn btn-secondary btn-sm" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${icon("external", 14)} Questions</a>
         <button class="icon-btn" data-qbtoggle="${id}" aria-label="Open tracker">${icon("chevron", 18)}</button>
       </div>
@@ -103,6 +115,13 @@ function qbRowHtml(t, f) {
 }
 
 function bindQBank() {
+  const sk = document.getElementById("qb-show-skipped");
+  if (sk) sk.onchange = () => { qbShowSkipped = sk.checked; renderQBank(); };
+  view.querySelectorAll("[data-qbskip]").forEach(b => b.onclick = () => {
+    const id = b.dataset.qbskip, now = !qbSkipped(id);
+    qbState(id).skip = now; saveData(); renderQBank();
+    toast(now ? "Set skipped" : "Set restored");
+  });
   view.querySelectorAll("[data-qbtoggle]").forEach(b => b.onclick = () => { qbOpen = qbOpen === b.dataset.qbtoggle ? null : b.dataset.qbtoggle; renderQBank(); });
   view.querySelectorAll("[data-qbsave]").forEach(b => b.onclick = () => {
     const id = b.dataset.qbsave, el = document.getElementById("qbc-" + id), n = parseInt(el.value, 10);

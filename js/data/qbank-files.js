@@ -60,3 +60,6 @@ const QBANK_FILES = {
     [3, "Portfolio Management: An Overview", "1TyeO_uIy6jNPYmyy09MN3R3-BBZetK44"], [4, "Basics of Portfolio Planning and Construction", "1p_h14-AE4Cz1TulDsXPdAVwmzMYrBSof"],
     [5, "The Behavioral Biases of Individuals", "1pxL0_JQP_Mm5jgA4Xp5IWB7MkCu0f27W"], [6, "Introduction to Risk Management", "1dR-lhEllR4bdPKEfCPnJHjjWU0DgIztM"]]
 };
+
+// Sets that are not part of the 2027 Level I curriculum (skipped by default)
+const QBANK_NOT_2027 = new Set(["1y2ZTAFSF-TUnM6AvhEAK4iet_aP8LZSC"]);   // GIPS
