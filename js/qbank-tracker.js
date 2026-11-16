@@ -45,7 +45,16 @@ function weightShare(t) {
 
 let qbOpen = null;   // file id currently expanded
 
-function renderQBank() {
+function renderQBank(sub, fileId, mode) {
+  if (!qbiReady()) {
+    view.innerHTML = `${pageHeader("Question Bank")}<p class="text-2">Loading…</p>`;
+    const h = location.hash;
+    qbiLoad().then(() => { if (location.hash === h) renderQBank(sub, fileId, mode); });
+    return;
+  }
+  if (sub === "import" && fileId) return renderQBImport(fileId);
+  if (sub === "do" && fileId) return renderQBDo(fileId, mode);
+  qbRun = null;
   const topics = TOPICS.slice().sort((a, b) => weightShare(b) - weightShare(a));
   const all = topics.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; a.files += s.files; return a; }, { done: 0, right: 0, files: 0 });
 
@@ -56,8 +65,9 @@ function renderQBank() {
       <div class="card stat"><span class="stat-label">Questions marked</span><span class="stat-value">${all.done}</span></div>
       <div class="card stat"><span class="stat-label">Accuracy</span><span class="stat-value">${all.done ? pct(all.right, all.done) + "%" : "–"}</span></div>
       <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
-      <div class="card stat"><span class="stat-label">How to use</span><span class="stat-hint">Open the Questions PDF, answer, check the Answers PDF, then tap each number: right → wrong → guessed.</span></div>
+      <div class="card stat"><span class="stat-label">Answer on this site</span><span class="stat-value">${qbiQuestionCount()}</span><span class="stat-hint">questions imported</span></div>
     </div>
+    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions — pick A/B/C and see why it is right or wrong.${isOwner() ? " To add a set, press <strong>Import</strong> and paste the text of its Answers PDF (once per set)." : ""} Imported questions stay only in this browser.</div></div>
     ${topics.map(t => {
       const files = (QBANK_FILES[t.id] || []).filter(f => qbShowSkipped || !qbSkipped(f[2]));
       const ts = qbTopicStats(t.id);
@@ -91,11 +101,18 @@ function qbRowHtml(t, f) {
           <button class="qb-title" data-qbtoggle="${id}" aria-expanded="${open}">${n}. ${esc(title)}</button>
           <div class="list-meta">${skipped ? `<span class="badge">Skipped${QBANK_NOT_2027.has(id) ? " · not in 2027" : ""}</span> ` : ""}${s.count ? `${s.done}/${s.count} marked${s.pct !== null ? ` · ${s.pct}% right` : ""}${s.redo.length ? ` · <span style="color:var(--danger)">redo ${s.redo.length}</span>` : ""}` : "Not started"}</div>
         </div>
-        <button class="btn btn-ghost btn-sm" data-qbskip="${id}">${skipped ? "Unskip" : "Skip"}</button>
-        <a class="btn btn-secondary btn-sm" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${icon("external", 14)} Questions</a>
+        ${QBI[id] ? `<a class="btn btn-primary btn-sm" href="#/qbank/do/${id}">${icon("play", 14)} Do it</a>`
+          : isOwner() && !skipped ? `<a class="btn btn-secondary btn-sm" href="#/qbank/import/${id}">${icon("upload", 14)} Import</a>`
+          : `<a class="btn btn-secondary btn-sm" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${icon("external", 14)} PDF</a>`}
         <button class="icon-btn" data-qbtoggle="${id}" aria-label="Open tracker">${icon("chevron", 18)}</button>
       </div>
       ${open ? `<div class="qb-panel">
+        <div class="row-gap" style="margin-bottom:12px">
+          <a class="btn btn-ghost btn-sm" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${icon("external", 14)} Questions PDF</a>
+          ${QBI[id] && s.redo.length ? `<a class="btn btn-ghost btn-sm" href="#/qbank/do/${id}/redo">Redo ${s.redo.length} wrong</a>` : ""}
+          ${QBI[id] && isOwner() ? `<a class="btn btn-ghost btn-sm" href="#/qbank/import/${id}">Re-import</a>` : ""}
+          <button class="btn btn-ghost btn-sm" data-qbskip="${id}">${skipped ? "Unskip set" : "Skip set"}</button>
+        </div>
         ${st.count ? `
           <div class="qb-grid">${Array.from({ length: st.count }, (_, i) => i + 1).map(k => {
             const m = st.marks[k] || "";

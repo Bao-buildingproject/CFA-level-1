@@ -254,7 +254,7 @@ function renderSettings() {
 
   if (ob("btn-reset")) ob("btn-reset").onclick = async () => {
     if (!await confirmDialog({ title: "Delete all data?", message: "This erases chapters, cards, questions and mock history on this device. Export a backup first.", confirmText: "Delete everything", danger: true, requireText: "DELETE" })) return;
-    DATA = upgrade({}); saveData(); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
+    DATA = upgrade({}); saveData(); if (typeof qbiClearProfile === "function") qbiClearProfile(PROFILES.active); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
   };
 }
 
@@ -298,8 +298,8 @@ function router() {
   stopMockTimer();
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
-  const [route, a, b] = currentRoute();
-  (ROUTES[route] || renderDashboard)(a, b);
+  const [route, a, b, c] = currentRoute();
+  (ROUTES[route] || renderDashboard)(a, b, c);
   refreshShell();
   window.scrollTo(0, 0);
 }

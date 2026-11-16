@@ -185,6 +185,7 @@ function exportData() {
   DATA.settings.lastBackup = todayStr();
   saveData();
   const backup = { app: "cfa-study", profile: activeProfile().name, exportedAt: new Date().toISOString(), data: DATA };
+  if (typeof QBI !== "undefined" && Object.keys(QBI).length) backup.qbImport = Object.values(QBI);
   const safeName = activeProfile().name.replace(/[^\w-]+/g, "_").slice(0, 20);
   downloadFile(`cfa-backup-${safeName}-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
 }
@@ -205,7 +206,7 @@ function downloadFile(name, text, type) {
 function importData(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const backup = JSON.parse(reader.result);
         if (backup.app !== "cfa-study" || !backup.data) throw new Error("This is not a CFA Study backup file.");
@@ -215,6 +216,7 @@ function importData(file) {
         }
         DATA = upgrade(d);
         saveData();
+        if (Array.isArray(backup.qbImport) && typeof qbiReplaceAll === "function") await qbiReplaceAll(backup.qbImport);
         resolve(`${DATA.chapters.length} chapters, ${DATA.flashcards.length} cards, ${DATA.questions.length} questions restored.`);
       } catch (e) { reject(e); }
     };
@@ -260,6 +262,7 @@ function createProfile(name, pinHash) {
 function deleteProfile(id) {
   if (PROFILES.list.length <= 1) return false;
   try { localStorage.removeItem(profileKey(id)); } catch (e) { /* ignore */ }
+  if (typeof qbiClearProfile === "function") qbiClearProfile(id);
   PROFILES.list = PROFILES.list.filter(p => p.id !== id);
   if (PROFILES.active === id) switchProfile(PROFILES.list[0].id);
   saveProfiles();
