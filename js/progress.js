@@ -448,14 +448,14 @@ function renderCurriculum() {
   const rows = readingTable("curriculum");
   const total = MODULES.length, read = rows.reduce((s, r) => s + r.read, 0);
   view.innerHTML = `
-    ${pageHeader("Curriculum", `CFA Institute 2026 Level I · 10 topics · 93 learning modules · ${read}/${total} read`,
+    ${pageHeader("Curriculum", `Level I · 2027 topic weights · 93 learning modules (2026 module list) · ${read}/${total} read`,
       `<a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} Learning Ecosystem</a>`)}
     <div class="card">
       <div class="card-head"><h2>Topics</h2><span class="text-3 small">exam weight · modules read</span></div>
       <div class="table-wrap"><table class="table">
-        <thead><tr><th>Topic</th><th class="num">Weight</th><th class="num">Modules</th><th>Read</th><th class="num">Complete</th></tr></thead>
+        <thead><tr><th>Topic</th><th class="num">Weight 2027</th><th class="num hide-mobile">2026</th><th class="num">Modules</th><th>Read</th><th class="num">Complete</th></tr></thead>
         <tbody>${rows.map(r => { const tp = topicModuleProgress(r.t.id); return `<tr>
-          <td><a href="#/topic/${r.t.id}">${r.t.name}</a></td><td class="num">${r.t.weight}</td><td class="num">${r.mods.length}</td>
+          <td><a href="#/topic/${r.t.id}">${r.t.name}</a></td><td class="num"><strong>${r.t.weight}</strong></td><td class="num hide-mobile text-3">${r.t.weight2026}</td><td class="num">${r.mods.length}</td>
           <td style="min-width:120px">${progressBar(pct(r.read, r.mods.length), "success")}</td><td class="num">${tp.pct}%</td></tr>`; }).join("")}</tbody>
       </table></div>
     </div>
