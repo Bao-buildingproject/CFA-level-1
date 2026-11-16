@@ -160,7 +160,7 @@ function topicOptions(selected = "", includeAll = false) {
 
 // ---------- Theme ----------
 function applyTheme() {
-  const t = DATA.settings.theme || "system";
+  const t = DATA.settings.theme || "light";
   if (t === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", t);
 }

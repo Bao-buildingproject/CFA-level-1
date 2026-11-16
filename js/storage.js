@@ -4,7 +4,7 @@
 // ============================================================
 
 const STORAGE_KEY = "cfaStudy_v1";
-const DATA_VERSION = 2;
+const DATA_VERSION = 3;
 
 // ---------- Date helpers (local time, "YYYY-MM-DD") ----------
 function dateToStr(d) {
@@ -41,7 +41,7 @@ function defaultData() {
       dailyNewLimit: null,     // null = no limit
       dailyReviewLimit: null,
       lastBackup: null,
-      theme: "system"          // "system" | "light" | "dark"
+      theme: "light"           // "light" (default) | "dark" | "system"
     },
     chapters: [],
     flashcards: [],
@@ -90,6 +90,8 @@ function upgrade(parsed) {
     settings: { ...base.settings, ...(parsed.settings || {}) },
     version: DATA_VERSION
   };
+  // v3: bright light theme becomes the default (was "follow the device")
+  if ((parsed.version || 1) < 3 && data.settings.theme === "system") data.settings.theme = "light";
   data.questions = (data.questions || []).map(normalizeQuestion);
   syncBuiltinQuestions(data);
   return data;

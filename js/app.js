@@ -185,7 +185,7 @@ function renderSettings() {
       <div class="card">
         <div class="card-head"><h2>Appearance</h2></div>
         <div class="segmented" id="theme-seg">
-          ${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([k, v]) => `<button data-theme="${k}" class="${s.theme === k ? "active" : ""}">${v}</button>`).join("")}
+          ${[["light", "Light"], ["dark", "Dark"], ["system", "Match device"]].map(([k, v]) => `<button data-theme="${k}" class="${s.theme === k ? "active" : ""}">${v}</button>`).join("")}
         </div>
       </div>
 
