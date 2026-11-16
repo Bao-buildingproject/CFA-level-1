@@ -4,7 +4,7 @@
 // ============================================================
 
 const STORAGE_KEY = "cfaStudy_v1";
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 
 // ---------- Date helpers (local time, "YYYY-MM-DD") ----------
 function dateToStr(d) {
@@ -48,6 +48,7 @@ function defaultData() {
     questions: [],
     practiceLog: [],          // scores from CFA Learning Ecosystem
     lesMistakes: [],          // missed Learning Ecosystem questions (references only)
+    reading: {},              // per module: { schweser: bool, curriculum: bool }
     mocks: [],                // finished mock exams
     activeMock: null,         // mock in progress (survives a page reload)
     dailyLog: {}
@@ -71,7 +72,7 @@ function syncBuiltinQuestions(data) {
   const byId = new Map(data.questions.map(q => [q.id, q]));
   STARTER_QUESTIONS.forEach(s => {
     const content = {
-      id: s.id, topic: s.topic, level: s.level, los: s.los,
+      id: s.id, topic: s.topic, level: s.level, los: s.los || "", chapter: s.module || null,
       question: s.q, choices: { A: s.A, B: s.B, C: s.C }, answer: s.ans,
       explanation: s.why, whyNot: s.whyNot || "", trap: s.trap || "",
       calc: s.calc || "", vi: s.vi || "", source: "starter", builtIn: true
@@ -80,6 +81,19 @@ function syncBuiltinQuestions(data) {
     if (existing) Object.assign(existing, content);
     else data.questions.push(normalizeQuestion({ ...content, createdAt: todayStr() }));
   });
+}
+
+// The 93 official Learning Modules become the chapter list of every topic.
+// Your status on a module is kept; extra chapters you added yourself stay too.
+function syncModules(data) {
+  if (typeof MODULES === "undefined") return;
+  const byId = new Map(data.chapters.map(c => [c.id, c]));
+  MODULES.forEach(m => {
+    const c = byId.get(m.id);
+    if (c) { c.title = m.title; c.order = m.n; c.topic = m.topic; c.module = true; }
+    else data.chapters.push({ id: m.id, topic: m.topic, order: m.n, title: m.title, status: "not_started", startedAt: null, doneAt: null, module: true });
+  });
+  data.reading = data.reading || {};
 }
 
 function upgrade(parsed) {
@@ -94,6 +108,7 @@ function upgrade(parsed) {
   if ((parsed.version || 1) < 3 && data.settings.theme === "system") data.settings.theme = "light";
   data.questions = (data.questions || []).map(normalizeQuestion);
   syncBuiltinQuestions(data);
+  syncModules(data);
   return data;
 }
 

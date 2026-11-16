@@ -166,3 +166,71 @@ function applyTheme() {
 }
 
 function pct(n, d) { return d ? Math.round((n / d) * 100) : 0; }
+
+// ---------- Normal-distribution progress chart ----------
+// The shaded area under the bell curve = share of the module completed.
+// (A 50% module fills the curve up to the mean; 84% fills to +1σ; etc.)
+function normPdf(x) { return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI); }
+function normInv(p) {                       // Acklam's approximation
+  if (p <= 0) return -Infinity; if (p >= 1) return Infinity;
+  const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924];
+  const b = [-54.4760987982241, 161.585836858041, -155.698979859887, 66.8013118877197, -13.2806815528857];
+  const c = [-0.00778489400243029, -0.322396458041136, -2.40075827716184, -2.54973253934373, 4.37466414146497, 2.93816398269878];
+  const d = [0.00778469570904146, 0.32246712907004, 2.445134137143, 3.75440866190742];
+  const pl = 0.02425;
+  if (p < pl) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if (p > 1 - pl) { const q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  const q = p - 0.5, r = q * q;
+  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+}
+
+// pctDone: 0–100. opts: { width, height, tip, showLabel, compact }
+function bellCurve(pctDone, opts = {}) {
+  const W = opts.width || 320, H = opts.height || 110, pad = 6, base = H - (opts.compact ? 6 : 22);
+  const X0 = -3.5, X1 = 3.5, peak = normPdf(0);
+  const sx = x => pad + ((x - X0) / (X1 - X0)) * (W - 2 * pad);
+  const sy = y => base - (y / peak) * (base - 8);
+  const pts = [];
+  for (let i = 0; i <= 120; i++) { const x = X0 + (i / 120) * (X1 - X0); pts.push([sx(x), sy(normPdf(x))]); }
+  const curve = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+  const p = Math.min(Math.max(pctDone, 0), 100) / 100;
+  const z = p >= 1 ? X1 : p <= 0 ? X0 : Math.max(X0, Math.min(X1, normInv(p)));
+  const fillPts = pts.filter(pt => pt[0] <= sx(z) + 0.01);
+  const fill = p > 0 ? `M${sx(X0)},${base}` + fillPts.map(pt => `L${pt[0].toFixed(1)},${pt[1].toFixed(1)}`).join("") + `L${sx(z).toFixed(1)},${sy(normPdf(z)).toFixed(1)}L${sx(z).toFixed(1)},${base}Z` : "";
+  const ticks = opts.compact ? "" : [-2, -1, 0, 1, 2].map(t =>
+    `<line x1="${sx(t)}" x2="${sx(t)}" y1="${base}" y2="${base + 4}" class="bell-tick"/><text x="${sx(t)}" y="${base + 16}" class="bell-axis">${t === 0 ? "μ" : (t > 0 ? "+" : "−") + Math.abs(t) + "σ"}</text>`).join("");
+  const marker = p > 0 && p < 1 ? `<line x1="${sx(z)}" x2="${sx(z)}" y1="${sy(normPdf(z)) - 6}" y2="${base}" class="bell-marker"/>` : "";
+  const label = Math.round(p * 100);
+  return `
+    <div class="bell" ${opts.tip ? `data-tip="${esc(opts.tip)}"` : ""} role="img" aria-label="${label}% complete">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="${pad}" x2="${W - pad}" y1="${base}" y2="${base}" class="bell-base"/>
+        ${fill ? `<path d="${fill}" class="bell-fill"/>` : ""}
+        <path d="${curve}" class="bell-line"/>
+        ${marker}${ticks}
+      </svg>
+      ${opts.showLabel === false ? "" : `<div class="bell-label"><strong>${label}%</strong></div>`}
+    </div>`;
+}
+
+// ---------- Hover tooltip for any element with data-tip ----------
+(function initTooltips() {
+  let tip;
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) return;
+    if (!tip) { tip = document.createElement("div"); tip.className = "tooltip"; tip.setAttribute("role", "tooltip"); document.body.appendChild(tip); }
+    tip.innerHTML = el.dataset.tip.replace(/\n/g, "<br>");
+    tip.classList.add("show");
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.max(8, Math.min(window.innerWidth - tw - 8, r.left + r.width / 2 - tw / 2)) + "px";
+    tip.style.top = (r.top + window.scrollY - tip.offsetHeight - 8) + "px";
+  });
+  window.hideTooltip = () => tip && tip.classList.remove("show");
+  window.addEventListener("hashchange", () => window.hideTooltip());
+  window.addEventListener("scroll", () => window.hideTooltip(), { passive: true });
+  document.addEventListener("mouseout", e => {
+    if (tip && e.target.closest("[data-tip]") && !e.relatedTarget?.closest?.("[data-tip]")) tip.classList.remove("show");
+  });
+})();

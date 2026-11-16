@@ -518,3 +518,41 @@ details.disclosure > div { padding-top: var(--space-3); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Bell-curve progress chart ---------- */
+.bell { position: relative; }
+.bell svg { display: block; height: auto; overflow: visible; }
+.bell-line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; }
+.bell-fill { fill: var(--primary); opacity: 0.18; }
+.bell-base { stroke: var(--border-strong); stroke-width: 1; }
+.bell-tick { stroke: var(--border-strong); }
+.bell-axis { font-size: 10px; fill: var(--text-3); text-anchor: middle; font-family: var(--font); }
+.bell-marker { stroke: var(--primary); stroke-width: 2; stroke-dasharray: 3 3; }
+.bell-label { position: absolute; top: 2px; right: 4px; font-size: 0.8rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.tooltip {
+  position: absolute; z-index: 120; pointer-events: none; max-width: 260px;
+  background: var(--text); color: var(--bg); font-size: 0.8rem; line-height: 1.45;
+  padding: 8px 10px; border-radius: 8px; box-shadow: var(--shadow-lg);
+  opacity: 0; transform: translateY(4px); transition: opacity 0.12s var(--ease), transform 0.12s var(--ease);
+}
+.tooltip.show { opacity: 1; transform: none; }
+
+/* Module grid */
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+.module-card { padding: var(--space-4); display: flex; flex-direction: column; gap: 8px; }
+.module-card .mc-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.module-card .mc-num { font-size: 0.72rem; font-weight: 700; color: var(--text-3); letter-spacing: 0.04em; }
+.module-card h3 { font-size: 0.9rem; line-height: 1.35; }
+.module-card .mc-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-2); }
+.check-chip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  font-size: 0.8rem; font-weight: 500; color: var(--text-2);
+  padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface);
+}
+.check-chip input { accent-color: var(--success); width: 16px; height: 16px; margin: 0; }
+.check-chip:has(input:checked) { background: var(--success-soft); border-color: transparent; color: var(--success); }
+.breakdown { display: grid; gap: 8px; }
+.breakdown .bd-row { display: grid; grid-template-columns: 130px 1fr 52px; gap: 10px; align-items: center; font-size: 0.85rem; }
+.breakdown .bd-row .num { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.book-n { width: 44px; height: 56px; border-radius: 8px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-weight: 800; font-size: 1.1rem; flex-shrink: 0; }
+@media (max-width: 767px) { .breakdown .bd-row { grid-template-columns: 100px 1fr 44px; } }

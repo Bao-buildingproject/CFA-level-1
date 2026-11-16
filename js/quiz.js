@@ -138,7 +138,7 @@ function questionMetaHtml(q) {
 }
 
 // ================= PRACTICE PAGE (#/practice) =================
-const practiceCfg = { topic: "", mode: "all", level: "", count: 20 };
+const practiceCfg = { topic: "", module: "", mode: "all", level: "", count: 20 };
 let bankFilter = "";
 
 function renderQuestions() {
@@ -168,6 +168,7 @@ function renderQuestions() {
       <div class="card-head"><h2>Start a practice set</h2></div>
       <div class="form-grid">
         <label class="field"><span class="field-label">Topic</span><select class="select" id="qz-topic">${topicOptions(practiceCfg.topic, true)}</select></label>
+        <label class="field"><span class="field-label">Module</span><select class="select" id="qz-module"></select></label>
         <label class="field"><span class="field-label">Level</span><select class="select" id="qz-level">
           <option value="">All levels</option>${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}" ${practiceCfg.level === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
         <div class="field full"><span class="field-label">Questions</span>
@@ -207,7 +208,7 @@ function renderQuestions() {
 
   // ---- practice config ----
   const pool = () => {
-    let p = DATA.questions.filter(q => (!practiceCfg.topic || q.topic === practiceCfg.topic) && (!practiceCfg.level || q.level === practiceCfg.level));
+    let p = DATA.questions.filter(q => (!practiceCfg.topic || q.topic === practiceCfg.topic) && (!practiceCfg.module || q.chapter === practiceCfg.module) && (!practiceCfg.level || q.level === practiceCfg.level));
     if (practiceCfg.mode === "new") p = p.filter(q => !q.attempts.length);
     if (practiceCfg.mode === "mistakes") p = p.filter(q => q.inMistakeLog);
     if (practiceCfg.mode === "flagged") p = p.filter(q => q.flagged);
@@ -218,7 +219,17 @@ function renderQuestions() {
     document.getElementById("qz-available").textContent = `${n} matching question${n === 1 ? "" : "s"}`;
     document.getElementById("btn-qz-start").disabled = n === 0;
   };
-  document.getElementById("qz-topic").onchange = e => { practiceCfg.topic = e.target.value; updateAvail(); };
+  const modSel = document.getElementById("qz-module");
+  const fillModules = () => {
+    const mods = practiceCfg.topic ? modulesOf(practiceCfg.topic) : [];
+    if (!mods.some(m => m.id === practiceCfg.module)) practiceCfg.module = "";
+    modSel.innerHTML = `<option value="">${practiceCfg.topic ? "All modules" : "Pick a topic first"}</option>` +
+      mods.map(m => `<option value="${m.id}" ${m.id === practiceCfg.module ? "selected" : ""}>${m.n}. ${esc(m.title)}</option>`).join("");
+    modSel.disabled = !practiceCfg.topic;
+  };
+  fillModules();
+  modSel.onchange = e => { practiceCfg.module = e.target.value; updateAvail(); };
+  document.getElementById("qz-topic").onchange = e => { practiceCfg.topic = e.target.value; fillModules(); updateAvail(); };
   document.getElementById("qz-level").onchange = e => { practiceCfg.level = e.target.value; updateAvail(); };
   view.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
     practiceCfg.mode = b.dataset.mode;
@@ -267,7 +278,7 @@ function renderQuestions() {
       return `<div class="list-item">
         <div class="list-main">
           <div class="list-title">${esc(q.question)}</div>
-          <div class="list-meta">${q.topic} · ${LEVELS[q.level]} · answer ${q.answer} · ${right}/${q.attempts.length} right
+          <div class="list-meta">${q.chapter || q.topic} · ${LEVELS[q.level]}${q.builtIn ? " · built-in" : ""} · answer ${q.answer} · ${right}/${q.attempts.length} right
             ${q.inMistakeLog ? ` · <span style="color:var(--danger)">in mistake log</span>` : ""}${q.flagged ? " · flagged" : ""}</div>
         </div>
         <button class="icon-btn danger" data-delq="${q.id}" aria-label="Delete question">${icon("trash", 18)}</button>

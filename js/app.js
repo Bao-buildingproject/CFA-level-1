@@ -6,14 +6,16 @@ const view = document.getElementById("view");
 
 const NAV_ITEMS = [
   { route: "dashboard", label: "Dashboard", icon: "home" },
-  { route: "study", label: "Study plan", icon: "book" },
+  { route: "study", label: "Study plan", icon: "target" },
+  { route: "schweser", label: "SchweserNotes", icon: "book" },
+  { route: "curriculum", label: "Curriculum", icon: "grid" },
   { route: "cards", label: "Flashcards", icon: "cards" },
   { route: "practice", label: "Practice", icon: "check" },
   { route: "mock", label: "Mock exams", icon: "clock" },
   { route: "settings", label: "Settings", icon: "settings" }
 ];
-const MOBILE_NAV = ["dashboard", "study", "cards", "practice", "mock"];
-const MOBILE_LABEL = { dashboard: "Home", study: "Study", cards: "Cards", practice: "Practice", mock: "Mock" };
+const MOBILE_NAV = ["dashboard", "study", "practice", "mock", "more"];
+const MOBILE_LABEL = { dashboard: "Home", study: "Study", practice: "Practice", mock: "Mock", more: "More" };
 
 // ---------- Countdown ----------
 function studyPhase(week) {
@@ -44,7 +46,7 @@ function currentRoute() {
 
 function refreshShell() {
   const [route] = currentRoute();
-  const active = route === "topic" ? "study" : route;
+  const active = route === "topic" || route === "module" ? "study" : route;
   const { daysLeft, week, phase } = countdownInfo();
 
   document.getElementById("side-nav").innerHTML = NAV_ITEMS.map(n => {
@@ -53,9 +55,11 @@ function refreshShell() {
       ${icon(n.icon, 20)}<span>${n.label}</span>${b ? `<span class="nav-badge">${b}</span><i class="dot"></i>` : ""}</a>`;
   }).join("");
 
+  const moreActive = ["schweser", "curriculum", "cards", "settings", "more"].includes(active);
   document.getElementById("bottom-nav").innerHTML = MOBILE_NAV.map(r => {
-    const n = NAV_ITEMS.find(x => x.route === r);
-    const b = navBadge(r);
+    const n = NAV_ITEMS.find(x => x.route === r) || { icon: "grid" };
+    const b = r === "more" ? navBadge("cards") : navBadge(r);
+    if (r === "more") return `<a href="#/more" class="${moreActive ? "active" : ""}">${icon("grid", 22)}More${b ? '<i class="dot"></i>' : ""}</a>`;
     return `<a href="#/${r}" class="${active === r ? "active" : ""}" ${active === r ? 'aria-current="page"' : ""}>${icon(n.icon, 22)}${MOBILE_LABEL[r]}${b ? '<i class="dot"></i>' : ""}</a>`;
   }).join("");
 
@@ -77,16 +81,16 @@ function renderDashboard() {
   const backupAgo = DATA.settings.lastBackup ? daysBetween(DATA.settings.lastBackup, todayStr()) : null;
 
   const topicCards = TOPICS.map(t => {
-    const p = topicProgress(t.id);
+    const tp = topicModuleProgress(t.id);
     const ts = quizStats(DATA.questions.filter(q => q.topic === t.id));
     return `
       <a class="card card-link topic-card" href="#/topic/${t.id}">
         <div class="topic-code">${t.id} · ${t.weight}</div>
         <h3>${t.name}</h3>
-        ${progressBar(p.pct, p.pct === 100 ? "success" : "")}
+        ${bellCurve(tp.pct, { width: 280, height: 60, compact: true, tip: `${t.name}\nAverage module completion: ${tp.pct}%\n${tp.done}/${tp.modules} modules done` })}
         <div class="row-between small">
-          <span class="text-2">${p.done}/${p.total} chapters</span>
-          <span class="text-3">${ts.pct === null ? "" : `${ts.pct}% acc.`}</span>
+          <span class="text-2">${tp.done}/${tp.modules} modules</span>
+          <span class="text-3">${ts.pct === null ? `${ts.total} Q` : `${ts.pct}% acc.`}</span>
         </div>
       </a>`;
   }).join("");
@@ -238,13 +242,31 @@ const ROUTES = {
   dashboard: renderDashboard,
   study: renderStudy,
   topic: id => renderTopic(id),
+  module: id => renderModule(id),
+  schweser: renderSchweser,
+  curriculum: renderCurriculum,
   cards: renderFlashcards,
   flashcards: renderFlashcards,      // old link
   practice: renderQuestions,
   questions: renderQuestions,        // old link
   mock: (sub, id) => sub === "run" ? renderMockRun() : sub === "result" ? renderMockResult(id) : renderMock(),
-  settings: renderSettings
+  settings: renderSettings,
+  more: renderMore
 };
+
+// ================= MORE (mobile menu) =================
+function renderMore() {
+  const items = [
+    ["schweser", "book", "SchweserNotes", "4 books · reading checklist"],
+    ["curriculum", "grid", "Curriculum", "93 learning modules"],
+    ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
+    ["settings", "settings", "Settings", "Backup, exam date, theme"]
+  ];
+  view.innerHTML = `${pageHeader("More")}
+    <div class="card"><div class="list">${items.map(([r, ic, label, sub]) => `
+      <a class="list-item" href="#/${r}"><div class="stat-icon" style="margin:0">${icon(ic, 18)}</div>
+        <div class="list-main"><div class="list-title">${label}</div><div class="list-meta">${sub}</div></div>${icon("chevron", 18)}</a>`).join("")}</div></div>`;
+}
 
 function router() {
   stopMockTimer();

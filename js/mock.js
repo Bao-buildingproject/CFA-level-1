@@ -29,11 +29,11 @@ function formatMinutes(min) {
 
 // ---------- Pick questions, weighted by exam topic weights ----------
 // Prefers questions you've tried least; never repeats a question in one mock.
-function pickMockQuestions(count, topicIds) {
+function pickMockQuestions(count, topicIds, moduleIds) {
   const topics = TOPICS.filter(t => !topicIds || topicIds.includes(t.id));
   const pools = {};
   topics.forEach(t => {
-    pools[t.id] = shuffle(DATA.questions.filter(q => q.topic === t.id))
+    pools[t.id] = shuffle(DATA.questions.filter(q => q.topic === t.id && (!moduleIds || moduleIds.includes(q.chapter))))
       .sort((a, b) => a.attempts.length - b.attempts.length);
   });
   const available = topics.reduce((s, t) => s + pools[t.id].length, 0);
@@ -68,7 +68,7 @@ function questionById(id) { return DATA.questions.find(q => q.id === id); }
 function startMock(typeKey, custom) {
   const def = custom || MOCK_TYPES[typeKey];
   const need = def.sessions.reduce((s, x) => s + x.count, 0);
-  const ids = pickMockQuestions(need, custom && custom.topics);
+  const ids = pickMockQuestions(need, custom && custom.topics, custom && custom.modules);
   if (ids.length < need) { toast(`Not enough questions — need ${need}, you have ${ids.length}`, "error"); return; }
   let offset = 0;
   DATA.activeMock = {
