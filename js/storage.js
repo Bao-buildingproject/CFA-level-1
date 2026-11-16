@@ -4,7 +4,7 @@
 // ============================================================
 
 const STORAGE_KEY = "cfaStudy_v1";
-const DATA_VERSION = 1;
+const DATA_VERSION = 2;
 
 // ---------- Date helpers (local time, "YYYY-MM-DD") ----------
 function dateToStr(d) {
@@ -13,21 +13,22 @@ function dateToStr(d) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-function todayStr() {
-  return dateToStr(new Date());
-}
+function todayStr() { return dateToStr(new Date()); }
 function strToDate(s) {
   const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d); // local midnight
+  return new Date(y, m - 1, d);
 }
 function addDays(s, n) {
   const d = strToDate(s);
   d.setDate(d.getDate() + n);
   return dateToStr(d);
 }
-// Whole days from date string a to date string b
 function daysBetween(a, b) {
   return Math.round((strToDate(b) - strToDate(a)) / 86400000);
+}
+function prettyDate(s) {
+  if (!s) return "";
+  return strToDate(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 // ---------- Empty data for a first-time user ----------
@@ -35,26 +36,63 @@ function defaultData() {
   return {
     version: DATA_VERSION,
     settings: {
-      examDate: "2027-05-13",   // change here if your real exam date differs
+      examDate: "2027-05-13",
       startDate: "2026-11-16",
-      dailyNewLimit: null,      // null = no limit
-      dailyReviewLimit: null,   // null = no limit
-      lastBackup: null
+      dailyNewLimit: null,     // null = no limit
+      dailyReviewLimit: null,
+      lastBackup: null,
+      theme: "system"          // "system" | "light" | "dark"
     },
     chapters: [],
     flashcards: [],
     questions: [],
-    practiceLog: [],   // scores from CFA Learning Ecosystem practice sets
-    lesMistakes: [],   // references to questions missed on Learning Ecosystem
+    practiceLog: [],          // scores from CFA Learning Ecosystem
+    lesMistakes: [],          // missed Learning Ecosystem questions (references only)
+    mocks: [],                // finished mock exams
+    activeMock: null,         // mock in progress (survives a page reload)
     dailyLog: {}
   };
 }
 
-// Make user text safe to show inside HTML (stops "<" breaking the page)
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+// Make sure every question has all fields (older data had fewer)
+function normalizeQuestion(q) {
+  return {
+    level: "exam", los: "", explanation: "", whyNot: "", trap: "", calc: "", vi: "",
+    source: "self", builtIn: false, flagged: false,
+    attempts: [], inMistakeLog: false, correctStreak: 0, chapter: null,
+    ...q
+  };
+}
+
+// Built-in (starter) questions: add new ones, update the TEXT of existing
+// ones (so corrections reach you) but keep YOUR attempts and progress.
+function syncBuiltinQuestions(data) {
+  if (typeof STARTER_QUESTIONS === "undefined") return;
+  const byId = new Map(data.questions.map(q => [q.id, q]));
+  STARTER_QUESTIONS.forEach(s => {
+    const content = {
+      id: s.id, topic: s.topic, level: s.level, los: s.los,
+      question: s.q, choices: { A: s.A, B: s.B, C: s.C }, answer: s.ans,
+      explanation: s.why, whyNot: s.whyNot || "", trap: s.trap || "",
+      calc: s.calc || "", vi: s.vi || "", source: "starter", builtIn: true
+    };
+    const existing = byId.get(s.id);
+    if (existing) Object.assign(existing, content);
+    else data.questions.push(normalizeQuestion({ ...content, createdAt: todayStr() }));
+  });
+}
+
+function upgrade(parsed) {
+  const base = defaultData();
+  const data = {
+    ...base,
+    ...parsed,
+    settings: { ...base.settings, ...(parsed.settings || {}) },
+    version: DATA_VERSION
+  };
+  data.questions = (data.questions || []).map(normalizeQuestion);
+  syncBuiltinQuestions(data);
+  return data;
 }
 
 // ---------- Load & save ----------
@@ -63,18 +101,10 @@ let DATA = loadData();
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultData();
-    const parsed = JSON.parse(raw);
-    // Fill in any missing parts (useful when the app gets new features)
-    const base = defaultData();
-    return {
-      ...base,
-      ...parsed,
-      settings: { ...base.settings, ...(parsed.settings || {}) }
-    };
+    return upgrade(raw ? JSON.parse(raw) : {});
   } catch (e) {
     console.error("Could not read saved data:", e);
-    return defaultData();
+    return upgrade({});
   }
 }
 
@@ -83,7 +113,7 @@ function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
     return true;
   } catch (e) {
-    alert("Could not save! Storage may be full. Please export a backup now.");
+    if (typeof toast === "function") toast("Could not save — storage may be full. Export a backup now.", "error");
     return false;
   }
 }
@@ -92,50 +122,51 @@ function saveData() {
 function exportData() {
   DATA.settings.lastBackup = todayStr();
   saveData();
-  const backup = {
-    app: "cfa-study",
-    exportedAt: new Date().toISOString(),
-    data: DATA
-  };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const backup = { app: "cfa-study", exportedAt: new Date().toISOString(), data: DATA };
+  downloadFile(`cfa-backup-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
+}
+
+function downloadFile(name, text, type) {
+  const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `cfa-backup-${todayStr()}.json`;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---------- Import: read a .json backup file ----------
-// Returns a Promise that resolves to a short summary text.
 function importData(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const backup = JSON.parse(reader.result);
-        if (backup.app !== "cfa-study" || !backup.data) {
-          throw new Error("This is not a CFA Study backup file.");
-        }
+        if (backup.app !== "cfa-study" || !backup.data) throw new Error("This is not a CFA Study backup file.");
         const d = backup.data;
         if (!Array.isArray(d.flashcards) || !Array.isArray(d.questions) || !Array.isArray(d.chapters)) {
           throw new Error("Backup file is damaged (missing lists).");
         }
-        DATA = { ...defaultData(), ...d, settings: { ...defaultData().settings, ...d.settings } };
+        DATA = upgrade(d);
         saveData();
         resolve(`${DATA.chapters.length} chapters, ${DATA.flashcards.length} cards, ${DATA.questions.length} questions restored.`);
-      } catch (e) {
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     };
     reader.onerror = () => reject(new Error("Could not read the file."));
     reader.readAsText(file);
   });
 }
 
-// ---------- Simple unique id, e.g. "c_1731745200000_k3" ----------
+// ---------- Small utilities ----------
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

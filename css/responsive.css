@@ -1,0 +1,93 @@
+/* ============================================================
+   Responsive rules
+   Desktop ≥1440 · Laptop 1024–1439 · Tablet 768–1023 · Mobile <768
+   ============================================================ */
+
+/* Large desktop: a bit more breathing room */
+@media (min-width: 1440px) {
+  .main { padding-top: var(--space-10); }
+}
+
+/* Laptop: slightly narrower side panel in mock exam */
+@media (max-width: 1279px) {
+  .mock-layout { grid-template-columns: minmax(0, 1fr) 240px; }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Tablet: collapse sidebar to an icon rail */
+@media (max-width: 1023px) {
+  :root { --sidebar-w: 76px; }
+  .sidebar { padding: var(--space-4) var(--space-3); align-items: center; }
+  .brand { padding: 0 0 var(--space-5); }
+  .brand-text, .nav-link span, .sidebar-foot, .nav-badge { display: none; }
+  .nav-link { justify-content: center; padding: 11px; position: relative; }
+  .nav-link .dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+  .main { padding: var(--space-6); }
+  .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mock-layout { grid-template-columns: 1fr; }
+  .palette { grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); }
+}
+@media (min-width: 1024px) { .nav-link .dot { display: none; } }
+
+/* Mobile: top header + bottom tab bar */
+@media (max-width: 767px) {
+  body { font-size: 15px; }
+  .sidebar { display: none; }
+  .main-wrap { margin-left: 0; padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .main { padding: var(--space-4) var(--space-4) var(--space-8); }
+
+  .mobile-header {
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 30;
+    padding: 10px var(--space-4);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .mobile-header .brand { padding: 0; }
+  .mobile-header .brand-mark { width: 30px; height: 30px; font-size: 0.72rem; }
+  .mobile-header .days-chip { font-size: 0.8rem; font-weight: 600; color: var(--text-2); background: var(--surface-2); padding: 4px 10px; border-radius: 999px; }
+
+  .bottom-nav {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; inset: auto 0 0 0; z-index: 30;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bottom-nav a {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 0 8px; color: var(--text-3); font-size: 0.68rem; font-weight: 500; position: relative;
+  }
+  .bottom-nav a:hover { text-decoration: none; }
+  .bottom-nav a.active { color: var(--primary); }
+  .bottom-nav .dot { position: absolute; top: 6px; left: calc(50% + 8px); width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+
+  h1 { font-size: 1.35rem; }
+  .page-header { margin-bottom: var(--space-5); }
+  .card { padding: var(--space-4); border-radius: 14px; }
+  .grid-2, .grid-3, .grid-4, .form-grid { grid-template-columns: 1fr; }
+  .grid-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .span-2 { grid-column: auto; }
+
+  .hero { grid-template-columns: 1fr auto; gap: var(--space-3); }
+  .hero .ring { transform: scale(0.72); transform-origin: right center; margin-left: -32px; }
+  .hero-days { font-size: 2.6rem; }
+  .hero-days span { display: block; margin: 4px 0 0; font-size: 0.9rem; }
+
+  .topic-card h3 { min-height: 0; }
+  .boxes { gap: 6px; }
+  .box-bar { height: 72px; }
+  .flashcard { min-height: 260px; padding: var(--space-6) var(--space-4); }
+  .fc-front { font-size: 1.15rem; }
+  .q-text { font-size: 1rem; }
+  .bar-row { grid-template-columns: 90px 1fr 56px; }
+  .mock-top { top: 51px; }
+  .page-actions .btn { flex: 1; }
+  .modal { padding: var(--space-5); }
+  .modal-actions .btn { flex: 1; }
+  .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 768px) { .grid-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
