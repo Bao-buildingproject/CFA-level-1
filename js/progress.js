@@ -157,7 +157,8 @@ function renderTopic(topicId) {
   view.innerHTML = `
     <a href="#/study" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Study plan</a>
     ${pageHeader(`${t.order}. ${t.name}`, `Exam weight ${t.weight} · planned ${t.plannedWeeks} weeks`,
-      `<a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`)}
+      `<button class="btn btn-primary" id="btn-topic-mock" ${DATA.questions.some(q => q.topic === t.id) && !DATA.activeMock ? "" : "disabled"}>${icon("clock", 18)} ${t.id} mock test</button>
+       <a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`)}
 
     <div class="grid grid-stats">
       <div class="card stat"><span class="stat-label">Modules done</span><span class="stat-value">${p.done}/${p.total}</span>${progressBar(p.pct, "success")}</div>
@@ -176,6 +177,7 @@ function renderTopic(topicId) {
     </div>`;
 
   view.querySelectorAll(".tab").forEach(b => b.onclick = () => { topicTab = b.dataset.tab; renderTopic(topicId); });
+  document.getElementById("btn-topic-mock").onclick = () => confirmTopicMock(t.id, 30);
   ({ chapters: drawChaptersTab, scores: drawScoresTab, les: drawLesTab }[topicTab] || drawChaptersTab)(t);
 }
 
