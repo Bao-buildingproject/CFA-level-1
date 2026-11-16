@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f4e79">
+  <title>CFA Level I Study</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>CFA L1</h1>
+    <span id="countdown-mini" class="countdown-mini"></span>
+  </header>
+
+  <main id="view">
+    <!-- Content of each tab is drawn here by js/app.js -->
+  </main>
+
+  <nav class="tabs">
+    <a href="#dashboard" data-tab="dashboard">🏠<span>Home</span></a>
+    <a href="#flashcards" data-tab="flashcards">🃏<span>Cards</span></a>
+    <a href="#questions" data-tab="questions">❓<span>Questions</span></a>
+    <a href="#settings" data-tab="settings">⚙️<span>Settings</span></a>
+  </nav>
+
+  <!-- Order matters: helpers first, app.js last -->
+  <script src="js/syllabus.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

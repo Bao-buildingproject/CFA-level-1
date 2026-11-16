@@ -1,0 +1,138 @@
+/* ===== Colors (light mode) ===== */
+:root {
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --text: #1c2330;
+  --muted: #667085;
+  --primary: #1f4e79;
+  --primary-soft: #e3edf7;
+  --good: #1a7f4b;
+  --bad: #c0392b;
+  --warn: #b7791f;
+  --border: #dde2ea;
+}
+
+/* ===== Dark mode: follows the phone/laptop setting ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c;
+    --card: #1b212b;
+    --text: #e6e9ef;
+    --muted: #98a2b3;
+    --primary: #6ea8fe;
+    --primary-soft: #1f2d42;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --border: #2c3442;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding-bottom: 72px; /* room for bottom tabs */
+}
+
+/* ===== Top bar ===== */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--primary);
+  color: #fff;
+}
+.topbar h1 { font-size: 1.1rem; margin: 0; }
+.countdown-mini { font-size: 0.9rem; opacity: 0.9; }
+@media (prefers-color-scheme: dark) { .topbar { color: #0b1220; } }
+
+/* ===== Main area ===== */
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+/* Big countdown */
+.big-number {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.1;
+}
+
+/* Progress bar */
+.bar {
+  height: 10px;
+  background: var(--primary-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 6px 0;
+}
+.bar > div { height: 100%; background: var(--primary); }
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-block;
+  min-height: 44px;           /* easy to tap with a thumb */
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  margin: 4px 4px 4px 0;
+}
+.btn.secondary { background: var(--primary-soft); color: var(--primary); }
+.btn.good { background: var(--good); }
+.btn.bad { background: var(--bad); }
+@media (prefers-color-scheme: dark) { .btn:not(.secondary) { color: #0b1220; } }
+
+/* Notice / message box */
+.notice {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  margin: 8px 0;
+}
+.notice.warn { border-left: 4px solid var(--warn); }
+.notice.ok { border-left: 4px solid var(--good); }
+.notice.err { border-left: 4px solid var(--bad); }
+
+/* ===== Bottom tab bar ===== */
+.tabs {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+.tabs a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 10px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+}
+.tabs a span { font-size: 0.75rem; }
+.tabs a.active { color: var(--primary); font-weight: 600; }
