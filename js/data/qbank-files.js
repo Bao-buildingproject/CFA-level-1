@@ -10,7 +10,9 @@ const QBANK_FOLDERS = {
 
 // [number, title, Questions file id]
 const QBANK_FILES = {
-  ETH: [],
+  ETH: [[1, "Ethics and Trust in the Investment Profession", "1jzB1WeP_KIswkw43cLRX6ujjikXxdWKL"], [2, "Code of Ethics and Standards of Professional Conduct", "1OFh0vuErQElPMD1tgVnrYETBFGby_S4M"],
+    [3, "Guidance for Standards I–VII", "1ShgwxxkozmnQMK_sx6_ncnpWiI9bOLA9"], [4, "Introduction to GIPS (not in the 2027 Level I curriculum)", "1y2ZTAFSF-TUnM6AvhEAK4iet_aP8LZSC"],
+    [5, "Ethics Application", "1JjWI_IsrG2m7ku9cS08SPMZECXWhHHBj"]],
   QM: [[1, "Rates and Returns", "1GK7PZgljs8tzNA6RZ-9X_eT06QOsUCrH"], [2, "The Time Value of Money in Finance", "1m3QNkxWiKxT7wcRvjGwULQ-mnaIuKrVf"],
     [3, "Statistical Measures of Asset Returns", "1xXmOEKeIx42KqFyH8gS9r5n22_gH_Dps"], [4, "Probability Trees and Conditional Expectations", "1uUhzBhoypaNygW09HQBAsnsvMKNyFLaL"],
     [5, "Portfolio Mathematics", "1sLEIx84IWX2q7pPNPVdFQRFODRvc2Kh6"], [6, "Simulation Methods", "1rLspV_vyHh8p0rECuMmeXBxiUm0UM-pS"],
