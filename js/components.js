@@ -149,7 +149,7 @@ function emptyState(iconName, title, text, action = "") {
 }
 
 function levelBadge(level) {
-  const map = { foundation: "Foundation", application: "Application", exam: "Exam style" };
+  const map = { foundation: "Foundation", application: "Application", exam: "Exam style", challenge: "Hard" };
   return `<span class="badge badge-${level}">${map[level] || level}</span>`;
 }
 

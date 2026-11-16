@@ -274,6 +274,7 @@ code { font-size: 0.85em; background: var(--surface-2); padding: 1px 6px; border
 .badge-foundation { background: var(--accent-soft); color: var(--accent); }
 .badge-application { background: var(--primary-soft); color: var(--primary); }
 .badge-exam { background: var(--warning-soft); color: var(--warning); }
+.badge-challenge { background: var(--danger-soft); color: var(--danger); }
 .badge-success { background: var(--success-soft); color: var(--success); }
 .badge-danger { background: var(--danger-soft); color: var(--danger); }
 .badge-warning { background: var(--warning-soft); color: var(--warning); }

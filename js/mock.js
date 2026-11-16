@@ -7,7 +7,8 @@
 const MOCK_TYPES = {
   mini:    { name: "Mini mock",    desc: "Quick timed check",                 sessions: [{ count: 30, minutes: 45 }] },
   session: { name: "Session mock", desc: "One real exam session",             sessions: [{ count: 90, minutes: 135 }] },
-  full:    { name: "Full mock",    desc: "Full exam · 2 sessions with break", sessions: [{ count: 90, minutes: 135 }, { count: 90, minutes: 135 }] }
+  full:    { name: "Full mock",    desc: "Full exam · 2 sessions with break", sessions: [{ count: 90, minutes: 135 }, { count: 90, minutes: 135 }] },
+  hard:    { name: "Hard mock",    desc: "Exam-style and Hard questions only", sessions: [{ count: 30, minutes: 45 }], levels: ["exam", "challenge"] }
 };
 const SECONDS_PER_QUESTION = 90; // 135 min / 90 questions
 
@@ -29,12 +30,12 @@ function formatMinutes(min) {
 
 // ---------- Pick questions, weighted by exam topic weights ----------
 // Prefers questions you've tried least; never repeats a question in one mock.
-function pickMockQuestions(count, topicIds, moduleIds) {
+function pickMockQuestions(count, topicIds, moduleIds, levels) {
   const topics = TOPICS.filter(t => !topicIds || topicIds.includes(t.id));
   const pools = {};
   topics.forEach(t => {
-    pools[t.id] = shuffle(DATA.questions.filter(q => q.topic === t.id && (!moduleIds || moduleIds.includes(q.chapter))))
-      .sort((a, b) => a.attempts.length - b.attempts.length);
+    pools[t.id] = shuffle(DATA.questions.filter(q => q.topic === t.id && (!moduleIds || moduleIds.includes(q.chapter)) && (!levels || levels.includes(q.level))))
+      .sort((a, b) => (levels ? (b.level === "challenge") - (a.level === "challenge") : 0) || a.attempts.length - b.attempts.length);
   });
   const available = topics.reduce((s, t) => s + pools[t.id].length, 0);
   count = Math.min(count, available);
@@ -148,7 +149,7 @@ function bindTopicMocks(rerender) {
 function startMock(typeKey, custom) {
   const def = custom || MOCK_TYPES[typeKey];
   const need = def.sessions.reduce((s, x) => s + x.count, 0);
-  const ids = custom && custom.ids ? custom.ids : pickMockQuestions(need, custom && custom.topics, custom && custom.modules);
+  const ids = custom && custom.ids ? custom.ids : pickMockQuestions(need, custom && custom.topics, custom && custom.modules, def.levels);
   if (ids.length < need) { toast(`Not enough questions — need ${need}, you have ${ids.length}`, "error"); return; }
   let offset = 0;
   DATA.activeMock = {
@@ -249,7 +250,8 @@ function renderMock() {
   const typeCard = (key, def) => {
     const need = def.sessions.reduce((s, x) => s + x.count, 0);
     const minutes = def.sessions.reduce((s, x) => s + x.minutes, 0);
-    const ok = total >= need;
+    const avail = def.levels ? DATA.questions.filter(q => def.levels.includes(q.level)).length : total;
+    const ok = avail >= need;
     return `
       <div class="card mock-type">
         <div class="row-between"><h2>${def.name}</h2>${def.sessions.length > 1 ? `<span class="badge badge-exam">2 sessions</span>` : ""}</div>
@@ -258,7 +260,7 @@ function renderMock() {
           <div class="stat"><span class="stat-label">Questions</span><span class="stat-value">${need}</span></div>
           <div class="stat"><span class="stat-label">Time</span><span class="stat-value">${formatMinutes(minutes)}</span></div>
         </div>
-        ${ok ? "" : `<div class="text-2 small">${progressBar(pct(total, need), "warning")}<div style="margin-top:6px">You have ${total} of ${need} questions needed.</div></div>`}
+        ${ok ? "" : `<div class="text-2 small">${progressBar(pct(avail, need), "warning")}<div style="margin-top:6px">You have ${avail} of ${need} questions needed.</div></div>`}
         <button class="btn ${ok ? "btn-primary" : "btn-secondary"} btn-block" data-start="${key}" ${ok && !active ? "" : "disabled"}>${icon("play", 18)} Start</button>
       </div>`;
   };
@@ -271,7 +273,7 @@ function renderMock() {
 
     ${total === 0 ? `<div class="card section">${emptyState("clock", "Your question bank is empty", "Mock exams are built from your own questions. Add or import questions first — the more you add, the bigger the mock you can take.", `<a class="btn btn-primary" href="#/practice">${icon("plus", 18)} Add questions</a>`)}</div>` : ""}
 
-    <div class="grid grid-3 section">
+    <div class="grid grid-4 section">
       ${Object.entries(MOCK_TYPES).map(([k, d]) => typeCard(k, d)).join("")}
     </div>
 

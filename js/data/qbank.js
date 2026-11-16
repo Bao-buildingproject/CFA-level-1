@@ -7,7 +7,7 @@
 // ============================================================
 
 const STARTER_QUESTIONS = [];
-const LEVEL_CODE = { f: "foundation", a: "application", e: "exam" };
+const LEVEL_CODE = { f: "foundation", a: "application", e: "exam", h: "challenge" };
 
 // Small stable hash so every question always gets the same answer position
 function hashStr(s) {

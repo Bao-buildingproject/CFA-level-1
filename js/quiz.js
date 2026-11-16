@@ -4,7 +4,7 @@
 // ============================================================
 
 const LETTERS = ["A", "B", "C"];
-const LEVELS = { foundation: "Foundation", application: "Application", exam: "Exam style" };
+const LEVELS = { foundation: "Foundation", application: "Application", exam: "Exam style", challenge: "Hard" };
 
 // ---------- Stats ----------
 function quizStats(list) {
@@ -154,7 +154,7 @@ function questionMetaHtml(q) {
 
 // ================= PRACTICE PAGE (#/practice) =================
 const practiceCfg = { topic: "", module: "", mode: "all", level: "", count: 20, order: "mixed" };
-const LEVEL_RANK = { foundation: 0, application: 1, exam: 2 };
+const LEVEL_RANK = { foundation: 0, application: 1, exam: 2, challenge: 3 };
 let bankFilter = "";
 
 function renderQuestions() {
