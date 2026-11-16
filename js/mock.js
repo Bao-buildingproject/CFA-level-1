@@ -408,6 +408,7 @@ function renderMockRun() {
               <button class="btn btn-ghost btn-sm" id="btn-mflag" aria-pressed="${flagged}" style="${flagged ? "color:var(--warning)" : ""}">${icon("flag", 16)} ${flagged ? "Flagged" : "Flag for review"}</button>
             </div>
             <div class="q-text">${esc(q.question)}</div>
+            ${exhibitHtml(q)}
             ${choicesHtml(q, s.answers[q.id] || null, false)}`
           : `<p class="text-2">This question was deleted from your bank. It will count as unanswered.</p>`}
           <div class="mock-nav">
@@ -546,7 +547,7 @@ function renderMockResult(id) {
         return `<details class="disclosure">
           <summary>${icon("chevron", 16)} <span style="color:var(--${ok ? "success" : "danger"})">Q${n}</span>
             <span class="text-2" style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(q.question)}</span></summary>
-          <div>${questionMetaHtml(q)}<div class="q-text">${esc(q.question)}</div>${choicesHtml(q, it.picked, true)}${explanationHtml(q, it.picked)}</div>
+          <div>${questionMetaHtml(q)}<div class="q-text">${esc(q.question)}</div>${exhibitHtml(q)}${choicesHtml(q, it.picked, true)}${explanationHtml(q, it.picked)}</div>
         </details>`;
       }).join("") : `<p class="text-2 small">Nothing here.</p>`}
     </div>`;

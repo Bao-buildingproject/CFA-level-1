@@ -570,3 +570,13 @@ details.disclosure > div { padding-top: var(--space-3); }
 .lock-screen .avatar { margin-bottom: 14px; }
 @media (max-width: 1023px) { .profile-chip { justify-content: center; padding: 6px; border: none; } .profile-chip .pc-text { display: none; } }
 @media (max-width: 767px) { .profile-chip { display: none; } }
+
+/* ---------- Exhibit tables in questions ---------- */
+.exhibit { margin: 0 0 var(--space-5); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3) var(--space-4); background: var(--surface-2); }
+.exhibit figcaption { text-align: center; margin-bottom: 8px; }
+.exhibit figcaption span { display: block; color: var(--text-2); font-size: 0.85rem; }
+.exhibit-table { font-size: 0.88rem; background: var(--surface); border-radius: 8px; }
+.exhibit-table th { text-transform: none; letter-spacing: 0; font-size: 0.8rem; color: var(--text-2); }
+.exhibit-table td.num, .exhibit-table th.num { white-space: nowrap; }
+.exhibit-table tr.ex-section td { font-weight: 600; background: var(--surface-2); }
+.exhibit p { margin-top: 6px; }

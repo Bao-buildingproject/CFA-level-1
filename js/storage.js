@@ -97,7 +97,7 @@ function syncBuiltinQuestions(data) {
       id: s.id, topic: s.topic, level: s.level, los: s.los || "", chapter: s.module || null,
       question: s.q, choices: { A: s.A, B: s.B, C: s.C }, answer: s.ans,
       explanation: s.why, whyNot: s.whyNot || "", trap: s.trap || "",
-      calc: s.calc || "", vi: s.vi || "", source: "starter", builtIn: true
+      calc: s.calc || "", vi: s.vi || "", exhibit: s.exhibit || null, source: "starter", builtIn: true
     };
     const existing = byId.get(s.id);
     if (existing) Object.assign(existing, content);

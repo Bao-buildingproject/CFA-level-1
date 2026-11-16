@@ -100,6 +100,21 @@ function shuffle(arr) {
 }
 
 // ---------- Shared question UI (practice + mock review) ----------
+// Exhibit = a data table shown with the question (like exam case data)
+// { title, subtitle, head: [...], rows: [[...], ...], note }
+function exhibitHtml(q) {
+  const ex = q.exhibit;
+  if (!ex) return "";
+  return `<figure class="exhibit">
+    ${ex.title ? `<figcaption><strong>${esc(ex.title)}</strong>${ex.subtitle ? `<span>${esc(ex.subtitle)}</span>` : ""}</figcaption>` : ""}
+    <div class="table-wrap"><table class="table exhibit-table">
+      ${ex.head ? `<thead><tr>${ex.head.map((h, i) => `<th class="${i ? "num" : ""}">${esc(h)}</th>`).join("")}</tr></thead>` : ""}
+      <tbody>${ex.rows.map(r => `<tr${r[0] && r[0].startsWith("§") ? ' class="ex-section"' : ""}>${r.map((c, i) => `<td class="${i ? "num" : ""}">${esc(String(c).replace(/^§/, ""))}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>
+    ${ex.note ? `<p class="text-3 small">${esc(ex.note)}</p>` : ""}
+  </figure>`;
+}
+
 // state: { picked, reveal } — reveal shows right/wrong colours + explanation
 function choicesHtml(q, picked, reveal) {
   return `<div class="choices" role="radiogroup" aria-label="Answer choices">${LETTERS.map(L => {
@@ -379,6 +394,7 @@ function drawQuiz() {
           <button class="btn btn-ghost btn-sm" id="btn-flag" aria-pressed="${q.flagged}" style="${q.flagged ? "color:var(--warning)" : ""}">${icon("flag", 16)} ${q.flagged ? "Flagged" : "Flag"}</button>
         </div>
         <div class="q-text">${esc(q.question)}</div>
+        ${exhibitHtml(q)}
         ${choicesHtml(q, quiz.picked, answered)}
         ${answered ? explanationHtml(q, quiz.picked) + `
           <button class="btn btn-primary btn-lg btn-block" id="btn-qz-next" style="margin-top:20px">${quiz.i + 1 < quiz.list.length ? "Next question" : "See results"} ${icon("next", 18)}</button>`

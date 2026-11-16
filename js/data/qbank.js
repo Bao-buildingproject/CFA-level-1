@@ -66,13 +66,13 @@ function addQ27(moduleId, rows) {
   const start = ADDQ_COUNT[key] || 0;
   ADDQ_COUNT[key] = start + rows.length;
   rows.forEach((r, i) => {
-    const [lv, q, A, B, C, ans, why, whyNot, trap, calc, los] = r;
+    const [lv, q, A, B, C, ans, why, whyNot, trap, calc, los, exhibit] = r;
     const id = `n27-${moduleId}-${String(start + i + 1).padStart(2, "0")}`;
     const p = placeAnswer(id, [A, B, C], ans, whyNot);
     STARTER_QUESTIONS.push({
       id, module: moduleId, topic, level: LEVEL_CODE[lv] || "exam", los: los || "",
       q, A: p.choices[0], B: p.choices[1], C: p.choices[2], ans: p.ans,
-      why, whyNot: p.whyNot, trap: trap || "", calc: calc || ""
+      why, whyNot: p.whyNot, trap: trap || "", calc: calc || "", exhibit: exhibit || null
     });
   });
 }
