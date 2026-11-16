@@ -234,3 +234,61 @@ function bellCurve(pctDone, opts = {}) {
     if (tip && e.target.closest("[data-tip]") && !e.relatedTarget?.closest?.("[data-tip]")) tip.classList.remove("show");
   });
 })();
+
+// ---------- Prompt dialog (returns Promise<string|null>) ----------
+// options: { title, message, label, type, inputmode, maxlength, confirmText, value, validate }
+function promptDialog(options) {
+  const { title = "", message = "", label = "", type = "text", inputmode = "text", maxlength = 40, confirmText = "OK", value = "", validate } = options;
+  return new Promise(resolve => {
+    const lastFocus = document.activeElement;
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pd-title">
+        <h2 id="pd-title">${esc(title)}</h2>
+        ${message ? `<p class="text-2">${message}</p>` : ""}
+        <label class="field"><span class="field-label">${esc(label)}</span>
+          <input class="input" id="pd-input" type="${type}" inputmode="${inputmode}" maxlength="${maxlength}" autocomplete="off" value="${esc(value)}"></label>
+        <div class="field-error" id="pd-error" hidden></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+          <button class="btn btn-primary" data-act="ok">${esc(confirmText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    const input = overlay.querySelector("#pd-input");
+    const err = overlay.querySelector("#pd-error");
+    input.focus(); input.select();
+    const close = result => {
+      overlay.classList.remove("show");
+      document.removeEventListener("keydown", onKey, true);
+      setTimeout(() => overlay.remove(), 180);
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+      resolve(result);
+    };
+    const submit = () => {
+      const v = input.value.trim();
+      const problem = validate ? validate(v) : "";
+      if (problem) { err.textContent = problem; err.hidden = false; input.classList.add("invalid"); input.focus(); return; }
+      close(v);
+    };
+    const onKey = e => {
+      if (e.key === "Escape") { e.stopPropagation(); close(null); }
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); submit(); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    overlay.addEventListener("click", e => {
+      if (e.target === overlay) close(null);
+      const act = e.target.closest("[data-act]");
+      if (act) act.dataset.act === "ok" ? submit() : close(null);
+    });
+  });
+}
+
+// ---------- Profile avatar ----------
+const AVATAR_COLORS = ["#2952cc", "#0e9384", "#b54708", "#7a5af8", "#c11574", "#027a48"];
+function avatarHtml(profile, size = 32) {
+  const initials = (profile.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.4)}px;background:${AVATAR_COLORS[profile.color % AVATAR_COLORS.length]}" aria-hidden="true">${esc(initials)}</span>`;
+}

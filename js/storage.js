@@ -3,7 +3,26 @@
 // All data lives in ONE object, stored under ONE key in localStorage.
 // ============================================================
 
-const STORAGE_KEY = "cfaStudy_v1";
+// ---------- Profiles (several people on one device) ----------
+// The first profile keeps the original key so existing data is not lost.
+const PROFILES_KEY = "cfaStudy_profiles";
+const DEFAULT_PROFILE = { id: "default", name: "Me", color: 0, pinHash: null, createdAt: null };
+
+function loadProfiles() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILES_KEY) || "null");
+    if (p && Array.isArray(p.list) && p.list.length) return p;
+  } catch (e) { /* ignore */ }
+  return { active: "default", list: [{ ...DEFAULT_PROFILE, createdAt: dateToStrSafe() }] };
+}
+function dateToStrSafe() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function saveProfiles() { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(PROFILES)); } catch (e) { /* ignore */ } }
+function profileKey(id) { return id === "default" ? "cfaStudy_v1" : `cfaStudy_p_${id}`; }
+function activeProfile() { return PROFILES.list.find(p => p.id === PROFILES.active) || PROFILES.list[0]; }
+
+let PROFILES = loadProfiles();
+if (!PROFILES.list.some(p => p.id === PROFILES.active)) PROFILES.active = PROFILES.list[0].id;
+let STORAGE_KEY = profileKey(PROFILES.active);
 const DATA_VERSION = 4;
 
 // ---------- Date helpers (local time, "YYYY-MM-DD") ----------
@@ -139,8 +158,9 @@ function saveData() {
 function exportData() {
   DATA.settings.lastBackup = todayStr();
   saveData();
-  const backup = { app: "cfa-study", exportedAt: new Date().toISOString(), data: DATA };
-  downloadFile(`cfa-backup-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
+  const backup = { app: "cfa-study", profile: activeProfile().name, exportedAt: new Date().toISOString(), data: DATA };
+  const safeName = activeProfile().name.replace(/[^\w-]+/g, "_").slice(0, 20);
+  downloadFile(`cfa-backup-${safeName}-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
 }
 
 function downloadFile(name, text, type) {
@@ -186,4 +206,36 @@ function esc(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+
+// ---------- Profile actions ----------
+async function hashPin(pin) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-study:" + pin));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function switchProfile(id) {
+  saveData();
+  PROFILES.active = id;
+  saveProfiles();
+  STORAGE_KEY = profileKey(id);
+  DATA = loadData();
+  saveData();
+}
+
+function createProfile(name, pinHash) {
+  const id = makeId("u").replace(/^u_/, "");
+  PROFILES.list.push({ id, name, color: PROFILES.list.length % 6, pinHash: pinHash || null, createdAt: todayStr() });
+  saveProfiles();
+  return id;
+}
+
+function deleteProfile(id) {
+  if (PROFILES.list.length <= 1) return false;
+  try { localStorage.removeItem(profileKey(id)); } catch (e) { /* ignore */ }
+  PROFILES.list = PROFILES.list.filter(p => p.id !== id);
+  if (PROFILES.active === id) switchProfile(PROFILES.list[0].id);
+  saveProfiles();
+  return true;
 }
