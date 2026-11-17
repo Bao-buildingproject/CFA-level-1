@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { route: "cards", label: "Flashcards", icon: "cards" },
   { route: "practice", label: "Practice", icon: "check" },
   { route: "qbank", label: "Question Bank", icon: "flag" },
+  { route: "analysis", label: "Weak spots", icon: "alert" },
   { route: "mock", label: "Mock exams", icon: "clock" },
   { route: "settings", label: "Settings", icon: "settings" }
 ];
@@ -56,7 +57,7 @@ function refreshShell() {
       ${icon(n.icon, 20)}<span>${n.label}</span>${b ? `<span class="nav-badge">${b}</span><i class="dot"></i>` : ""}</a>`;
   }).join("");
 
-  const moreActive = ["schweser", "curriculum", "cards", "settings", "more", "profiles", "qbank"].includes(active);
+  const moreActive = ["schweser", "curriculum", "cards", "settings", "more", "profiles", "qbank", "analysis"].includes(active);
   document.getElementById("bottom-nav").innerHTML = MOBILE_NAV.map(r => {
     const n = NAV_ITEMS.find(x => x.route === r) || { icon: "grid" };
     const b = r === "more" ? navBadge("cards") : navBadge(r);
@@ -274,6 +275,7 @@ const ROUTES = {
   settings: renderSettings,
   more: renderMore,
   qbank: renderQBank,
+  analysis: renderAnalysis,
   profiles: renderProfiles
 };
 
@@ -282,7 +284,8 @@ function renderMore() {
   const items = [
     ["schweser", "book", "SchweserNotes", "4 books · reading checklist"],
     ["curriculum", "grid", "Curriculum", "93 learning modules"],
-    ["qbank", "flag", "Question Bank", "Your PDF question sets · tracker"],
+    ["qbank", "flag", "Question Bank", "Your PDF question sets · answer them here"],
+    ["analysis", "alert", "Weak spots", "Accuracy by topic and module"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "home", "Profiles", `${PROFILES.list.length} profile(s) · switch user`],
     ["settings", "settings", "Settings", "Backup, exam date, theme"]

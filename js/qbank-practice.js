@@ -92,7 +92,9 @@ function qbClean(s) {
 
 function qbParseOne(body) {
   const ex = body.search(/(^|\n)\s*Explanation\s*:?/i);
-  const pre = ex >= 0 ? body.slice(0, ex) : body;
+  let pre = ex >= 0 ? body.slice(0, ex) : body;
+  // "...closest to:A. 98.40" — choice A glued to the end of the stem
+  if (!/(^|\n)\s*A[.)]\s/.test(pre)) pre = pre.replace(/([:?])\s*A\.\s/, "$1\nA. ");
   let post = ex >= 0 ? body.slice(ex).replace(/^\s*Explanation\s*:?/i, "") : "";
   const lines = pre.split("\n");
   const order = ["A", "B", "C"], at = {};
@@ -113,7 +115,97 @@ function qbParseOne(body) {
   let remember = "";
   const tr = post.search(/Things to remember\s*:?/i);
   if (tr >= 0) { remember = post.slice(tr).replace(/^Things to remember\s*:?/i, ""); post = post.slice(0, tr); }
+  // No ✔ found: the explanation names the wrong choices "(Choice A)", "(Choices B and C)"
+  if (!ans) {
+    const wrong = new Set();
+    for (const m of post.matchAll(/\(Choices?\s+([ABC](?:\s*(?:,|and)\s*[ABC])*)\)/g)) m[1].match(/[ABC]/g).forEach(L => wrong.add(L));
+    if (wrong.size === 2) ans = order.find(L => !wrong.has(L));
+  }
   return { q: stem, choices, ans, expl: qbClean(post), remember: qbClean(remember).replace(/\n(?!\n)/g, " ") };
+}
+
+// ---------- Read PDF files in the browser (pdf.js, bundled in js/vendor) ----------
+async function qbLoadPdfjs() {
+  if (window.pdfjsLib) return;
+  await new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "js/vendor/pdf.min.js"; sc.onload = res;
+    sc.onerror = () => rej(new Error("Could not load the PDF reader"));
+    document.head.appendChild(sc);
+  });
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
+}
+
+async function qbPdfText(file) {
+  await qbLoadPdfjs();
+  const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  let out = "";
+  for (let i = 1; i <= doc.numPages; i++) {
+    const tc = await (await doc.getPage(i)).getTextContent();
+    let lastY = null, lastH = 10;
+    for (const it of tc.items) {
+      if (typeof it.str !== "string") continue;
+      const y = it.transform[5], h = Math.abs(it.transform[3]) || lastH;
+      if (lastY !== null && Math.abs(y - lastY) > 2) out += (lastY - y > 1.8 * h) ? "\n\n" : "\n";
+      out += it.str;
+      if (it.str.trim() || lastY === null) { lastY = y; lastH = h; }
+    }
+    out += "\n\n";
+  }
+  return out;
+}
+
+const qbNorm = s => String(s).toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+function qbTokenScore(a, b) {
+  const A = new Set(qbNorm(a).split(" ").filter(w => w.length > 2)), B = new Set(qbNorm(b).split(" ").filter(w => w.length > 2));
+  if (!A.size || !B.size) return 0;
+  let n = 0; A.forEach(w => { if (B.has(w)) n++; });
+  return n / Math.max(A.size, B.size);
+}
+
+// "6. Simulation Methods - Answers.pdf" -> the matching Question Bank set
+function qbMatchFile(name, firstLine) {
+  const base = name.replace(/\.pdf$/i, "").replace(/\s*[-–]\s*(answers?|questions?)\s*$/i, "");
+  const m = base.match(/^\s*(\d+)\s*[.)-]?\s*(.*)$/);
+  const n = m ? +m[1] : null, title = m ? m[2] : base;
+  const cands = [];
+  TOPICS.forEach(t => (QBANK_FILES[t.id] || []).forEach(f => {
+    const clean = f[1].replace(/\s*\(.*?\)\s*$/, "");
+    let score = qbNorm(clean) === qbNorm(title) ? 1 : qbTokenScore(clean, title);
+    if (firstLine) score = Math.max(score, qbNorm(firstLine).startsWith(qbNorm(clean)) ? 0.95 : 0);
+    if (n !== null && f[0] === n) score += 0.05;
+    cands.push([score, f[2]]);
+  }));
+  cands.sort((a, b) => b[0] - a[0]);
+  return cands[0] && cands[0][0] >= 0.6 ? cands[0][1] : null;
+}
+
+// Import many Answers PDFs at once. onStep(i, total, name) reports progress.
+async function qbImportPdfs(files, onStep) {
+  const report = { sets: [], skipped: [], failed: [] };
+  const list = [...files];
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    onStep && onStep(i + 1, list.length, f.name);
+    if (/questions?\s*\.pdf$/i.test(f.name)) { report.skipped.push(`${f.name} (use the Answers file)`); continue; }
+    try {
+      const text = await qbPdfText(f);
+      const firstLine = (text.trim().split("\n")[0] || "").replace(/\s*-\s*Answers.*$/i, "");
+      const fileId = qbMatchFile(f.name, firstLine);
+      if (!fileId) { report.failed.push(`${f.name} — no matching set`); continue; }
+      const parsed = qbParse(text);
+      if (!parsed.questions.length) { report.failed.push(`${f.name} — no questions found`); continue; }
+      const info = qbFileInfo(fileId);
+      const missingAns = parsed.questions.filter(q => !q.ans).length;
+      const keep = parsed.questions.filter(q => q.ans);
+      await qbiPut({ fileId, topic: info.topic.id, title: info.title, total: parsed.total, questions: keep, importedAt: todayStr() });
+      const st = qbState(fileId);
+      if (st.count < parsed.total) st.count = parsed.total;
+      report.sets.push({ fileId, title: `${info.topic.id} · ${info.n}. ${info.title}`, n: keep.length, total: parsed.total, missingAns });
+    } catch (e) { report.failed.push(`${f.name} — ${e.message || "could not read"}`); }
+  }
+  saveData();
+  return report;
 }
 
 // Sentences of the explanation that talk about a given choice, e.g. "(Choice B) ..."
@@ -155,7 +247,10 @@ function renderQBImport(fileId) {
       `<a class="btn btn-ghost" href="#/qbank">${icon("prev", 18)} Back</a>`)}
     ${existing ? `<div class="callout info">${icon("alert", 18)}<div>This set is already imported (${existing.questions.length} questions). Importing again replaces it; your marks are kept.</div></div>` : ""}
     <div class="card section">
-      <h2>1 · Copy the Answers PDF</h2>
+      <h2>1 · Choose the Answers PDF</h2>
+      <p class="text-2">Download <strong>${info.n}. ${esc(info.title)} - Answers.pdf</strong> from the <a href="${folder}" target="_blank" rel="noopener">folder</a>, then pick it here:</p>
+      <label class="btn btn-primary" style="margin:10px 0 18px">${icon("upload", 18)} Choose PDF file<input type="file" id="qbi-file" accept="application/pdf,.pdf" hidden></label>
+      <p class="text-3 small">Or copy and paste the text instead:</p>
       <ol class="qb-steps">
         <li>Open the folder and open <strong>${info.n}. ${esc(info.title)} - Answers.pdf</strong> <a href="${folder}" target="_blank" rel="noopener">(open folder ${icon("external", 14)})</a>.</li>
         <li>On a computer: click inside the PDF, press <span class="kbd">Ctrl</span> + <span class="kbd">A</span>, then <span class="kbd">Ctrl</span> + <span class="kbd">C</span>.</li>
@@ -182,6 +277,17 @@ function renderQBImport(fileId) {
     </div>` : ""}
     ${existing ? `<button class="btn btn-soft-danger section" id="qbi-remove">${icon("trash", 18)} Remove imported set</button>` : ""}`;
 
+  const fileIn = document.getElementById("qbi-file");
+  fileIn.onchange = async () => {
+    const f = fileIn.files[0]; if (!f) return;
+    toast("Reading PDF…");
+    try {
+      qbDraft.text = await qbPdfText(f);
+      qbDraft.parsed = qbParse(qbDraft.text);
+      if (!qbDraft.parsed.questions.length) toast("No questions found in this PDF", "error");
+    } catch (e) { toast(e.message || "Could not read the PDF", "error"); }
+    renderQBImport(fileId);
+  };
   const ta = document.getElementById("qbi-text");
   ta.oninput = () => { qbDraft.text = ta.value; };
   document.getElementById("qbi-parse").onclick = () => {

@@ -158,6 +158,7 @@ function renderTopic(topicId) {
     <a href="#/study" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Study plan</a>
     ${pageHeader(`${t.order}. ${t.name}`, `Exam weight ${t.weight} · planned ${t.plannedWeeks} weeks`,
       `<button class="btn btn-primary" id="btn-topic-mock" ${DATA.questions.some(q => q.topic === t.id) && !DATA.activeMock ? "" : "disabled"}>${icon("clock", 18)} ${t.id} mock test</button>
+       <a class="btn btn-secondary" href="#/analysis/${t.id}">${icon("alert", 18)} Weak spots</a>
        <a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`)}
 
     <div class="grid grid-stats">

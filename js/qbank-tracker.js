@@ -43,7 +43,21 @@ function weightShare(t) {
   return Math.round((mid(t) / total) * 100);
 }
 
-let qbOpen = null;   // file id currently expanded
+let qbOpen = null;
+let qbBulkReport = null;
+
+function qbReportHtml(r) {
+  const q = r.sets.reduce((a, x) => a + x.n, 0);
+  return `<div class="card section">
+    <div class="card-head"><div><h2>Import finished</h2><p class="text-2 small">${r.sets.length} sets · ${q} questions ready to answer</p></div>
+      <button class="btn btn-ghost btn-sm" id="qb-report-close">Close</button></div>
+    ${r.sets.length ? `<div class="list">${r.sets.map(x => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(x.title)}</div>
+      <div class="list-meta">${x.n}/${x.total} questions${x.missingAns ? ` · <span style="color:var(--warning)">${x.missingAns} without an answer mark — left out</span>` : ""}</div></div>
+      <a class="btn btn-primary btn-sm" href="#/qbank/do/${x.fileId}">${icon("play", 14)} Do it</a></div>`).join("")}</div>` : ""}
+    ${r.failed.length ? `<div class="callout danger" style="margin-top:12px">${icon("alert", 18)}<div><strong>Not imported:</strong><br>${r.failed.map(esc).join("<br>")}</div></div>` : ""}
+    ${r.skipped.length ? `<p class="text-3 small" style="margin-top:10px">Skipped: ${r.skipped.map(esc).join(", ")}</p>` : ""}
+  </div>`;
+}   // file id currently expanded
 
 function renderQBank(sub, fileId, mode) {
   if (!qbiReady()) {
@@ -60,14 +74,17 @@ function renderQBank(sub, fileId, mode) {
 
   view.innerHTML = `
     ${pageHeader("Question Bank", `Your PDF question sets · sorted by 2027 exam weight · ${all.files} active sets`,
-      `<label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
+      `${isOwner() ? `<label class="btn btn-primary">${icon("upload", 18)} Import Answers PDFs<input type="file" id="qb-bulk" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
+       <label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
+    <div id="qb-progress"></div>
+    ${qbBulkReport ? qbReportHtml(qbBulkReport) : ""}
     <div class="grid grid-stats">
       <div class="card stat"><span class="stat-label">Questions marked</span><span class="stat-value">${all.done}</span></div>
       <div class="card stat"><span class="stat-label">Accuracy</span><span class="stat-value">${all.done ? pct(all.right, all.done) + "%" : "–"}</span></div>
       <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
       <div class="card stat"><span class="stat-label">Answer on this site</span><span class="stat-value">${qbiQuestionCount()}</span><span class="stat-hint">questions imported</span></div>
     </div>
-    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions — pick A/B/C and see why it is right or wrong.${isOwner() ? " To add a set, press <strong>Import</strong> and paste the text of its Answers PDF (once per set)." : ""} Imported questions stay only in this browser.</div></div>
+    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions — pick A/B/C and see why it is right or wrong.${isOwner() ? " To add sets, download the <strong>Answers</strong> PDFs from Drive and press <strong>Import Answers PDFs</strong> — you can select many files at once." : ""} Imported questions stay only in this browser.</div></div>
     ${topics.map(t => {
       const files = (QBANK_FILES[t.id] || []).filter(f => qbShowSkipped || !qbSkipped(f[2]));
       const ts = qbTopicStats(t.id);
@@ -132,6 +149,20 @@ function qbRowHtml(t, f) {
 }
 
 function bindQBank() {
+  const bulk = document.getElementById("qb-bulk");
+  if (bulk) bulk.onchange = async () => {
+    const files = [...bulk.files]; bulk.value = "";
+    if (!files.length) return;
+    const box = document.getElementById("qb-progress");
+    const report = await qbImportPdfs(files, (i, n, name) => {
+      box.innerHTML = `<div class="callout info section">${icon("upload", 18)}<div>Reading ${i} of ${n}: <strong>${esc(name)}</strong>…<div style="margin-top:8px">${progressBar(pct(i - 1, n))}</div></div></div>`;
+    });
+    qbBulkReport = report;
+    toast(`Imported ${report.sets.length} set${report.sets.length === 1 ? "" : "s"}`, report.sets.length ? "success" : "error");
+    renderQBank();
+  };
+  const rc = document.getElementById("qb-report-close");
+  if (rc) rc.onclick = () => { qbBulkReport = null; renderQBank(); };
   const sk = document.getElementById("qb-show-skipped");
   if (sk) sk.onchange = () => { qbShowSkipped = sk.checked; renderQBank(); };
   view.querySelectorAll("[data-qbskip]").forEach(b => b.onclick = () => {
