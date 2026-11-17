@@ -232,58 +232,101 @@ function smCltHtml() {
     </div>`;
 }
 
-// ---------- 3. Hypothesis test: weigh a catch ----------
-function smTestRun() {
-  const T = sm.test, fish = Array.from({ length: T.n }, () => SM_FISH[Math.floor(Math.random() * 120)]);
-  const xs = fish.map(f => f.w), n = xs.length, mean = xs.reduce((a, b) => a + b, 0) / n;
-  const s = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)), se = s / Math.sqrt(n), t = (mean - T.mu0) / se, df = n - 1;
-  const a = T.alpha, crit = T.alt === "two" ? tCrit(df, a / 2) : tCrit(df, a);
-  const p = T.alt === "two" ? 2 * (1 - tCdf(Math.abs(t), df)) : T.alt === "gt" ? 1 - tCdf(t, df) : tCdf(t, df);
-  const reject = p < a;
-  T.runs++; if (reject) T.rejects++;
-  return { fish, mean, s, se, t, df, crit, p, reject };
+// ---------- 3. Hypothesis test: weigh a catch (z-test, σ known) ----------
+const ZT = { mu0: 500, sigma: 60, n: 36, alt: "lt", alpha: 0.05, pondMu: 485, res: null, batch: null };
+const ZT_ALT = {
+  lt: { label: "H₀: μ ≥ 500 · Hₐ: μ < 500 (one-tailed, left)", h0: m => `μ ≥ ${m} g`, ha: m => `μ < ${m} g`, who: "suspects the fish are lighter than claimed" },
+  two: { label: "H₀: μ = 500 · Hₐ: μ ≠ 500 (two-tailed)", h0: m => `μ = ${m} g`, ha: m => `μ ≠ ${m} g`, who: "suspects the average is different from the claim" },
+  gt: { label: "H₀: μ ≤ 500 · Hₐ: μ > 500 (one-tailed, right)", h0: m => `μ ≤ ${m} g`, ha: m => `μ > ${m} g`, who: "suspects the fish are heavier than claimed" }
+};
+
+function ztNet() {
+  const T = ZT, ws = Array.from({ length: T.n }, () => Math.max(120, Math.round(T.pondMu + T.sigma * randn())));
+  return ztEval(ws);
+}
+function ztEval(ws) {
+  const T = ZT, n = ws.length, mean = ws.reduce((a, b) => a + b, 0) / n, se = T.sigma / Math.sqrt(n), z = (mean - T.mu0) / se;
+  const crit = T.alt === "two" ? normInv(1 - T.alpha / 2) : normInv(1 - T.alpha);
+  const reject = T.alt === "two" ? Math.abs(z) > crit : T.alt === "gt" ? z > crit : z < -crit;
+  const p = T.alt === "two" ? 2 * (1 - normCdf(Math.abs(z))) : T.alt === "gt" ? 1 - normCdf(z) : normCdf(z);
+  return { ws, n, mean, se, z, crit, reject, p };
+}
+function ztH0True() { const T = ZT; return T.alt === "lt" ? T.pondMu >= T.mu0 : T.alt === "gt" ? T.pondMu <= T.mu0 : Math.abs(T.pondMu - T.mu0) < 0.5; }
+
+function ztShade(opts = {}) {
+  const T = ZT, c = opts.crit;
+  return T.alt === "lt" ? { x1: -c, x2: -c, shade: "left" } : T.alt === "gt" ? { x1: c, x2: c, shade: "right" } : { x1: -c, x2: c, shade: "tails" };
+}
+
+function ztPondHtml(R) {
+  return `<div class="zt-pond">${R.ws.map((w, i) => {
+    const sz = Math.round(Math.min(48, Math.max(22, 22 + (w - 300) * 0.12)));
+    return `<div class="zt-fish" style="animation-delay:${Math.min(i * 22, 700)}ms"><svg class="fish ${w < ZT.mu0 ? "fish-s" : "fish-m"}" style="width:${sz}px;height:${Math.round(sz * 0.55)}px" viewBox="0 0 40 22" aria-hidden="true"><ellipse cx="16" cy="11" rx="14" ry="8"/><path d="M28 11 L39 3 L39 19 Z"/></svg><span>${w}g</span></div>`;
+  }).join("")}</div>`;
+}
+
+function ztChartHtml(R) {
+  const T = ZT, lim = Math.min(8, Math.max(4.2, Math.abs(R.z) + 0.8, R.crit + 0.8));
+  const sh = ztShade({ crit: R.crit }), sc = T.alt === "two" ? ["−" + R.crit.toFixed(3), "+" + R.crit.toFixed(3)] : [(T.alt === "lt" ? "−" : "") + R.crit.toFixed(3)];
+  const marks = [{ x: R.z, label: `z = ${R.z.toFixed(2)}`, cls: "m-z" }];
+  const critX = T.alt === "two" ? [-R.crit, R.crit] : [T.alt === "lt" ? -R.crit : R.crit];
+  critX.forEach((x, i) => marks.push({ x, label: sc[i], cls: "m-crit" }));
+  return dlSvg({ pdf: normPdf, range: [-lim, lim], ...sh, areaCls: "dl-area-red", marks, label: "Standard normal with rejection region" })
+    + `<p class="text-2 small" style="text-align:center;margin:4px 0 0">Rejection region of H₀ (shaded red) · α = ${T.alpha}</p>`;
+}
+
+function ztBatchHtml() {
+  const B = ZT.batch; if (!B) return "";
+  const bins = 36, lo = -4.5, hi = 4.5, bw = (hi - lo) / bins, d = new Array(bins).fill(0);
+  B.zs.forEach(z => { const i = Math.floor((z - lo) / bw); if (i >= 0 && i < bins) d[i]++; });
+  const sh = ztShade({ crit: B.crit }), h0 = B.h0True;
+  return `<div class="card section">
+    <h3>${B.runs} nets</h3>
+    ${dlSvg({ pdf: normPdf, range: [lo, hi], ...sh, areaCls: "dl-area-red", hist: { dens: d.map(c => c / (B.runs * bw)) }, label: "z statistics of repeated nets" })}
+    <div class="dl-eq dl-big">H₀ was rejected in <strong>${B.rejects} of ${B.runs}</strong> nets (${pct(B.rejects, B.runs)}%).</div>
+    <p class="text-2 small">${h0 ? `In this pond H₀ is <strong>true</strong>, so every rejection is a <strong>Type I error</strong>. In the long run the rate is at most α = ${ZT.alpha * 100}% (exactly α when μ sits right on the claim — try “Set pond mean = claim” in the teacher's corner).`
+      : `In this pond H₀ is <strong>false</strong>, so a rejection is the right decision: ${pct(B.rejects, B.runs)}% estimates the <strong>power</strong> (1 − β) of the test. The other ${100 - pct(B.rejects, B.runs)}% are <strong>Type II errors</strong> (failing to reject a false H₀).`}</p>
+  </div>`;
 }
 
 function smTestHtml() {
-  const T = sm.test, R = T.res;
-  const altSym = { two: "≠", gt: ">", lt: "<" }[T.alt];
-  let chart = "", body = `<p class="text-2">Press <strong>Catch & weigh</strong> to net ${T.n} fish at random and test the claim.</p>`;
+  const T = ZT, R = T.res, A = ZT_ALT[T.alt];
+  const head = `
+    <div class="zt-problem"><strong>Problem.</strong> A fish farm advertises an average weight of <strong>${T.mu0} g</strong> per fish with a population standard deviation of <strong>σ = ${T.sigma} g</strong>. A buyer ${A.who}, so they net a random sample of <strong>n = ${T.n}</strong> fish and weigh them. At the chosen significance level α, is there enough evidence to reject the claim?</div>
+    <p class="sm-cap" style="margin-top:16px">Hypotheses</p>
+    <select class="select" id="zt-alt">${Object.entries(ZT_ALT).map(([k, v]) => `<option value="${k}" ${T.alt === k ? "selected" : ""}>${v.label}</option>`).join("")}</select>
+    <label class="field" style="margin-top:12px;max-width:200px"><span class="field-label">Significance level α</span><select class="select" id="zt-alpha">${[0.10, 0.05, 0.01].map(a => `<option value="${a}" ${T.alpha === a ? "selected" : ""}>${a.toFixed(2)}</option>`).join("")}</select></label>`;
+  const buttons = `<div class="row-gap" style="flex-wrap:wrap;margin:14px 0"><button class="btn btn-primary btn-lg" id="zt-net">Cast the net: catch ${T.n} fish</button><button class="btn btn-secondary btn-lg" id="zt-200">Catch 200 times</button></div>`;
+  let body = "";
   if (R) {
-    const lim = Math.max(4.5, Math.abs(R.t) + 0.8);
-    const shade = T.alt === "two" ? "tails" : T.alt === "gt" ? "right" : "left";
-    const x1 = T.alt === "two" ? -R.crit : T.alt === "lt" ? -R.crit : R.crit, x2 = R.crit;
-    chart = dlSvg({ pdf: x => tPdf(x, R.df), range: [-lim, lim], x1, x2, shade, areaCls: "dl-area-red", dot: R.t, marks: [{ x: R.t, label: `t = ${R.t.toFixed(2)}` }], label: "t distribution with rejection region" });
+    const decisionTxt = T.alt === "two" ? `|z| = ${Math.abs(R.z).toFixed(2)} ${R.reject ? "is" : "is not"} larger than ${R.crit.toFixed(3)}` : `z = ${R.z.toFixed(2)} ${R.reject ? "is" : "is not"} in the rejection region`;
     body = `
-      <div class="sm-catch">${R.fish.map(f => `<span class="sm-chip ${SM_SIZES[f.size].cls}">${f.w} g</span>`).join("")}</div>
-      <div class="dl-res">
-        <div class="dl-eq">x̄ = <strong>${R.mean.toFixed(1)} g</strong> · s = ${R.s.toFixed(1)} g · n = ${T.n} · df = n − 1 = ${R.df}</div>
-        <div class="dl-eq">Test statistic t = (x̄ − μ<sub>0</sub>) / (s/√n) = (${R.mean.toFixed(1)} − ${T.mu0}) / (${R.s.toFixed(1)}/√${T.n}) = <strong>${R.t.toFixed(3)}</strong></div>
-        <div class="dl-eq">Critical value${T.alt === "two" ? "s" : ""}: <strong>${T.alt === "two" ? "±" : T.alt === "lt" ? "−" : "+"}${R.crit.toFixed(3)}</strong> (α = ${T.alpha}${T.alt === "two" ? `, ${T.alpha / 2} in each tail` : ""}) · p-value = <strong>${R.p < 0.0001 ? "< 0.0001" : R.p.toFixed(4)}</strong></div>
-        <div class="callout ${R.reject ? "danger" : "success"}" style="margin-top:10px">${icon(R.reject ? "alert" : "check", 18)}<div><strong>${R.reject ? "Reject H₀" : "Fail to reject H₀"}</strong> — ${R.reject ? `the test statistic is in the rejection region (p-value ${R.p.toFixed(4)} < α = ${T.alpha}).` : `the test statistic is not in the rejection region (p-value ${R.p.toFixed(4)} ≥ α = ${T.alpha}). We never "accept" H₀.`}</div></div>
-        <p class="text-2 small" style="margin-top:8px">The true mean of the farm is ${SM_MU.toFixed(1)} g. ${Math.abs(T.mu0 - SM_MU) < 1 ? `H₀ is TRUE here, so rejecting it is a <strong>Type I error</strong> (probability = α).` : `H₀ is FALSE here (μ₀ = ${T.mu0} ≠ ${SM_MU.toFixed(1)}), so failing to reject is a <strong>Type II error</strong>; rejecting is correct (power = 1 − β).`} Tests run: ${T.runs} · rejected ${T.rejects} (${pct(T.rejects, T.runs)}%).</p>
+      ${ztPondHtml(R)}
+      <div class="zt-chart">${ztChartHtml(R)}</div>
+      ${buttons}
+      <div class="zt-banner ${R.reject ? "bad" : "ok"}">${R.reject ? "Reject H₀" : "Fail to reject H₀"}</div>
+      <ol class="zt-steps">
+        <li><strong>Hypotheses:</strong> H₀: ${A.h0(T.mu0)}; Hₐ: ${A.ha(T.mu0)}.</li>
+        <li><strong>Test statistic:</strong> z = (x̄ − μ₀) / (σ/√n) = (${R.mean.toFixed(1)} − ${T.mu0}) / (${T.sigma}/√${T.n}) = <strong>${R.z.toFixed(2)}</strong></li>
+        <li><strong>Critical value</strong> with α = ${T.alpha}: reject H₀ if ${T.alt === "lt" ? `z < −${R.crit.toFixed(3)}` : T.alt === "gt" ? `z > ${R.crit.toFixed(3)}` : `|z| > ${R.crit.toFixed(3)}`}. (p-value = ${R.p < 0.0001 ? "< 0.0001" : R.p.toFixed(4)})</li>
+        <li><strong>Decision:</strong> ${decisionTxt} → <strong>${R.reject ? "reject" : "fail to reject"} H₀</strong>.</li>
+        <li><strong>Conclusion:</strong> ${R.reject ? `There is enough evidence at the ${T.alpha * 100}% level to conclude that ${A.ha(T.mu0).replace("μ", "the mean")} — the farm's claim of ${T.mu0} g is not supported.` : `Not enough evidence to reject the claim of ${T.mu0} g. This does not mean we have proved μ = ${T.mu0} g — we never “accept” H₀.`}</li>
+      </ol>
+      <div class="sm-stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="sm-stat"><b>${R.mean.toFixed(1)} g</b><span>x̄: mean of the ${R.n} fish</span></div>
+        <div class="sm-stat"><b>${R.se.toFixed(1)} g</b><span>σ/√n: standard error</span></div>
+        <div class="sm-stat"><b>${R.z.toFixed(2)}</b><span>z</span></div>
       </div>`;
+  } else {
+    body = `<div class="sm-empty">${icon("target", 28)}<p>Press <strong>Cast the net</strong> to catch ${T.n} random fish from the pond and test the claim.</p></div>${buttons}`;
   }
-  return `
-    <div class="dl-layout">
-      <div class="card dl-chart-card">${chart || `<div class="sm-empty">${icon("target", 28)}<p>The t distribution and rejection region appear here.</p></div>`}</div>
-      <div class="dl-side"><div class="card">
-        <div class="dl-eq dl-big">H<sub>0</sub>: μ = ${T.mu0} g &nbsp; vs &nbsp; H<sub>a</sub>: μ ${altSym} ${T.mu0} g</div>
-        <p class="text-2 small">A buyer claims the average fish weighs ${T.mu0} g. Catch a random sample and test it (σ unknown → t-test).</p>
-        <label class="dl-slider"><span>Claimed mean μ<sub>0</sub> = <strong>${T.mu0} g</strong></span><input type="range" id="sm-mu0" min="250" max="650" step="5" value="${T.mu0}"></label>
-        <label class="dl-slider"><span>Sample size n = <strong>${T.n}</strong></span><input type="range" id="sm-tn" min="5" max="60" step="1" value="${T.n}"></label>
-        <div class="form-grid">
-          ${dlSel("sm-alpha", "Significance level α", [0.10, 0.05, 0.01], T.alpha)}
-          <label class="field"><span class="field-label">Alternative H<sub>a</sub></span><select class="select" id="sm-alt">
-            ${[["two", "μ ≠ μ₀ (two-tailed)"], ["gt", "μ > μ₀ (right tail)"], ["lt", "μ < μ₀ (left tail)"]].map(([k, l]) => `<option value="${k}" ${T.alt === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-        </div>
-        <div class="row-gap" style="flex-wrap:wrap;margin:12px 0">
-          <button class="btn btn-primary" id="sm-catch">${icon("play", 16)} Catch & weigh</button>
-          <button class="btn btn-secondary" id="sm-100">Run 100 tests</button>
-          <button class="btn btn-ghost" id="sm-true">Set μ₀ = true mean</button>
-        </div>
-        ${body}
-      </div></div>
-    </div>`;
+  const teacher = `
+    <details class="zt-teacher" ${T.open ? "open" : ""}><summary>Teacher's corner: the true mean weight of the fish in the pond</summary>
+      <p class="small">In real life you never know μ. Here the pond's true mean is <strong>${T.pondMu} g</strong> (σ = ${T.sigma} g), so H₀ is actually <strong>${ztH0True() ? "TRUE" : "FALSE"}</strong>${R ? `: this decision (${R.reject ? "reject" : "fail to reject"}) is ${ztH0True() ? (R.reject ? "a <strong>Type I error</strong>" : "correct") : (R.reject ? "correct" : "a <strong>Type II error</strong>")}.` : "."}</p>
+      <label class="dl-slider"><span>Pond true mean = <strong>${T.pondMu} g</strong></span><input type="range" id="zt-pond" min="440" max="560" step="1" value="${T.pondMu}"></label>
+      <button class="btn btn-ghost btn-sm" id="zt-eq">Set pond mean = claim (${T.mu0} g)</button>
+    </details>`;
+  return `<div class="card">${head}${body}${teacher}</div>${ztBatchHtml()}`;
 }
 
 // ---------- 4. Practice questions ----------
@@ -352,7 +395,7 @@ function smPracticeHtml() {
 }
 
 // ---------- Page ----------
-const SM_SUBS = [["methods", "1. Sampling methods"], ["clt", "2. Sampling error & CLT"], ["test", "3. Test: weigh the catch"], ["practice", "4. Practice questions"]];
+const SM_SUBS = [["methods", "1. Sampling methods"], ["clt", "2. Sampling error & CLT"], ["test", "3. Hypothesis test: weigh the catch"], ["practice", "4. Practice questions"]];
 
 function dlSampling() {
   const body = { methods: smMethodsHtml, clt: smCltHtml, test: smTestHtml, practice: smPracticeHtml }[sm.sub]();
@@ -384,17 +427,21 @@ function dlSampling() {
     };
   }
   if (sm.sub === "test") {
-    const T = sm.test, reset = () => { T.res = null; T.runs = 0; T.rejects = 0; };
-    const mu = document.getElementById("sm-mu0"), tn = document.getElementById("sm-tn");
-    mu.oninput = () => { mu.previousElementSibling.querySelector("strong").textContent = mu.value + " g"; };
-    mu.onchange = () => { T.mu0 = +mu.value; reset(); dlSampling(); };
-    tn.oninput = () => { tn.previousElementSibling.querySelector("strong").textContent = tn.value; };
-    tn.onchange = () => { T.n = +tn.value; reset(); dlSampling(); };
-    document.getElementById("sm-alpha").onchange = e => { T.alpha = +e.target.value; reset(); dlSampling(); };
-    document.getElementById("sm-alt").onchange = e => { T.alt = e.target.value; reset(); dlSampling(); };
-    document.getElementById("sm-catch").onclick = () => { T.res = smTestRun(); dlSampling(); };
-    document.getElementById("sm-100").onclick = () => { for (let i = 0; i < 100; i++) T.res = smTestRun(); dlSampling(); toast(`100 tests run · ${T.rejects} of ${T.runs} rejected H₀`); };
-    document.getElementById("sm-true").onclick = () => { T.mu0 = Math.round(SM_MU); reset(); dlSampling(); toast(`μ₀ = ${T.mu0} g (≈ true mean): now every rejection is a Type I error`); };
+    const T = ZT, reset = () => { T.res = null; T.batch = null; dlSampling(); };
+    document.getElementById("zt-alt").onchange = e => { T.alt = e.target.value; reset(); };
+    document.getElementById("zt-alpha").onchange = e => { T.alpha = +e.target.value; reset(); };
+    document.getElementById("zt-net").onclick = () => { T.res = ztNet(); T.batch = null; dlSampling(); document.querySelector(".zt-pond")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+    document.getElementById("zt-200").onclick = () => {
+      const zs = []; let rej = 0, last = null;
+      for (let i = 0; i < 200; i++) { last = ztNet(); zs.push(last.z); if (last.reject) rej++; }
+      T.res = last; T.batch = { runs: 200, rejects: rej, zs, crit: last.crit, h0True: ztH0True() }; dlSampling();
+      toast(`200 nets: H₀ rejected ${rej} times`);
+    };
+    const det = document.querySelector(".zt-teacher"); det.ontoggle = () => { T.open = det.open; };
+    const pond = document.getElementById("zt-pond");
+    pond.oninput = () => { pond.previousElementSibling.querySelector("strong").textContent = pond.value + " g"; };
+    pond.onchange = () => { T.pondMu = +pond.value; T.res = null; T.batch = null; T.open = true; dlSampling(); };
+    document.getElementById("zt-eq").onclick = () => { T.pondMu = T.mu0; T.res = null; T.batch = null; T.open = true; dlSampling(); };
   }
   if (sm.sub === "practice") {
     view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => {

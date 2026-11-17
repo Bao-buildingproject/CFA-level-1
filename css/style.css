@@ -714,3 +714,22 @@ details.disclosure > div { padding-top: var(--space-3); }
 @keyframes smdrop { from { transform: translateY(-90px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sm-dot { animation: none; } }
 #clt-balls { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+/* Hypothesis test: fish pond */
+.zt-problem { background: var(--surface-2); border-radius: 14px; padding: 14px 16px; line-height: 1.6; }
+.zt-problem strong:first-child { color: var(--primary); }
+.zt-pond { margin-top: 14px; padding: 10px 6px 4px; border-radius: 14px; background: color-mix(in srgb, var(--primary) 7%, var(--surface-2)); background-image: repeating-linear-gradient(180deg, transparent 0 46px, color-mix(in srgb, var(--text-3) 35%, transparent) 46px 47px);
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px 2px; }
+@media (max-width: 330px) { .zt-pond { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.zt-fish { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 52px; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; animation: ztin .5s ease-out both; }
+@keyframes ztin { from { opacity: 0; transform: translateY(-14px) scale(.8); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .zt-fish { animation: none; } }
+.zt-fish .fish { height: auto; }
+.zt-chart { margin-top: 12px; }
+.dl-mark.m-z { stroke: var(--primary); stroke-width: 4; stroke-dasharray: none; } .dl-mlabel.m-z { fill: var(--primary); font-size: 14px; font-weight: 800; }
+.dl-mark.m-crit { stroke: var(--danger); stroke-dasharray: 3 3; } .dl-mlabel.m-crit { fill: var(--danger); }
+.zt-banner { text-align: center; font-weight: 800; font-size: 1.25rem; padding: 14px; border-radius: 14px; margin: 4px 0 12px; }
+.zt-banner.ok { background: var(--success-soft); color: var(--success); } .zt-banner.bad { background: var(--danger-soft); color: var(--danger); }
+.zt-steps { margin: 0 0 14px 20px; display: grid; gap: 8px; line-height: 1.6; }
+.zt-teacher { margin-top: 16px; background: var(--surface-2); border-radius: 12px; padding: 12px 14px; }
+.zt-teacher summary { cursor: pointer; font-weight: 700; }
