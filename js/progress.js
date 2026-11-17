@@ -158,6 +158,7 @@ function renderTopic(topicId) {
     <a href="#/study" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Study plan</a>
     ${pageHeader(`${t.order}. ${t.name}`, `Exam weight ${t.weight} · planned ${t.plannedWeeks} weeks`,
       `<button class="btn btn-primary" id="btn-topic-mock" ${DATA.questions.some(q => q.topic === t.id) && !DATA.activeMock ? "" : "disabled"}>${icon("clock", 18)} ${t.id} mock test</button>
+       ${t.id === "QM" ? `<a class="btn btn-secondary" href="#/dist">${icon("target", 18)} Distributions</a>` : ""}
        <a class="btn btn-secondary" href="#/analysis/${t.id}">${icon("alert", 18)} Weak spots</a>
        <a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`)}
 
@@ -337,7 +338,8 @@ function renderModule(moduleId) {
 
   view.innerHTML = `
     <a href="#/topic/${m.topic}" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} ${t.name}</a>
-    ${pageHeader(esc(m.title), `${t.name} · Learning Module ${m.n} of ${mods.length} · Curriculum Vol ${m.vol} · SchweserNotes Book ${m.book}`)}
+    ${pageHeader(esc(m.title), `${t.name} · Learning Module ${m.n} of ${mods.length} · Curriculum Vol ${m.vol} · SchweserNotes Book ${m.book}`,
+      ["QM-05", "QM-06", "QM-07", "QM-09"].includes(m.id) ? `<a class="btn btn-primary" href="#/dist">${icon("target", 18)} Distributions lab</a>` : "")}
 
     <div class="grid grid-2">
       <div class="card">

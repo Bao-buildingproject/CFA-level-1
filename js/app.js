@@ -48,7 +48,7 @@ function currentRoute() {
 
 function refreshShell() {
   const [route] = currentRoute();
-  const active = route === "topic" || route === "module" ? "study" : route;
+  const active = route === "topic" || route === "module" || route === "dist" ? "study" : route;
   const { daysLeft, week, phase } = countdownInfo();
 
   document.getElementById("side-nav").innerHTML = NAV_ITEMS.map(n => {
@@ -276,6 +276,7 @@ const ROUTES = {
   more: renderMore,
   qbank: renderQBank,
   analysis: renderAnalysis,
+  dist: renderDist,
   profiles: renderProfiles
 };
 
@@ -286,6 +287,7 @@ function renderMore() {
     ["curriculum", "grid", "Curriculum", "93 learning modules"],
     ["qbank", "flag", "Question Bank", "Your PDF question sets · answer them here"],
     ["analysis", "alert", "Weak spots", "Accuracy by topic and module"],
+    ["dist", "target", "Distributions (Quant)", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "home", "Profiles", `${PROFILES.list.length} profile(s) · switch user`],
     ["settings", "settings", "Settings", "Backup, exam date, theme"]
