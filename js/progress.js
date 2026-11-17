@@ -157,7 +157,7 @@ function renderTopic(topicId) {
   view.innerHTML = `
     <a href="#/study" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Study plan</a>
     ${pageHeader(`${t.order}. ${t.name}`, `Exam weight ${t.weight} · planned ${t.plannedWeeks} weeks`,
-      `<button class="btn btn-primary" id="btn-topic-mock" ${DATA.questions.some(q => q.topic === t.id) && !DATA.activeMock ? "" : "disabled"}>${icon("clock", 18)} ${t.id} mock test</button>
+      `${testsHidden() ? "" : `<button class="btn btn-primary" id="btn-topic-mock" ${DATA.questions.some(q => q.topic === t.id) && !DATA.activeMock ? "" : "disabled"}>${icon("clock", 18)} ${t.id} mock test</button>`}
        ${t.id === "QM" ? `<a class="btn btn-secondary" href="#/dist">${icon("target", 18)} Distributions</a>` : ""}
        <a class="btn btn-secondary" href="#/analysis/${t.id}">${icon("alert", 18)} Weak spots</a>
        <a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`)}
@@ -179,7 +179,7 @@ function renderTopic(topicId) {
     </div>`;
 
   view.querySelectorAll(".tab").forEach(b => b.onclick = () => { topicTab = b.dataset.tab; renderTopic(topicId); });
-  document.getElementById("btn-topic-mock").onclick = () => confirmTopicMock(t.id, 30);
+  const tm = document.getElementById("btn-topic-mock"); if (tm) tm.onclick = () => confirmTopicMock(t.id, 30);
   ({ chapters: drawChaptersTab, scores: drawScoresTab, les: drawLesTab }[topicTab] || drawChaptersTab)(t);
 }
 
@@ -362,7 +362,7 @@ function renderModule(moduleId) {
       </div>
     </div>
 
-    <div class="card section">
+    ${testsHidden() ? "" : `<div class="card section">
       <div class="card-head"><div><h2>Module test</h2><p class="text-2 small">${qs.length} questions · ${testMinutes} min · exam conditions, answers shown after you submit</p></div></div>
       <div class="grid grid-3" style="gap:12px">
         ${byLevel.map(x => `<div class="stat"><span class="stat-label">${LEVELS[x.lv]}</span><span class="stat-value" style="font-size:1.3rem">${x.ok}/${x.n}</span><span class="stat-hint">mastered</span></div>`).join("")}
@@ -372,7 +372,7 @@ function renderModule(moduleId) {
         <button class="btn btn-secondary" id="btn-mod-practice" ${qs.length ? "" : "disabled"}>${icon("check", 18)} Practice with feedback</button>
       </div>
       ${DATA.activeMock ? `<p class="text-3 small" style="margin-top:8px">Finish or discard the mock in progress first.</p>` : ""}
-    </div>
+    </div>`}
 
     <div class="grid grid-2 section">
       <a class="card card-link" href="${book.url}" target="_blank" rel="noopener">
@@ -389,11 +389,12 @@ function renderModule(moduleId) {
     </div>`;
 
   bindModuleCards(view, () => renderModule(m.id));
-  document.getElementById("btn-mod-test").onclick = async () => {
+  const mt = document.getElementById("btn-mod-test"), mp2 = document.getElementById("btn-mod-practice");
+  if (mt) mt.onclick = async () => {
     if (!await confirmDialog({ title: "Start module test?", message: `${qs.length} questions · ${testMinutes} minutes. The timer starts right away.`, confirmText: "Start now" })) return;
     startMock("module", { name: `Module test · ${m.id} ${m.title}`, modules: [m.id], sessions: [{ count: qs.length, minutes: testMinutes }] });
   };
-  document.getElementById("btn-mod-practice").onclick = () => startQuiz(shuffle(qs));
+  if (mp2) mp2.onclick = () => startQuiz(shuffle(qs));
 }
 
 // ================= SCHWESERNOTES (#/schweser) =================

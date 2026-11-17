@@ -252,9 +252,9 @@ function switchProfile(id) {
   saveData();
 }
 
-function createProfile(name, pinHash) {
+function createProfile(name, pinHash, hideTests) {
   const id = makeId("u").replace(/^u_/, "");
-  PROFILES.list.push({ id, name, color: PROFILES.list.length % 6, pinHash: pinHash || null, createdAt: todayStr() });
+  PROFILES.list.push({ id, name, color: PROFILES.list.length % 6, pinHash: pinHash || null, createdAt: todayStr(), hideTests: !!hideTests });
   saveProfiles();
   return id;
 }

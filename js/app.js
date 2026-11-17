@@ -17,7 +17,12 @@ const NAV_ITEMS = [
   { route: "settings", label: "Settings", icon: "settings" }
 ];
 const MOBILE_NAV = ["dashboard", "study", "practice", "mock", "more"];
-const MOBILE_LABEL = { dashboard: "Home", study: "Study", practice: "Practice", mock: "Mock", more: "More" };
+const MOBILE_LABEL = { dashboard: "Home", study: "Study", practice: "Practice", mock: "Mock", more: "More", qbank: "Bank", cards: "Cards" };
+const MOBILE_NAV_LIMITED = ["dashboard", "study", "qbank", "cards", "more"];
+const TEST_ROUTES = ["practice", "mock"];          // hidden for profiles created with "hide Practice and Mock exams"
+function testsHidden() { try { return activeProfile().hideTests === true; } catch (e) { return false; } }
+const navItems = () => testsHidden() ? NAV_ITEMS.filter(n => !TEST_ROUTES.includes(n.route)) : NAV_ITEMS;
+const mobileNav = () => testsHidden() ? MOBILE_NAV_LIMITED : MOBILE_NAV;
 
 // ---------- Countdown ----------
 function studyPhase(week) {
@@ -51,14 +56,14 @@ function refreshShell() {
   const active = route === "topic" || route === "module" || route === "dist" ? "study" : route;
   const { daysLeft, week, phase } = countdownInfo();
 
-  document.getElementById("side-nav").innerHTML = NAV_ITEMS.map(n => {
+  document.getElementById("side-nav").innerHTML = navItems().map(n => {
     const b = navBadge(n.route);
     return `<a class="nav-link ${active === n.route ? "active" : ""}" href="#/${n.route}" ${active === n.route ? 'aria-current="page"' : ""}>
       ${icon(n.icon, 20)}<span>${n.label}</span>${b ? `<span class="nav-badge">${b}</span><i class="dot"></i>` : ""}</a>`;
   }).join("");
 
-  const moreActive = ["schweser", "curriculum", "cards", "settings", "more", "profiles", "qbank", "analysis"].includes(active);
-  document.getElementById("bottom-nav").innerHTML = MOBILE_NAV.map(r => {
+  const moreActive = !mobileNav().includes(active) && !["dashboard", "study", "practice", "mock"].includes(active) || active === "more";
+  document.getElementById("bottom-nav").innerHTML = mobileNav().map(r => {
     const n = NAV_ITEMS.find(x => x.route === r) || { icon: "grid" };
     const b = r === "more" ? navBadge("cards") : navBadge(r);
     if (r === "more") return `<a href="#/more" class="${moreActive ? "active" : ""}">${icon("grid", 22)}More${b ? '<i class="dot"></i>' : ""}</a>`;
@@ -124,7 +129,7 @@ function renderDashboard() {
         <span class="stat-label">Cards to review</span><span class="stat-value">${queue}</span>
         <span class="stat-hint">${log.cardsReviewed || 0} reviewed today</span>
       </a>
-      <a class="card card-link stat" href="#/practice">
+      ${testsHidden() ? "" : `<a class="card card-link stat" href="#/practice">
         <div class="stat-icon danger">${icon("alert", 18)}</div>
         <span class="stat-label">Mistakes to redo</span><span class="stat-value">${qs.mistakes}</span>
         <span class="stat-hint">${log.questionsDone || 0} questions today</span>
@@ -138,10 +143,10 @@ function renderDashboard() {
         <div class="stat-icon warning">${icon("clock", 18)}</div>
         <span class="stat-label">Last mock</span><span class="stat-value">${lastMock ? pct(lastMock.correct, lastMock.total) + "%" : "–"}</span>
         <span class="stat-hint">${lastMock ? prettyDate(lastMock.date) : "No mock yet"}</span>
-      </a>
+      </a>`}
     </div>
 
-    ${DATA.activeMock ? `<div class="callout warning section">${icon("clock", 18)}<div style="flex:1"><strong>${esc(DATA.activeMock.name)}</strong> is in progress.</div><a class="btn btn-primary btn-sm" href="#/mock/run">Resume</a></div>` : ""}
+    ${DATA.activeMock && !testsHidden() ? `<div class="callout warning section">${icon("clock", 18)}<div style="flex:1"><strong>${esc(DATA.activeMock.name)}</strong> is in progress.</div><a class="btn btn-primary btn-sm" href="#/mock/run">Resume</a></div>` : ""}
 
     <div class="row-between section">
       <div class="section-title" style="margin:0">Topics</div>
@@ -306,6 +311,7 @@ function router() {
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();
+  if (testsHidden() && TEST_ROUTES.includes(route)) { location.hash = "#/dashboard"; return; }
   (ROUTES[route] || renderDashboard)(a, b, c);
   refreshShell();
   window.scrollTo(0, 0);
@@ -359,10 +365,11 @@ function renderProfiles() {
         <div class="list-item">
           ${avatarHtml(p, 40)}
           <div class="list-main">
-            <div class="list-title">${esc(p.name)} ${p.id === cur.id ? '<span class="badge badge-success">Active</span>' : ""} ${p.pinHash ? '<span class="badge">PIN</span>' : ""}</div>
+            <div class="list-title">${esc(p.name)} ${p.id === cur.id ? '<span class="badge badge-success">Active</span>' : ""} ${p.pinHash ? '<span class="badge">PIN</span>' : ""} ${p.hideTests ? '<span class="badge">Practice &amp; Mock hidden</span>' : ""}</div>
             <div class="list-meta">${profileSummary(p.id)}</div>
           </div>
           ${p.id === cur.id ? "" : `<button class="btn btn-primary btn-sm" data-switch="${p.id}">Switch</button>`}
+          ${isOwner() ? `<button class="btn btn-ghost btn-sm" data-hidetests="${p.id}">${p.hideTests ? "Show Practice &amp; Mock" : "Hide Practice &amp; Mock"}</button>` : ""}
           <button class="icon-btn" data-rename="${p.id}" aria-label="Rename ${esc(p.name)}" title="Rename">${icon("settings", 18)}</button>
           ${PROFILES.list.length > 1 && isOwner() ? `<button class="icon-btn danger" data-delprof="${p.id}" aria-label="Delete ${esc(p.name)}" title="Delete">${icon("trash", 18)}</button>` : ""}
         </div>`).join("")}</div>
@@ -373,6 +380,7 @@ function renderProfiles() {
         <div class="card-head"><h2>Add a profile</h2></div>
         <label class="field"><span class="field-label">Name</span><input class="input" id="np-name" maxlength="30" placeholder="e.g. Minh"></label>
         <label class="field"><span class="field-label">4-digit PIN (optional)</span><input class="input" id="np-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password"></label>
+        <label class="check-chip" style="margin-top:6px"><input type="checkbox" id="np-hide" checked> Hide Practice and Mock exams</label>
         <div class="form-actions"><button class="btn btn-primary" id="btn-np">${icon("plus", 18)} Create profile</button></div>
       </div>
       <div class="card">
@@ -388,6 +396,12 @@ function renderProfiles() {
     <div class="callout info section">${icon("alert", 18)}<div>Profiles live in this browser only. To use a profile on another device, export a backup in Settings and import it there into a profile. Online accounts with automatic sync need the Firebase setup.</div></div>`;
 
   view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
+
+  view.querySelectorAll("[data-hidetests]").forEach(b => b.onclick = () => {
+    const p = PROFILES.list.find(x => x.id === b.dataset.hidetests);
+    p.hideTests = !p.hideTests; saveProfiles(); renderProfiles(); refreshShell();
+    toast(p.hideTests ? `Practice and Mock exams hidden for ${p.name}` : `Practice and Mock exams shown for ${p.name}`);
+  });
 
   view.querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
     const p = PROFILES.list.find(x => x.id === b.dataset.rename);
@@ -409,7 +423,7 @@ function renderProfiles() {
     nameEl.classList.toggle("invalid", !name);
     if (!name) { toast("Enter a name", "error"); return; }
     if (pin && PIN_RULE(pin)) { pinEl.classList.add("invalid"); toast(PIN_RULE(pin), "error"); return; }
-    const id = createProfile(name, pin ? await hashPin(pin) : null);
+    const id = createProfile(name, pin ? await hashPin(pin) : null, document.getElementById("np-hide").checked);
     switchProfile(id); markUnlocked(id); applyTheme();
     toast(`Profile ${name} created`);
     location.hash = "#/dashboard"; router();
