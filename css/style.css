@@ -662,3 +662,9 @@ details.disclosure > div { padding-top: var(--space-3); }
 
 .dl-stage { position: relative; }
 #dl-balls { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+.dl-redzone { fill: var(--danger); opacity: .12; }
+.dl-shape-fill { fill: var(--primary); opacity: .12; }
+.dl-shape-title { fill: var(--primary); font-size: 20px; font-weight: 800; }
+.dl-shape-sub { fill: var(--text-2); font-size: 13px; }
+.dl-shape-lab { font-size: 15px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }

@@ -113,7 +113,7 @@ const DISTS = {
   }
 };
 
-const dl = { tab: "explore", dist: "normal", p: {}, x1: -1, x2: 1, showStd: true, showSig: true, samples: [], timer: null, drag: null, z: 1.96, guess: null, score: [0, 0], beta: 2, alpha: 4 };
+const dl = { tab: "explore", dist: "normal", p: {}, x1: -1, x2: 1, showStd: true, showSig: true, samples: [], timer: null, drag: null, z: 1.96, guess: null, score: [0, 0], beta: 2, alpha: 0 };
 
 function dlReset(key) {
   dl.dist = key; dl.p = {};
@@ -469,42 +469,134 @@ function dlZTable() {
 }
 
 // ----- Skew & kurtosis -----
-function dlShape() {
-  // Skew-normal with shape alpha (location/scale chosen so mean 0, sd 1)
-  const al = dl.alpha, d = al / Math.sqrt(1 + al * al), m0 = d * Math.sqrt(2 / Math.PI);
-  const w = 1 / Math.sqrt(1 - m0 * m0), xi = -w * m0;
-  const snPdf = x => { const z = (x - xi) / w; return 2 / w * normPdf(z) * normCdf(al * z); };
-  const skew = (4 - Math.PI) / 2 * Math.pow(m0, 3) / Math.pow(1 - m0 * m0, 1.5);
-  const grid = Array.from({ length: 2001 }, (_, i) => -5 + i * 0.005);
-  let acc = 0, median = 0, mode = 0, best = -1;
-  for (const x of grid) { const y = snPdf(x); if (y > best) { best = y; mode = x; } acc += y * 0.005; if (!median && acc >= 0.5) median = x; }
-  // Generalized normal with shape beta (unit variance): beta 2 = normal, < 2 fat tails, > 2 thin tails
-  const be = dl.beta, sc = Math.sqrt(Math.exp(lnGamma(1 / be) - lnGamma(3 / be)));
-  const gnPdf = x => be / (2 * sc * Math.exp(lnGamma(1 / be))) * Math.exp(-Math.pow(Math.abs(x) / sc, be));
-  const exk = Math.exp(lnGamma(5 / be) + lnGamma(1 / be) - 2 * lnGamma(3 / be)) - 3;
-  const kName = Math.abs(exk) < 0.05 ? "Mesokurtic (normal)" : exk > 0 ? "Leptokurtic — fat tails, tall peak" : "Platykurtic — thin tails, flat top";
-  const sName = Math.abs(skew) < 0.02 ? "Symmetric: mean = median = mode" : skew > 0 ? "Positive (right) skew: mode < median < mean" : "Negative (left) skew: mean < median < mode";
+// One standardised distribution (mean 0, s.d. 1) with two knobs:
+//   skew shape a  (skew-symmetric transform 2·g(x)·G(a·x))
+//   tail shape b  (generalized normal: b = 2 normal, < 2 fat tails, > 2 thin tails)
+const DL_SHAPE_PRESETS = [
+  ["Normal", 0, 2], ["Stock returns", -3, 1.3], ["Income", 5, 2], ["Leptokurtic", 0, 1.1], ["Platykurtic", 0, 5]
+];
 
+function dlShapeModel(a, b) {
+  const s = Math.sqrt(Math.exp(lnGamma(1 / b) - lnGamma(3 / b)));          // unit-variance scale
+  const c = b / (2 * s * Math.exp(lnGamma(1 / b)));
+  const g = x => c * Math.exp(-Math.pow(Math.abs(x) / s, b));
+  const G = x => 0.5 + Math.sign(x) * 0.5 * gammaP(1 / b, Math.pow(Math.abs(x) / s, b));
+  const f = x => 2 * g(x) * G(a * x);
+  // moments on a grid
+  const lo = -12, hi = 12, n = 4800, dx = (hi - lo) / n;
+  let m0 = 0, m1 = 0;
+  const xs = [], fs = [];
+  for (let i = 0; i <= n; i++) { const x = lo + i * dx, y = f(x); xs.push(x); fs.push(y); m0 += y * dx; m1 += x * y * dx; }
+  const mean = m1 / m0;
+  let v = 0; for (let i = 0; i <= n; i++) v += (xs[i] - mean) ** 2 * fs[i] * dx; v /= m0;
+  const sd = Math.sqrt(v);
+  const h = z => sd * f(mean + sd * z) / m0;                                 // standardised pdf
+  // CDF by the trapezoid rule, read off with linear interpolation
+  let m3 = 0, m4 = 0, mode = 0, best = -1;
+  const zs = [], F = [0];
+  for (let i = 0; i <= n; i++) {
+    const z = (xs[i] - mean) / sd, w = fs[i] * dx / m0;
+    zs.push(z); m3 += z ** 3 * w; m4 += z ** 4 * w;
+    if (fs[i] > best) { best = fs[i]; mode = z; }
+    if (i) F.push(F[i - 1] + (fs[i - 1] + fs[i]) / 2 * dx / m0);
+  }
+  const cdf = z0 => { let i = zs.findIndex(z => z >= z0); if (i <= 0) return i === 0 ? 0 : 1; return F[i - 1] + (F[i] - F[i - 1]) * (z0 - zs[i - 1]) / (zs[i] - zs[i - 1]); };
+  let j = F.findIndex(v => v >= 0.5);
+  const median = zs[j - 1] + (zs[j] - zs[j - 1]) * (0.5 - F[j - 1]) / (F[j] - F[j - 1]);
+  return { pdf: h, skew: m3, kurt: m4, median, mode, tail3: cdf(-3) + 1 - cdf(3), below2: cdf(-2) };
+}
+
+function dlShapeName(M) {
+  const ek = M.kurt - 3;
+  const k = Math.abs(ek) < 0.1 ? "Mesokurtic" : ek > 0 ? "Leptokurtic" : "Platykurtic";
+  const s = Math.abs(M.skew) < 0.05 ? "symmetric" : M.skew > 0 ? "right skew" : "left skew";
+  return { k, s, ek };
+}
+
+function dlShapeSvg(M) {
+  const W = DL.W, H = DL.H + 30, L = 16, R = 16, T = 18, B = 30, pw = W - L - R, ph = H - T - B;
+  const lo = -4, hi = 4, N = 320;
+  let ymax = 0; for (let i = 0; i <= N; i++) { const x = lo + (hi - lo) * i / N; ymax = Math.max(ymax, M.pdf(x), normPdf(x)); }
+  ymax *= 1.4;                                   // headroom for the title and labels
+  const X = x => L + (x - lo) / (hi - lo) * pw, Y = y => T + ph - Math.min(y, ymax) / ymax * ph;
+  const line = f => Array.from({ length: N + 1 }, (_, i) => { const x = lo + (hi - lo) * i / N; return `${X(x).toFixed(1)},${Y(f(x)).toFixed(1)}`; }).join(" ");
+  const { k, s, ek } = dlShapeName(M);
+  let grid = "";
+  for (let i = -4; i <= 4; i++) grid += `<line class="dl-grid" x1="${X(i)}" x2="${X(i)}" y1="${T}" y2="${Y(0)}"/><text class="dl-tick" x="${X(i)}" y="${H - 9}" text-anchor="middle">${i === 0 ? "0" : i + "σ"}</text>`;
+  const marks = [["mean", 0, "m-mean"], ["median", M.median, "m-med"], ["mode", M.mode, "m-mode"]];
+  // stack labels so they never overlap
+  const order = marks.slice().sort((p, q) => p[1] - q[1]);
+  // labels in rows (rightmost on top), each next to its line
+  const lines = order.slice().reverse().map(([lab, x, cls], i) => {
+    const ly = T + 84 + i * 19;
+    return `<line class="dl-mark ${cls}" style="stroke-dasharray:none;stroke-width:2.5;opacity:1" x1="${X(x)}" x2="${X(x)}" y1="${ly - 12}" y2="${Y(0)}"/>
+      <text class="dl-mlabel ${cls} dl-shape-lab" x="${X(x) + (x > 1.5 ? -5 : 5)}" y="${ly}" text-anchor="${x > 1.5 ? "end" : "start"}">${lab}</text>`;
+  }).join("");
+  return `<svg class="dl-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${k}, ${s}">
+    <rect class="dl-redzone" x="${X(lo)}" y="${T}" width="${X(-3) - X(lo)}" height="${ph}"/>
+    <rect class="dl-redzone" x="${X(3)}" y="${T}" width="${X(hi) - X(3)}" height="${ph}"/>
+    ${grid}
+    <polyline class="dl-std" style="stroke-dasharray:7 6" points="${line(normPdf)}"/>
+    <polygon class="dl-shape-fill" points="${X(lo)},${Y(0)} ${line(M.pdf)} ${X(hi)},${Y(0)}"/>
+    <polyline class="dl-curve" style="stroke-width:3" points="${line(M.pdf)}"/>
+    ${lines}
+    <line class="dl-axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>
+    <text class="dl-shape-title" x="${L + 10}" y="${T + 22}">${k}</text>
+    <text class="dl-shape-sub" x="${L + 10}" y="${T + 42}">excess kurtosis ${dlF(ek, 2)} · ${s}</text>
+    <text class="dl-shape-sub" x="${L + 10}" y="${T + 59}">red zone: beyond 3σ</text>
+  </svg>`;
+}
+
+const dlF = (v, d) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d);
+function dlShapeInfo(M) {
+  const { k, ek } = dlShapeName(M);
+  const skewTxt = Math.abs(M.skew) < 0.05
+    ? "<strong>Symmetric:</strong> mean = median = mode."
+    : M.skew > 0
+      ? "<strong>Positive (right) skew:</strong> long right tail — many small losses and the occasional very large gain. Order: mode &lt; median &lt; mean."
+      : "<strong>Negative (left) skew:</strong> long left tail — occasional very large losses. Order: mean &lt; median &lt; mode. Many financial asset returns look like this.";
+  const kurtTxt = k === "Mesokurtic" ? "<strong>Mesokurtic</strong> (excess kurtosis ≈ 0): tails like the normal distribution."
+    : k === "Leptokurtic" ? "<strong>Leptokurtic</strong> (excess kurtosis &gt; 0): taller peak and fatter tails — extreme outcomes happen more often than a normal model predicts, so normal-based risk measures understate risk."
+    : "<strong>Platykurtic</strong> (excess kurtosis &lt; 0): flatter peak and thinner tails — fewer extreme outcomes than the normal.";
+  return `
+    <div class="dl-eq dl-big">Skewness = <strong>${dlF(M.skew, 3)}</strong> · Excess kurtosis = <strong>${dlF(ek, 3)}</strong></div>
+    <div class="dl-eq">Kurtosis = ${M.kurt.toFixed(3)} (normal: 3, excess = 0)</div>
+    <div class="dl-eq">Positions (in standard deviations): mode ${dlF(M.mode, 2)} · median ${dlF(M.median, 2)} · mean 0.00</div>
+    <div class="dl-eq">P(beyond ±3σ) = ${(M.tail3 * 100).toFixed(2)}% (normal: 0.27%) · P(below −2σ) = ${(M.below2 * 100).toFixed(2)}% (normal: 2.28%)</div>
+    <div class="callout info" style="margin-top:12px"><div class="small">${skewTxt} ${kurtTxt} Investors usually <strong>prefer positive skew</strong> (chance of big gains) and <strong>dislike high kurtosis</strong> (big tail risk).</div></div>`;
+}
+
+function dlShape() {
+  const M = dlShapeModel(dl.alpha, dl.beta);
+  const skewLabel = a => Math.abs(a) < 0.25 ? "symmetric" : a > 0 ? "right (positive skew)" : "left (negative skew)";
+  const tailLabel = b => Math.abs(b - 2) < 0.15 ? "Mesokurtic (normal tails)" : b < 2 ? "Leptokurtic (fat tails, tall peak)" : "Platykurtic (thin tails, flat peak)";
   document.getElementById("dl-body").innerHTML = `
-    <div class="grid dl-two">
-      <div class="card">
-        <h2>Skewness</h2>
-        ${dlSvg({ pdf: snPdf, range: [-4, 4], x1: 0, x2: 0, extra: [{ pdf: normPdf, cls: "dl-std", fill: false }],
-          marks: [{ x: mode, label: "Mode", cls: "m-mode" }, { x: median, label: "Median", cls: "m-med" }, { x: 0, label: "Mean", cls: "m-mean" }], label: "Skewed distribution" })}
-        <label class="dl-slider"><span>Skew shape = <strong>${al.toFixed(1)}</strong> · skewness = <strong>${skew.toFixed(3)}</strong></span>
-          <input type="range" id="dl-alpha" min="-8" max="8" step="0.5" value="${al}"></label>
-        <div class="callout ${Math.abs(skew) < 0.02 ? "success" : "warning"}">${icon("target", 18)}<div><strong>${sName}</strong><br><span class="small">Mean 0.00 · median ${median.toFixed(2)} · mode ${mode.toFixed(2)}. The mean is pulled toward the long tail. Positive skew: many small losses and a few big gains — investors usually prefer it.</span></div></div>
-      </div>
-      <div class="card">
-        <h2>Kurtosis</h2>
-        ${dlSvg({ pdf: gnPdf, range: [-4, 4], x1: 0, x2: 0, extra: [{ pdf: normPdf, cls: "dl-std", fill: false }], label: "Kurtosis comparison" })}
-        <label class="dl-slider"><span>Tail shape = <strong>${be.toFixed(2)}</strong> · excess kurtosis = <strong>${exk.toFixed(2)}</strong></span>
-          <input type="range" id="dl-beta" min="0.8" max="8" step="0.1" value="${be}"></label>
-        <div class="callout ${Math.abs(exk) < 0.05 ? "success" : "warning"}">${icon("target", 18)}<div><strong>${kName}</strong><br><span class="small">Same mean and variance as the grey normal curve. Excess kurtosis = kurtosis − 3. Fat tails (> 0) mean extreme returns happen more often than a normal model predicts, so normal-based VaR understates risk.</span></div></div>
-      </div>
+    <div class="dl-layout">
+      <div class="card dl-chart-card"><div id="dl-shape-chart">${dlShapeSvg(M)}</div></div>
+      <div class="dl-side"><div class="card">
+        <div class="callout info" style="margin-bottom:12px"><div class="small">The blue curve is a distribution standardised to mean 0 and standard deviation 1; the dashed grey curve is the normal distribution for comparison. Move the two sliders to change the skewness and the tail thickness (kurtosis).</div></div>
+        <label class="dl-slider"><span>Skew: <strong id="dl-alpha-v">${skewLabel(dl.alpha)}</strong></span>
+          <input type="range" id="dl-alpha" min="-8" max="8" step="0.25" value="${dl.alpha}"></label>
+        <label class="dl-slider"><span>Tail thickness: <strong id="dl-beta-v">${tailLabel(dl.beta)}</strong></span>
+          <input type="range" id="dl-beta" min="1" max="8" step="0.05" value="${dl.beta}"></label>
+        <div class="row-gap" style="flex-wrap:wrap;margin:8px 0 4px">${DL_SHAPE_PRESETS.map(([n, a, b], i) => `<button class="btn btn-secondary btn-sm" data-dlpre="${i}">${n}</button>`).join("")}</div>
+        <div id="dl-shape-info" class="dl-res">${dlShapeInfo(M)}</div>
+      </div></div>
     </div>`;
-  document.getElementById("dl-alpha").oninput = e => { dl.alpha = +e.target.value; dlShape(); document.getElementById("dl-alpha").focus(); };
-  document.getElementById("dl-beta").oninput = e => { dl.beta = +e.target.value; dlShape(); document.getElementById("dl-beta").focus(); };
+  const upd = () => {
+    const M2 = dlShapeModel(dl.alpha, dl.beta);
+    document.getElementById("dl-shape-chart").innerHTML = dlShapeSvg(M2);
+    document.getElementById("dl-shape-info").innerHTML = dlShapeInfo(M2);
+    document.getElementById("dl-alpha-v").textContent = skewLabel(dl.alpha);
+    document.getElementById("dl-beta-v").textContent = tailLabel(dl.beta);
+  };
+  const ai = document.getElementById("dl-alpha"), bi = document.getElementById("dl-beta");
+  ai.oninput = () => { dl.alpha = +ai.value; upd(); };
+  bi.oninput = () => { dl.beta = +bi.value; upd(); };
+  view.querySelectorAll("[data-dlpre]").forEach(btn => btn.onclick = () => {
+    const [, a, b] = DL_SHAPE_PRESETS[+btn.dataset.dlpre];
+    dl.alpha = a; dl.beta = b; ai.value = a; bi.value = b; upd();
+  });
 }
 
 // ----- Quick quiz (exam-style A/B/C) -----
