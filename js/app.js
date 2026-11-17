@@ -406,7 +406,7 @@ function renderProfiles() {
 
   view.querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
     const p = PROFILES.list.find(x => x.id === b.dataset.rename);
-    const name = await promptDialog({ title: "Rename profile", label: "Name", value: p.name, maxlength: 30, confirmText: "Save", validate: v => v ? "" : "Name can't be empty" });
+    const name = await promptDialog({ title: "Rename profile", label: "Name", value: p.name, maxlength: 30, confirmText: "Save", validate: v => !v ? "Name can't be empty" : nameTaken(v, p.id) ? "That name is already taken" : "" });
     if (name === null) return;
     p.name = name; saveProfiles(); renderProfiles(); refreshShell(); toast("Profile renamed");
   });
@@ -423,6 +423,7 @@ function renderProfiles() {
     const name = nameEl.value.trim(), pin = pinEl.value.trim();
     nameEl.classList.toggle("invalid", !name);
     if (!name) { toast("Enter a name", "error"); return; }
+    if (nameTaken(name)) { nameEl.classList.add("invalid"); toast(`The name “${name}” is already taken`, "error"); return; }
     if (pin && PIN_RULE(pin)) { pinEl.classList.add("invalid"); toast(PIN_RULE(pin), "error"); return; }
     const id = createProfile(name, pin ? await hashPin(pin) : null, document.getElementById("np-hide").checked);
     switchProfile(id); markUnlocked(id); applyTheme();
@@ -452,6 +453,12 @@ const INVITE_FROM_LINK = (() => {
     return c || "";
   } catch (e) { return ""; }
 })();
+// "Minh", "minh ", "Mình" and "MINH" all count as the same name
+const nameKey = n => String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]/g, "");
+function nameTaken(name, exceptId) {
+  const k = nameKey(name);
+  return PROFILES.list.some(p => p.id !== exceptId && !isPhantom(p) && nameKey(p.name) === k);
+}
 const normInvite = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 async function hashInvite(v) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-invite:" + normInvite(v)));
@@ -533,7 +540,8 @@ function renderGate() {
     // create account
     const name = document.getElementById("g-name").value.trim();
     if (!name) return fail("Enter your name.");
-    if (accts.some(a => a.name.toLowerCase() === name.toLowerCase())) return fail("That name is already used on this device. Choose another or sign in.");
+    if (!nameKey(name)) return fail("Use letters or numbers in your name.");
+    if (nameTaken(name)) return fail(`The name “${name}” is already taken. Choose a different name, or sign in if it is yours.`);
     if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
     if (pw !== document.getElementById("g-pw2").value) return fail("The two passwords do not match.");
     if (needCode) {
@@ -549,132 +557,6 @@ function renderGate() {
     gateEnter(id);
   };
 }
-async function goToProfile(id) {
-  const p = PROFILES.list.find(x => x.id === id);
-  if (!p) return;
-  if (p.pinHash && !(await askPinFor(p))) return;
-  switchProfile(id);
-  markUnlocked(id);
-  applyTheme();
-  toast(`Switched to ${p.name}`);
-  location.hash = "#/dashboard";
-  router();
-}
-
-function profileSummary(id) {
-  try {
-    const d = id === PROFILES.active ? DATA : JSON.parse(localStorage.getItem(profileKey(id)) || "{}");
-    const qs = (d.questions || []).filter(q => (q.attempts || []).length).length;
-    return `${qs} questions practised · ${(d.mocks || []).length} mock(s)`;
-  } catch (e) { return ""; }
-}
-
-function renderProfiles() {
-  const cur = activeProfile();
-  view.innerHTML = `
-    ${pageHeader("Profiles", "Each person gets separate progress, questions, flashcards and mock history on this device")}
-    <div class="card">
-      <div class="list">${PROFILES.list.map(p => `
-        <div class="list-item">
-          ${avatarHtml(p, 40)}
-          <div class="list-main">
-            <div class="list-title">${esc(p.name)} ${p.id === cur.id ? '<span class="badge badge-success">Active</span>' : ""} ${p.pinHash ? '<span class="badge">PIN</span>' : ""} ${p.hideTests ? '<span class="badge">Practice &amp; Mock hidden</span>' : ""}</div>
-            <div class="list-meta">${profileSummary(p.id)}</div>
-          </div>
-          ${p.id === cur.id ? "" : `<button class="btn btn-primary btn-sm" data-switch="${p.id}">Switch</button>`}
-          ${isOwner() ? `<button class="btn btn-ghost btn-sm" data-hidetests="${p.id}">${p.hideTests ? "Show Practice &amp; Mock" : "Hide Practice &amp; Mock"}</button>` : ""}
-          <button class="icon-btn" data-rename="${p.id}" aria-label="Rename ${esc(p.name)}" title="Rename">${icon("settings", 18)}</button>
-          ${PROFILES.list.length > 1 && isOwner() ? `<button class="icon-btn danger" data-delprof="${p.id}" aria-label="Delete ${esc(p.name)}" title="Delete">${icon("trash", 18)}</button>` : ""}
-        </div>`).join("")}</div>
-    </div>
-
-    <div class="grid grid-2 section">
-      <div class="card">
-        <div class="card-head"><h2>Add a profile</h2></div>
-        <label class="field"><span class="field-label">Name</span><input class="input" id="np-name" maxlength="30" placeholder="e.g. Minh"></label>
-        <label class="field"><span class="field-label">Password (at least 4 characters, optional here)</span><input class="input" id="np-pin" type="password" maxlength="40" autocomplete="new-password"></label>
-        <label class="check-chip" style="margin-top:6px"><input type="checkbox" id="np-hide" checked> Hide Practice and Mock exams</label>
-        <div class="form-actions"><button class="btn btn-primary" id="btn-np">${icon("plus", 18)} Create profile</button></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2>PIN for ${esc(cur.name)}</h2></div>
-        <p class="text-2 small">A PIN stops others on this device from opening your profile by accident. It is a simple lock, not strong security — anyone with access to the browser's storage could still read the data.</p>
-        <div class="row-gap" style="margin-top:14px">
-          <button class="btn btn-secondary" id="btn-setpin">${cur.pinHash ? "Change PIN" : "Set PIN"}</button>
-          ${cur.pinHash ? `<button class="btn btn-ghost" id="btn-rmpin">Remove PIN</button>` : ""}
-        </div>
-      </div>
-    </div>
-
-    <div class="callout info section">${icon("alert", 18)}<div>Profiles live in this browser only. To use a profile on another device, export a backup in Settings and import it there into a profile. Online accounts with automatic sync need the Firebase setup.</div></div>`;
-
-  view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
-
-  view.querySelectorAll("[data-hidetests]").forEach(b => b.onclick = () => {
-    const p = PROFILES.list.find(x => x.id === b.dataset.hidetests);
-    p.hideTests = !p.hideTests; saveProfiles(); renderProfiles(); refreshShell();
-    toast(p.hideTests ? `Practice and Mock exams hidden for ${p.name}` : `Practice and Mock exams shown for ${p.name}`);
-  });
-
-  view.querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
-    const p = PROFILES.list.find(x => x.id === b.dataset.rename);
-    const name = await promptDialog({ title: "Rename profile", label: "Name", value: p.name, maxlength: 30, confirmText: "Save", validate: v => v ? "" : "Name can't be empty" });
-    if (name === null) return;
-    p.name = name; saveProfiles(); renderProfiles(); refreshShell(); toast("Profile renamed");
-  });
-
-  view.querySelectorAll("[data-delprof]").forEach(b => b.onclick = async () => {
-    const p = PROFILES.list.find(x => x.id === b.dataset.delprof);
-    if (p.pinHash && !(await askPinFor(p))) return;
-    if (!await confirmDialog({ title: `Delete ${p.name}?`, message: "All progress, questions, flashcards and mock history in this profile will be erased from this device. Export a backup first if needed.", confirmText: "Delete profile", danger: true, requireText: "DELETE" })) return;
-    deleteProfile(p.id); applyTheme(); renderProfiles(); refreshShell(); toast("Profile deleted");
-  });
-
-  document.getElementById("btn-np").onclick = async () => {
-    const nameEl = document.getElementById("np-name"), pinEl = document.getElementById("np-pin");
-    const name = nameEl.value.trim(), pin = pinEl.value.trim();
-    nameEl.classList.toggle("invalid", !name);
-    if (!name) { toast("Enter a name", "error"); return; }
-    if (pin && PIN_RULE(pin)) { pinEl.classList.add("invalid"); toast(PIN_RULE(pin), "error"); return; }
-    const id = createProfile(name, pin ? await hashPin(pin) : null, document.getElementById("np-hide").checked);
-    switchProfile(id); markUnlocked(id); applyTheme();
-    toast(`Profile ${name} created`);
-    location.hash = "#/dashboard"; router();
-  };
-
-  document.getElementById("btn-setpin").onclick = async () => {
-    if (cur.pinHash && !(await askPinFor(cur))) return;
-    const pin = await promptDialog({ title: "Set a password", label: "New password", type: "password", inputmode: "text", maxlength: 40, confirmText: "Save", validate: PIN_RULE });
-    if (pin === null) return;
-    cur.pinHash = await hashPin(pin); saveProfiles(); markUnlocked(cur.id); renderProfiles(); toast("PIN saved");
-  };
-  const rm = document.getElementById("btn-rmpin");
-  if (rm) rm.onclick = async () => {
-    if (!(await askPinFor(cur))) return;
-    cur.pinHash = null; saveProfiles(); renderProfiles(); toast("PIN removed");
-  };
-}
-
-// ---------- Lock screen ----------
-function renderLock() {
-  const p = activeProfile();
-  const others = PROFILES.list.filter(x => x.id !== p.id);
-  view.innerHTML = `
-    <div class="card lock-screen">
-      ${avatarHtml(p, 64)}
-      <h1>${esc(p.name)}</h1>
-      <p class="text-2" style="margin-top:6px">This profile is locked.</p>
-      <button class="btn btn-primary btn-lg" id="btn-unlock" style="margin-top:20px">Enter PIN</button>
-      ${others.length ? `<div class="section-title section">Other profiles</div>
-        <div class="row-gap" style="justify-content:center">${others.map(o => `<button class="btn btn-secondary btn-sm" data-switch="${o.id}">${avatarHtml(o, 20)} ${esc(o.name)}</button>`).join("")}</div>` : ""}
-    </div>`;
-  document.getElementById("btn-unlock").onclick = async () => {
-    if (await askPinFor(p)) { markUnlocked(p.id); router(); }
-  };
-  view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
-}
-
-
 // ================= VERSION CHECK =================
 // Phones often keep old copies of the site. The page version comes from the ?v= on this script;
 // version.json (never cached) holds the newest version. If they differ, offer a one-tap update.
