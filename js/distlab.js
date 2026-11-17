@@ -155,10 +155,10 @@ function dlSvg(o) {
   const a = Math.min(o.x1, o.x2), b = Math.max(o.x1, o.x2);
   const cl = v => Math.min(hi, Math.max(lo, v));
   let shade = "";
-  if (o.shade === "between") shade = `<polygon class="dl-area" points="${area(o.pdf, cl(a), cl(b))}"/>`;
-  if (o.shade === "left") shade = `<polygon class="dl-area" points="${area(o.pdf, lo, cl(a))}"/>`;
-  if (o.shade === "right") shade = `<polygon class="dl-area" points="${area(o.pdf, cl(b), hi)}"/>`;
-  if (o.shade === "tails") shade = `<polygon class="dl-area" points="${area(o.pdf, lo, cl(a))}"/><polygon class="dl-area" points="${area(o.pdf, cl(b), hi)}"/>`;
+  if (o.shade === "between") shade = `<polygon class="${o.areaCls || "dl-area"}" points="${area(o.pdf, cl(a), cl(b))}"/>`;
+  if (o.shade === "left") shade = `<polygon class="${o.areaCls || "dl-area"}" points="${area(o.pdf, lo, cl(a))}"/>`;
+  if (o.shade === "right") shade = `<polygon class="${o.areaCls || "dl-area"}" points="${area(o.pdf, cl(b), hi)}"/>`;
+  if (o.shade === "tails") shade = `<polygon class="${o.areaCls || "dl-area"}" points="${area(o.pdf, lo, cl(a))}"/><polygon class="${o.areaCls || "dl-area"}" points="${area(o.pdf, cl(b), hi)}"/>`;
 
   let hist = "";
   if (o.hist) { const bw = (hi - lo) / o.hist.dens.length; hist = o.hist.dens.map((d, i) => d ? `<rect class="dl-hist" x="${(X(lo + i * bw) + 1).toFixed(1)}" y="${Y(d).toFixed(1)}" width="${Math.max(0, X(lo + bw) - X(lo) - 2).toFixed(1)}" height="${(Y(0) - Y(d)).toFixed(1)}"/>` : "").join(""); }
@@ -175,15 +175,16 @@ function dlSvg(o) {
     handles = `${lab(o.x1, 1, 0)}${lab(o.x2, 2, close ? 14 : 0)}
       <circle class="dl-handle" cx="${X(cl(o.x1))}" cy="${Y(0)}" r="9"/><circle class="dl-handle" cx="${X(cl(o.x2))}" cy="${Y(0)}" r="9"/>`;
   }
-  if (o.pct !== undefined) { const mx = o.shade === "between" ? (cl(a) + cl(b)) / 2 : o.shade === "left" ? (lo + cl(a)) / 2 : o.shade === "right" ? (cl(b) + hi) / 2 : (lo + hi) / 2; pctLabel = `<text class="dl-pct" x="${X(mx)}" y="${Math.max(T + 20, Y(o.pdf(mx)) + (Y(0) - Y(o.pdf(mx))) * 0.45)}" text-anchor="middle">${o.pct}</text>`; }
+  if (o.pct !== undefined) { const mx = o.shade === "between" ? (cl(a) + cl(b)) / 2 : o.shade === "left" ? (lo + cl(a)) / 2 : o.shade === "right" ? (cl(b) + hi) / 2 : (lo + hi) / 2; pctLabel = `<text class="dl-pct ${o.pctCls || ""}" x="${X(mx)}" y="${Math.max(T + 20, Y(o.pdf(mx)) + (Y(0) - Y(o.pdf(mx))) * 0.45)}" text-anchor="middle">${o.pct}</text>`; }
 
   return `<svg class="dl-svg" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-ymax="${ymax}" role="img" aria-label="${esc(o.label || "Distribution chart")}">
     ${grid}${hist}${extra}${shade}${sig}<polyline class="dl-curve" points="${line(o.pdf)}"/>
-    <line class="dl-axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>${marks}${pctLabel}${handles}</svg>`;
+    <line class="dl-axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>${marks}${pctLabel}${handles}
+    ${o.dot !== undefined ? `<circle class="dl-dot" cx="${X(cl(o.dot))}" cy="${Y(0)}" r="8"/>` : ""}</svg>`;
 }
 
 // ---------- Page ----------
-const DL_TABS = [["explore", "Explore"], ["ztable", "Z-table"], ["shape", "Skew & Kurtosis"], ["quiz", "Quick quiz"]];
+const DL_TABS = [["explore", "Explore"], ["ztable", "Tables"], ["shape", "Skew & Kurtosis"], ["quiz", "Quick quiz"]];
 
 function renderDist(tab) {
   dlStop();
@@ -193,7 +194,7 @@ function renderDist(tab) {
     ${pageHeader("Distributions", "Drag to calculate, simulate to check, read the z-table like in the exam.")}
     <div class="tabs" role="tablist">${DL_TABS.map(([k, l]) => `<a class="tab ${dl.tab === k ? "active" : ""}" href="#/dist/${k}">${l}</a>`).join("")}</div>
     <div id="dl-body"></div>`;
-  ({ explore: dlExplore, ztable: dlZTable, shape: dlShape, quiz: dlQuiz })[dl.tab]();
+  ({ explore: dlExplore, ztable: dlTables, shape: dlShape, quiz: dlQuiz })[dl.tab]();
 }
 
 // ----- Explore -----
@@ -438,11 +439,14 @@ function dlZTable() {
         <div id="dl-zchart">${dlSvg({ pdf: normPdf, range: [-4, 4], x1: -40, x2: z, shade: "left", pct: `N(z) = ${normCdf(z).toFixed(4)}`, marks: [{ x: z, label: `z = ${z.toFixed(2)}` }], label: "Standard normal" })}</div>
       </div>
       <div class="dl-side"><div class="card">
+        ${dlTableSelect()}
         <div class="form-grid">
           <label class="field"><span class="field-label">z</span><input class="input" type="number" step="0.01" min="-4" max="4" id="dl-z" value="${z}"></label>
           <label class="field"><span class="field-label">…or probability N(z) → z</span><input class="input" type="number" step="0.0001" min="0.0001" max="0.9999" id="dl-p" placeholder="e.g. 0.95"></label>
         </div>
         <div class="dl-res">
+          ${az <= 3.49 ? `<div class="dl-eq">1. Split |z| = ${az.toFixed(2)} into row <strong>${row.toFixed(1)}</strong> and column <strong>0.0${col}</strong>.</div>
+          <div class="dl-eq">2. The cell where they meet gives N(${az.toFixed(2)}) = <strong>${normCdf(az).toFixed(4)}</strong> = P(Z ≤ ${az.toFixed(2)}).</div>` : ""}
           <div class="dl-eq dl-big">N(${z.toFixed(2)}) = P(Z &lt; ${z.toFixed(2)}) = <strong>${normCdf(z).toFixed(4)}</strong></div>
           <p class="text-2 small">P(Z &gt; ${z.toFixed(2)}) = ${(1 - normCdf(z)).toFixed(4)} · P(|Z| &gt; ${az.toFixed(2)}) = ${(2 * (1 - normCdf(az))).toFixed(4)} · P(−${az.toFixed(2)} &lt; Z &lt; ${az.toFixed(2)}) = ${(2 * normCdf(az) - 1).toFixed(4)}</p>
           ${z < 0 ? `<p class="text-2 small">Tables only list positive z: N(${z.toFixed(2)}) = 1 − N(${az.toFixed(2)}) = 1 − ${normCdf(az).toFixed(4)}.</p>` : ""}
@@ -466,6 +470,133 @@ function dlZTable() {
   const pi = document.getElementById("dl-p");
   pi.onchange = () => { const v = +pi.value; if (v > 0 && v < 1) { dl.z = Math.round(normInv(v) * 100) / 100; dlZTable(); toast(`z for N(z) = ${v} is about ${dl.z.toFixed(2)}`); } };
   view.querySelectorAll("[data-z]").forEach(td => td.onclick = () => { dl.z = +td.dataset.z; dlZTable(); });
+  dlBindTableSelect();
+}
+
+// ---------- Critical-value tables: t, chi-square, F ----------
+function fPdf(x, d1, d2) {
+  if (x <= 0) return 0;
+  return Math.exp(lnGamma((d1 + d2) / 2) - lnGamma(d1 / 2) - lnGamma(d2 / 2) + (d1 / 2) * Math.log(d1 / d2) + (d1 / 2 - 1) * Math.log(x) - ((d1 + d2) / 2) * Math.log(1 + d1 * x / d2));
+}
+function fCdf(x, d1, d2) { return x <= 0 ? 0 : betaI(d1 / 2, d2 / 2, d1 * x / (d1 * x + d2)); }
+function dlInv(cdf, p, lo, hi) {                       // value with cdf = p, by bisection
+  for (let i = 0; i < 100; i++) { const m = (lo + hi) / 2; if (cdf(m) < p) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+const tCrit = (df, a) => df === Infinity ? normInv(1 - a) : dlInv(x => tCdf(x, df), 1 - a, 0, 1000);
+const chiCrit = (df, a) => dlInv(x => gammaP(df / 2, x / 2), 1 - a, 0, 1000);
+const fCrit = (d1, d2, a) => dlInv(x => fCdf(x, d1, d2), 1 - a, 0, 10000);
+
+const DL_TABLES = [["z", "z-table: N(z) = P(Z ≤ z)"], ["t", "t-table: critical values"], ["chi2", "Chi-square table: critical values"], ["f", "F-table: critical values"]];
+const T_ROWS = [...Array.from({ length: 30 }, (_, i) => i + 1), 40, 60, 120, Infinity];
+const T_COLS = [0.10, 0.05, 0.025, 0.01, 0.005];
+const CHI_ROWS = [...Array.from({ length: 30 }, (_, i) => i + 1), 40, 50, 60, 80, 100];
+const CHI_COLS = [0.995, 0.99, 0.975, 0.95, 0.90, 0.10, 0.05, 0.025, 0.01, 0.005];
+const F_D1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 24, 30, 40, 60, 120];
+const F_D2 = [...Array.from({ length: 30 }, (_, i) => i + 1), 40, 60, 120];
+const F_ALPHAS = [0.10, 0.05, 0.025, 0.01];
+dl.tbl = "z"; dl.tdf = 10; dl.ta = 0.025; dl.cdf = 10; dl.ca = 0.025; dl.fa = 0.05; dl.fd1 = 5; dl.fd2 = 10;
+const dlFCache = {};
+
+function dlTableSelect() {
+  return `<label class="field" style="margin-bottom:12px"><span class="field-label">Table</span>
+    <select class="select" id="dl-tbl">${DL_TABLES.map(([k, l]) => `<option value="${k}" ${dl.tbl === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>`;
+}
+function dlBindTableSelect() {
+  const s = document.getElementById("dl-tbl");
+  if (s) s.onchange = () => { dl.tbl = s.value; dlTables(); };
+}
+function dlTables() {
+  ({ z: dlZTable, t: dlTTable, chi2: dlChiTable, f: dlFTable })[dl.tbl]();
+}
+const dlDf = v => v === Infinity ? "∞" : v;
+const dlNum = (v, d = 3) => v > 0 && v < 0.01 ? v.toPrecision(3) : v >= 1000 ? v.toFixed(0) : v >= 100 ? v.toFixed(1) : v.toFixed(d);
+
+// Shared layout: chart + inputs + steps + table
+function dlCritPage({ chart, inputs, steps, tableTitle, tableNote, head, rows }) {
+  document.getElementById("dl-body").innerHTML = `
+    <div class="dl-layout">
+      <div class="card dl-chart-card">${chart}</div>
+      <div class="dl-side"><div class="card">
+        ${dlTableSelect()}
+        <div class="form-grid">${inputs}</div>
+        <div class="dl-res">${steps}</div>
+      </div></div>
+    </div>
+    <div class="card section">
+      <h2>${tableTitle}</h2><p class="text-2 small">${tableNote}</p>
+      <div class="table-wrap dl-tabwrap"><table class="table dl-ztab"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
+  dlBindTableSelect();
+}
+const dlSel = (id, label, opts, val) => `<label class="field"><span class="field-label">${label}</span><select class="select" id="${id}">${opts.map(o => `<option value="${o}" ${o === val ? "selected" : ""}>${o}</option>`).join("")}</select></label>`;
+const dlNumIn = (id, label, val, max) => `<label class="field"><span class="field-label">${label}</span><input class="input" type="number" min="1" max="${max}" step="1" inputmode="numeric" id="${id}" value="${val === Infinity ? "" : val}" placeholder="${val === Infinity ? "∞ (= z)" : ""}"></label>`;
+function dlBindNum(id, key, max, redraw) {
+  const el = document.getElementById(id);
+  el.onchange = () => { const v = Math.round(+el.value); if (v >= 1 && v <= max) { dl[key] = v; redraw(); } else el.classList.add("invalid"); };
+}
+
+function dlTTable() {
+  const df = dl.tdf, a = dl.ta, c = tCrit(df, a);
+  const hi = Math.max(5, c * 1.15);
+  dlCritPage({
+    chart: dlSvg({ pdf: x => df === Infinity ? normPdf(x) : tPdf(x, df), range: [-hi, hi], x1: c, x2: c, shade: "right", areaCls: "dl-area-red", pctCls: "dl-pct-red", pct: `α = ${a}`, dot: c, marks: [{ x: c, label: `t = ${c.toFixed(2)}` }], label: "t distribution" }),
+    inputs: dlNumIn("dl-tdf", "df", df, 1000) + dlSel("dl-ta", "α (one tail)", T_COLS, a),
+    steps: `<div class="dl-eq">1. Find the row <strong>df = ${dlDf(df)}</strong> (one sample: df = n − 1)${df === Infinity ? " — the last row equals the z-value" : ""}.</div>
+      <div class="dl-eq">2. Find the column <strong>α = ${a}</strong> (right-tail area).</div>
+      <div class="dl-eq dl-big">3. Critical value t = <strong>${c.toFixed(3)}</strong>: P(T &gt; ${c.toFixed(3)}) = ${a}.</div>
+      <p class="text-2 small">Two-tailed test at ${+(2 * a).toFixed(3) * 100}% significance: use the column α = ${a} (half in each tail) and reject H<sub>0</sub> if |t| &gt; ${c.toFixed(3)}. As df grows, t approaches z (${normInv(1 - a).toFixed(3)}).</p>`,
+    tableTitle: "Student's t-table (right-tail area α)",
+    tableNote: "Rows = degrees of freedom, columns = area in the right tail. Tap a cell to look it up.",
+    head: `<th>df \\ α</th>${T_COLS.map(x => `<th class="num ${x === a ? "dl-zcol" : ""}">${x}</th>`).join("")}`,
+    rows: T_ROWS.map(r => `<tr class="${r === df ? "dl-zrow" : ""}"><th>${dlDf(r)}</th>${T_COLS.map(x => `<td class="num ${r === df && x === a ? "dl-zon" : ""}" data-tcell="${r}|${x}">${tCrit(r, x).toFixed(3)}</td>`).join("")}</tr>`).join("")
+  });
+  dlBindNum("dl-tdf", "tdf", 1000, dlTTable);
+  document.getElementById("dl-ta").onchange = e => { dl.ta = +e.target.value; dlTTable(); };
+  view.querySelectorAll("[data-tcell]").forEach(td => td.onclick = () => { const [r, x] = td.dataset.tcell.split("|"); dl.tdf = r === "Infinity" ? Infinity : +r; dl.ta = +x; dlTTable(); });
+}
+
+function dlChiTable() {
+  const df = dl.cdf, a = dl.ca, c = chiCrit(df, a);
+  const left = chiCrit(df, 1 - a);
+  const hi = Math.max(df + 5 * Math.sqrt(2 * df) + 2, c * 1.2);
+  dlCritPage({
+    chart: dlSvg({ pdf: x => DISTS.chi2.pdf(x, { df }), range: [0, hi], x1: c, x2: c, shade: "right", areaCls: "dl-area-red", pctCls: "dl-pct-red", pct: `α = ${a}`, dot: c, marks: [{ x: c, label: `χ² = ${c.toFixed(2)}` }], label: "Chi-square distribution" }),
+    inputs: dlNumIn("dl-cdf", "df", df, 200) + dlSel("dl-ca", "Right-tail area α", CHI_COLS, a),
+    steps: `<div class="dl-eq">1. Row <strong>df = ${df}</strong> (test of a variance: df = n − 1).</div>
+      <div class="dl-eq">2. Column <strong>α = ${a}</strong> is the area in the right tail.</div>
+      <div class="dl-eq dl-big">3. Critical value χ² = <strong>${dlNum(c)}</strong>: P(χ² &gt; ${dlNum(c)}) = ${a}.</div>
+      <p class="text-2 small">The chi-square distribution is skewed right, so the two tails are not symmetric: a two-tailed test with ${+(2 * Math.min(a, 1 - a) * 100).toFixed(1)}% significance uses the columns ${Math.max(a, 1 - a)} (left critical value ${dlNum(Math.min(c, left))}) and ${Math.min(a, 1 - a)} (right critical value ${dlNum(Math.max(c, left))}).</p>`,
+    tableTitle: "Chi-square table (right-tail area α)",
+    tableNote: "Rows = degrees of freedom, columns = area to the RIGHT of the critical value. Tap a cell to look it up.",
+    head: `<th>df \\ α</th>${CHI_COLS.map(x => `<th class="num ${x === a ? "dl-zcol" : ""}">${x}</th>`).join("")}`,
+    rows: CHI_ROWS.map(r => `<tr class="${r === df ? "dl-zrow" : ""}"><th>${r}</th>${CHI_COLS.map(x => `<td class="num ${r === df && x === a ? "dl-zon" : ""}" data-ccell="${r}|${x}">${dlNum(chiCrit(r, x))}</td>`).join("")}</tr>`).join("")
+  });
+  dlBindNum("dl-cdf", "cdf", 200, dlChiTable);
+  document.getElementById("dl-ca").onchange = e => { dl.ca = +e.target.value; dlChiTable(); };
+  view.querySelectorAll("[data-ccell]").forEach(td => td.onclick = () => { const [r, x] = td.dataset.ccell.split("|"); dl.cdf = +r; dl.ca = +x; dlChiTable(); });
+}
+
+function dlFTable() {
+  const a = dl.fa, d1 = dl.fd1, d2 = dl.fd2, c = fCrit(d1, d2, a);
+  const hi = Math.max(5, Math.min(c * 1.6, 60));
+  if (!dlFCache[a]) dlFCache[a] = F_D2.map(r => F_D1.map(k => fCrit(k, r, a)));
+  const tab = dlFCache[a];
+  dlCritPage({
+    chart: dlSvg({ pdf: x => fPdf(x, d1, d2), range: [0, hi], x1: c, x2: c, shade: "right", areaCls: "dl-area-red", pctCls: "dl-pct-red", pct: `α = ${a}`, dot: c, marks: [{ x: c, label: `F = ${c.toFixed(2)}` }], label: "F distribution" }),
+    inputs: dlSel("dl-fa", "α", F_ALPHAS, a) + dlNumIn("dl-fd1", "Numerator df (df<sub>1</sub>)", d1, 500) + dlNumIn("dl-fd2", "Denominator df (df<sub>2</sub>)", d2, 500),
+    steps: `<div class="dl-eq">1. Choose the table for <strong>α = ${a}</strong> (each α has its own F-table).</div>
+      <div class="dl-eq">2. Column <strong>df<sub>1</sub> = ${d1}</strong> (numerator), row <strong>df<sub>2</sub> = ${d2}</strong> (denominator).</div>
+      <div class="dl-eq dl-big">3. Critical value F = <strong>${dlNum(c, 2)}</strong>: P(F &gt; ${dlNum(c, 2)}) = ${a}.</div>
+      <p class="text-2 small">Test of two variances (two-tailed, 5%): put the LARGER sample variance on top so F ≥ 1, use the α = 0.025 table, and reject H<sub>0</sub> if F &gt; the critical value. df = n − 1 for each sample.</p>`,
+    tableTitle: `F-table for α = ${a} (right tail)`,
+    tableNote: "Columns = numerator df<sub>1</sub>, rows = denominator df<sub>2</sub>. Change α above to switch table. Tap a cell to look it up.",
+    head: `<th>df<sub>2</sub> \\ df<sub>1</sub></th>${F_D1.map(k => `<th class="num ${k === d1 ? "dl-zcol" : ""}">${k}</th>`).join("")}`,
+    rows: F_D2.map((r, i) => `<tr class="${r === d2 ? "dl-zrow" : ""}"><th>${r}</th>${F_D1.map((k, j) => `<td class="num ${r === d2 && k === d1 ? "dl-zon" : ""}" data-fcell="${k}|${r}">${dlNum(tab[i][j], 2)}</td>`).join("")}</tr>`).join("")
+  });
+  document.getElementById("dl-fa").onchange = e => { dl.fa = +e.target.value; dlFTable(); };
+  dlBindNum("dl-fd1", "fd1", 500, dlFTable); dlBindNum("dl-fd2", "fd2", 500, dlFTable);
+  view.querySelectorAll("[data-fcell]").forEach(td => td.onclick = () => { const [k, r] = td.dataset.fcell.split("|"); dl.fd1 = +k; dl.fd2 = +r; dlFTable(); });
 }
 
 // ----- Skew & kurtosis -----

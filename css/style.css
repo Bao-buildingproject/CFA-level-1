@@ -668,3 +668,13 @@ details.disclosure > div { padding-top: var(--space-3); }
 .dl-shape-title { fill: var(--primary); font-size: 20px; font-weight: 800; }
 .dl-shape-sub { fill: var(--text-2); font-size: 13px; }
 .dl-shape-lab { font-size: 15px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+
+.dl-area-red { fill: var(--danger); opacity: .25; }
+.dl-pct.dl-pct-red { fill: var(--danger); }
+.dl-dot { fill: var(--danger); stroke: var(--surface); stroke-width: 2; }
+.dl-ztab thead th.dl-zcol { background: var(--primary-soft); color: var(--primary); }
+.dl-ztab th { white-space: nowrap; }
+.dl-tabwrap { max-height: 70vh; overflow: auto; }
+.dl-tabwrap thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.dl-tabwrap tbody th { position: sticky; left: 0; background: var(--surface); }
+.dl-ztab thead th { text-transform: none; }
