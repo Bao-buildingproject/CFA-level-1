@@ -713,3 +713,4 @@ details.disclosure > div { padding-top: var(--space-3); }
 .sm-dot { fill: var(--danger); stroke: var(--surface); stroke-width: 1.5; animation: smdrop .55s cubic-bezier(.3, .8, .4, 1) both; }
 @keyframes smdrop { from { transform: translateY(-90px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sm-dot { animation: none; } }
+#clt-balls { position: absolute; left: 0; top: 0; pointer-events: none; }

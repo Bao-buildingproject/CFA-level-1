@@ -105,15 +105,94 @@ function cltPop(key) {
 }
 sm.clt = { pop: "skew", n: 5, means: [], last: null, timer: null };
 
+sm.clt.anim = !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+sm.clt.queue = []; sm.clt.active = []; sm.clt.raf = null;
+
 function cltDraw(times) {
   const C = sm.clt, P = cltPop(C.pop);
   for (let t = 0; t < times; t++) {
     const xs = Array.from({ length: C.n }, () => P.vals[Math.floor(Math.random() * P.vals.length)]);
-    C.means.push(xs.reduce((a, b) => a + b, 0) / C.n);
+    const m = xs.reduce((a, b) => a + b, 0) / C.n;
     C.last = xs;
+    if (C.anim) C.queue.push(m); else C.means.push(m);
   }
+  if (C.anim) cltBallsStart();
+  cltRefresh();
 }
 function cltStop() { const C = sm.clt; if (C.timer) { clearInterval(C.timer); C.timer = null; } }
+function cltClearBalls() {
+  const C = sm.clt; C.queue = []; C.active = [];
+  if (C.raf) { cancelAnimationFrame(C.raf); C.raf = null; }
+  const c = document.getElementById("clt-balls"); if (c) c.getContext("2d").clearRect(0, 0, c.width, c.height);
+}
+function cltFlushBalls() { const C = sm.clt; C.active.forEach(b => C.means.push(b.m)); C.queue.forEach(m => C.means.push(m)); cltClearBalls(); }
+
+function cltGeom() {
+  const C = sm.clt, P = cltPop(C.pop), se = P.sigma / Math.sqrt(C.n);
+  const mlo = Math.max(0, P.mu - 3.6 * se), mhi = P.mu + 4.6 * se, bins = 40;
+  return { C, P, se, mlo, mhi, bins, bw: (mhi - mlo) / bins };
+}
+function cltHistSvg() {
+  const { C, P, se, mlo, mhi, bins, bw } = cltGeom(), k = C.means.length;
+  const d = new Array(bins).fill(0); C.means.forEach(m => { const i = Math.floor((m - mlo) / bw); if (i >= 0 && i < bins) d[i]++; });
+  return dlSvg({ pdf: x => normPdf((x - P.mu) / se) / se, range: [mlo, mhi], x1: 0, x2: 0, hist: k ? { dens: d.map(c => c / (k * bw)) } : null, marks: [{ x: P.mu, label: "μ" }], label: "Distribution of sample means" });
+}
+function cltStatsHtml() {
+  const { C, P, se } = cltGeom(), k = C.means.length, n = C.n;
+  const avg = k ? C.means.reduce((a, b) => a + b, 0) / k : NaN;
+  const sd = k > 1 ? Math.sqrt(C.means.reduce((a, b) => a + (b - avg) ** 2, 0) / (k - 1)) : NaN;
+  const stat = (v, l) => `<div class="sm-stat"><b>${v}</b><span>${l}</span></div>`;
+  return `${stat(P.mu.toFixed(0) + " g", "μ: population mean")}${stat(P.sigma.toFixed(0) + " g", "σ: population standard deviation")}
+    ${stat(k.toLocaleString("en-US"), "samples landed")}${stat(k ? avg.toFixed(1) + " g" : "–", "mean of the x̄ values (≈ μ)")}
+    ${stat(k > 1 ? sd.toFixed(1) + " g" : "–", "standard deviation of the x̄ values")}${stat(se.toFixed(1) + " g", `σ/√n = standard error (n = ${n})`)}`;
+}
+function cltRefresh() {
+  const C = sm.clt, P = cltPop(C.pop), set = (id, h) => { const e = document.getElementById(id); if (e) e.innerHTML = h; };
+  set("clt-sample", cltSampleSvg(P, C));
+  set("clt-hist", cltHistSvg());
+  set("clt-stats", cltStatsHtml());
+  const c = document.getElementById("clt-count"); if (c) c.textContent = (C.means.length).toLocaleString("en-US");
+}
+function cltBallsStart() { const C = sm.clt; if (!C.raf) C.raf = requestAnimationFrame(cltBallsTick); }
+
+function cltBallsTick() {
+  const C = sm.clt; C.raf = null;
+  const canvas = document.getElementById("clt-balls"), svg = document.querySelector("#clt-hist .dl-svg");
+  if (!canvas || !svg || currentRoute()[1] !== "sampling" || sm.sub !== "clt") { cltFlushBalls(); return; }
+  const r = svg.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(r.width * dpr) || canvas.height !== Math.round(r.height * dpr)) {
+    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    canvas.style.width = r.width + "px"; canvas.style.height = r.height + "px";
+  }
+  const W = DL.W, H = DL.H, k = r.width / W, lo = +svg.dataset.lo, hi = +svg.dataset.hi, ymax = +svg.dataset.ymax;
+  const { bins, bw } = cltGeom(), pw = W - DL.L - DL.R, ph = H - DL.T - DL.B;
+  const X = x => DL.L + (x - lo) / (hi - lo) * pw, Y = y => DL.T + ph - Math.min(y, ymax) / ymax * ph;
+
+  const counts = new Array(bins).fill(0);
+  C.means.forEach(m => { const i = Math.floor((m - lo) / bw); if (i >= 0 && i < bins) counts[i]++; });
+  C.active.forEach(b => { if (b.bin >= 0) counts[b.bin]++; });
+  let spawn = Math.min(40, Math.ceil(C.queue.length / 40));
+  while (spawn-- > 0 && C.queue.length) {
+    const m = C.queue.shift(), bin = Math.floor((m - lo) / bw);
+    if (bin < 0 || bin >= bins || C.active.length > 700) { C.means.push(m); C.dirty = true; continue; }
+    const n = C.means.length + C.active.length + 1, cnt = ++counts[bin];
+    C.active.push({ m, bin, tx: X(m), ty: Math.max(DL.T + 6, Y(cnt / (n * bw)) - 4), t: 0, dur: 36 + Math.random() * 18 });
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0); ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#2952cc";
+  const still = [];
+  for (const b of C.active) {
+    b.t += 1 / b.dur;
+    if (b.t >= 1) { C.means.push(b.m); C.dirty = true; continue; }
+    const y0 = DL.T - 12, y = y0 + (b.ty - y0) * b.t * b.t;
+    ctx.beginPath(); ctx.arc(b.tx, y, 3.6, 0, Math.PI * 2); ctx.fill(); still.push(b);
+  }
+  C.active = still; C.frame = (C.frame || 0) + 1;
+  if (C.dirty && (C.frame % 3 === 0 || !C.active.length)) { C.dirty = false; cltRefresh(); }
+  if (C.active.length || C.queue.length) C.raf = requestAnimationFrame(cltBallsTick);
+  else { ctx.clearRect(0, 0, W, H); if (C.dirty) { C.dirty = false; cltRefresh(); } }
+}
 
 function cltSampleSvg(P, C) {
   const W = 640, H = 150, L = 16, R = 16, lo = CLT_RANGE[0], hi = CLT_RANGE[1], X = v => L + (v - lo) / (hi - lo) * (W - L - R);
@@ -129,12 +208,7 @@ function cltSampleSvg(P, C) {
 }
 
 function smCltHtml() {
-  const C = sm.clt, P = cltPop(C.pop), n = C.n, se = P.sigma / Math.sqrt(n), k = C.means.length;
-  const mlo = Math.max(0, P.mu - 3.6 * se), mhi = P.mu + 4.6 * se, bins = 40, bw = (mhi - mlo) / bins;
-  const meanD = new Array(bins).fill(0); C.means.forEach(m => { const i = Math.floor((m - mlo) / bw); if (i >= 0 && i < bins) meanD[i]++; });
-  const avg = k ? C.means.reduce((a, b) => a + b, 0) / k : NaN;
-  const sd = k > 1 ? Math.sqrt(C.means.reduce((a, b) => a + (b - avg) ** 2, 0) / (k - 1)) : NaN;
-  const stat = (v, l) => `<div class="sm-stat"><b>${v}</b><span>${l}</span></div>`;
+  const C = sm.clt, P = cltPop(C.pop), n = C.n;
   return `
     <div class="card">
       <div class="form-grid" style="align-items:end">
@@ -144,20 +218,17 @@ function smCltHtml() {
       <p class="sm-cap" style="margin-top:16px">① Population: 10,000 fish — not bell-shaped</p>
       ${dlSvg({ pdf: () => 0, range: CLT_RANGE, x1: 0, x2: 0, hist: { dens: P.dens }, marks: [{ x: P.mu, label: `μ = ${P.mu.toFixed(0)} g` }], label: "Population histogram" })}
       <p class="sm-cap" style="margin-top:10px">② The sample just drawn (n = ${n})</p>
-      ${cltSampleSvg(P, C)}
+      <div id="clt-sample">${cltSampleSvg(P, C)}</div>
       <div class="row-gap" style="flex-wrap:wrap;margin:12px 0">
-        <button class="btn btn-primary" data-smclt="1">Draw 1 sample</button><button class="btn btn-secondary" data-smclt="10">Draw 10</button>
-        <button class="btn btn-secondary" data-smclt="100">Draw 100</button><button class="btn btn-secondary" data-smclt="1000">Draw 1,000</button>
+        <button class="btn btn-primary" data-smclt="1">Drop 1 sample</button><button class="btn btn-secondary" data-smclt="10">Drop 10</button>
+        <button class="btn btn-secondary" data-smclt="100">Drop 100</button><button class="btn btn-secondary" data-smclt="1000">Drop 1,000</button>
         <button class="btn btn-secondary" id="sm-clt-run">${C.timer ? "■ Stop" : "▶ Run"}</button><button class="btn btn-ghost" id="sm-clt-clear">Reset</button>
       </div>
-      <p class="sm-cap">③ Distribution of the sample means x̄ — ${k.toLocaleString("en-US")} samples</p>
-      ${dlSvg({ pdf: x => normPdf((x - P.mu) / se) / se, range: [mlo, mhi], x1: 0, x2: 0, hist: k ? { dens: meanD.map(c => c / (k * bw)) } : null, marks: [{ x: P.mu, label: "μ" }], label: "Distribution of sample means" })}
-      <div class="sm-stats">
-        ${stat(P.mu.toFixed(0) + " g", "μ: population mean")}${stat(P.sigma.toFixed(0) + " g", "σ: population standard deviation")}
-        ${stat(k.toLocaleString("en-US"), "samples drawn")}${stat(k ? avg.toFixed(1) + " g" : "–", "mean of the x̄ values (≈ μ)")}
-        ${stat(k > 1 ? sd.toFixed(1) + " g" : "–", "standard deviation of the x̄ values")}${stat(se.toFixed(1) + " g", "σ/√n (standard error, from CLT)")}
-      </div>
-      <div class="callout info">${icon("book", 18)}<div class="small"><strong>Central limit theorem.</strong> The population in ① is not bell-shaped, but the histogram of x̄ in ③ approaches the normal curve (N with mean μ and standard deviation σ/√n — the standard error). Move n up to 30 or more: the bell gets narrower and smoother. With n = 1 or 2, the shape still follows the population. Sampling error = x̄ − μ; it shrinks as n grows.</div></div>
+      <label class="check-chip dl-check"><input type="checkbox" id="sm-clt-anim" ${C.anim ? "checked" : ""}> Falling balls animation</label>
+      <p class="sm-cap" style="margin-top:10px">③ Each sample mean x̄ drops like a ball — <span id="clt-count">${C.means.length.toLocaleString("en-US")}</span> landed</p>
+      <div class="dl-stage"><div id="clt-hist">${cltHistSvg()}</div><canvas id="clt-balls" aria-hidden="true"></canvas></div>
+      <div class="sm-stats" id="clt-stats">${cltStatsHtml()}</div>
+      <div class="callout info">${icon("book", 18)}<div class="small"><strong>Central limit theorem.</strong> The population in ① is not bell-shaped, but the balls (the x̄ values) pile up into a bell that matches the normal curve (mean μ, standard deviation σ/√n — the standard error). Move n up to 30 or more: the bell gets narrower and smoother. With n = 1 or 2, the pile still follows the population. Sampling error = x̄ − μ; it shrinks as n grows.</div></div>
     </div>`;
 }
 
@@ -288,26 +359,28 @@ function dlSampling() {
   document.getElementById("dl-body").innerHTML = `
     <div class="sm-subs">${SM_SUBS.map(([k, l]) => `<button class="sm-sub ${sm.sub === k ? "active" : ""}" data-smsub="${k}">${l}</button>`).join("")}</div>
     ${body}`;
-  view.querySelectorAll("[data-smsub]").forEach(b => b.onclick = () => { cltStop(); sm.sub = b.dataset.smsub; dlSampling(); });
+  view.querySelectorAll("[data-smsub]").forEach(b => b.onclick = () => { cltStop(); cltFlushBalls(); sm.sub = b.dataset.smsub; dlSampling(); });
 
   if (sm.sub === "methods") {
     view.querySelectorAll("[data-smm]").forEach(b => b.onclick = () => { sm.method = b.dataset.smm; sm.note = ""; sm.chosen = SM_METHODS[sm.method].pick(); dlSampling(); document.querySelector(".sm-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
     const ag = document.getElementById("sm-again"); if (ag) ag.onclick = () => { sm.note = ""; sm.chosen = SM_METHODS[sm.method].pick(); dlSampling(); };
   }
   if (sm.sub === "clt") {
-    const C = sm.clt, nIn = document.getElementById("sm-n");
-    document.getElementById("sm-pop").onchange = e => { cltStop(); C.pop = e.target.value; C.means = []; C.last = null; dlSampling(); };
+    const C = sm.clt, nIn = document.getElementById("sm-n"), run = document.getElementById("sm-clt-run");
+    const reset = () => { cltStop(); cltClearBalls(); C.means = []; C.last = null; dlSampling(); };
+    document.getElementById("sm-pop").onchange = e => { C.pop = e.target.value; reset(); };
     nIn.oninput = () => { nIn.previousElementSibling.querySelector("strong").textContent = nIn.value; };
-    nIn.onchange = () => { cltStop(); C.n = +nIn.value; C.means = []; C.last = null; dlSampling(); };
-    view.querySelectorAll("[data-smclt]").forEach(b => b.onclick = () => { cltDraw(+b.dataset.smclt); dlSampling(); });
-    document.getElementById("sm-clt-clear").onclick = () => { cltStop(); C.means = []; C.last = null; dlSampling(); };
-    document.getElementById("sm-clt-run").onclick = () => {
-      if (C.timer) { cltStop(); dlSampling(); return; }
+    nIn.onchange = () => { C.n = +nIn.value; reset(); };
+    view.querySelectorAll("[data-smclt]").forEach(b => b.onclick = () => cltDraw(+b.dataset.smclt));
+    document.getElementById("sm-clt-clear").onclick = reset;
+    document.getElementById("sm-clt-anim").onchange = e => { C.anim = e.target.checked; if (!C.anim) { cltFlushBalls(); cltRefresh(); } };
+    run.onclick = () => {
+      if (C.timer) { cltStop(); run.textContent = "▶ Run"; return; }
+      run.textContent = "■ Stop";
       C.timer = setInterval(() => {
-        if (currentRoute()[0] !== "dist" || currentRoute()[1] !== "sampling" || sm.sub !== "clt" || C.means.length >= 20000) { cltStop(); if (sm.sub === "clt" && currentRoute()[1] === "sampling") dlSampling(); return; }
-        cltDraw(Math.max(5, Math.round(C.means.length / 8))); dlSampling();
-      }, 120);
-      dlSampling();
+        if (currentRoute()[1] !== "sampling" || sm.sub !== "clt" || C.means.length + C.queue.length >= 20000) { cltStop(); run.textContent = "▶ Run"; return; }
+        if (!C.anim || C.queue.length < 120) cltDraw(Math.max(5, Math.round(C.means.length / 12)));
+      }, 100);
     };
   }
   if (sm.sub === "test") {
