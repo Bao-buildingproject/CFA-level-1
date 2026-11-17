@@ -295,7 +295,9 @@ function renderMore() {
   view.innerHTML = `${pageHeader("More")}
     <div class="card"><div class="list">${items.map(([r, ic, label, sub]) => `
       <a class="list-item" href="#/${r}"><div class="stat-icon" style="margin:0">${icon(ic, 18)}</div>
-        <div class="list-main"><div class="list-title">${label}</div><div class="list-meta">${sub}</div></div>${icon("chevron", 18)}</a>`).join("")}</div></div>`;
+        <div class="list-main"><div class="list-title">${label}</div><div class="list-meta">${sub}</div></div>${icon("chevron", 18)}</a>`).join("")}</div></div>
+    <p class="text-3 small section">Site version <strong>${APP_VERSION}</strong> · <button class="btn btn-ghost btn-sm" id="btn-update">Check for updates</button></p>`;
+  document.getElementById("btn-update").onclick = () => checkForUpdate(true);
 }
 
 function router() {
@@ -444,3 +446,42 @@ function renderLock() {
   };
   view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
 }
+
+
+// ================= VERSION CHECK =================
+// Phones often keep old copies of the site. The page version comes from the ?v= on this script;
+// version.json (never cached) holds the newest version. If they differ, offer a one-tap update.
+const APP_VERSION = (() => { try { return new URL(document.currentScript.src).searchParams.get("v") || "dev"; } catch (e) { return "dev"; } })();
+
+function reloadLatest() {
+  const go = () => location.replace(location.pathname + "?u=" + Date.now() + location.hash);
+  try {
+    if ("caches" in window) caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).then(go, go); else go();
+  } catch (e) { go(); }
+}
+
+async function latestVersion() {
+  try {
+    const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+    return (await r.json()).v || null;
+  } catch (e) { return null; }
+}
+
+function showUpdateBanner(v) {
+  if (document.getElementById("update-bar")) return;
+  const bar = document.createElement("div");
+  bar.id = "update-bar"; bar.setAttribute("role", "status");
+  bar.innerHTML = `<span>A newer version of the site is available.</span><button class="btn btn-sm" id="update-now">Update now</button>`;
+  document.body.appendChild(bar);
+  document.getElementById("update-now").onclick = reloadLatest;
+}
+
+async function checkForUpdate(manual) {
+  const v = await latestVersion();
+  if (v && v !== APP_VERSION) showUpdateBanner(v);
+  else if (manual) toast(v ? "You already have the latest version" : "Could not check for updates (offline?)", v ? "success" : "error");
+  return v;
+}
+checkForUpdate(false);
+
+(() => { const b = document.getElementById("side-version"); if (b) { b.textContent = "v" + APP_VERSION; b.onclick = () => checkForUpdate(true); } })();
