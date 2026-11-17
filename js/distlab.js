@@ -184,7 +184,7 @@ function dlSvg(o) {
 }
 
 // ---------- Page ----------
-const DL_TABS = [["explore", "Explore"], ["ztable", "Tables"], ["shape", "Skew & Kurtosis"], ["quiz", "Quick quiz"]];
+const DL_TABS = [["explore", "Explore"], ["ztable", "Tables"], ["shape", "Skew & Kurtosis"], ["guess", "Guess %"], ["quiz", "Quick quiz"]];
 
 function renderDist(tab) {
   dlStop();
@@ -194,7 +194,7 @@ function renderDist(tab) {
     ${pageHeader("Distributions", "Drag to calculate, simulate to check, read the z-table like in the exam.")}
     <div class="tabs" role="tablist">${DL_TABS.map(([k, l]) => `<a class="tab ${dl.tab === k ? "active" : ""}" href="#/dist/${k}">${l}</a>`).join("")}</div>
     <div id="dl-body"></div>`;
-  ({ explore: dlExplore, ztable: dlTables, shape: dlShape, quiz: dlQuiz })[dl.tab]();
+  ({ explore: dlExplore, ztable: dlTables, shape: dlShape, guess: dlGuess, quiz: dlQuiz })[dl.tab]();
 }
 
 // ----- Explore -----
@@ -784,4 +784,74 @@ function dlQuiz() {
   });
   const nx = document.getElementById("dl-next");
   if (nx) nx.onclick = () => { dlNewQuestion(); dlQuiz(); window.scrollTo(0, 0); };
+}
+
+// ----- Guess the probability (5 rounds) -----
+const GUESS_ROUNDS = 5;
+function dlGuessNew() {
+  const r1 = v => Math.round(v * 10) / 10, half = v => Math.round(v * 2) / 2;
+  let mu, sigma, x1, x2, ans;
+  do {
+    mu = r1(Math.random() * 10); sigma = r1(0.8 + Math.random() * 2.4);
+    const z1 = -3 + Math.random() * 5, w = 0.3 + Math.random() * 2.7;
+    x1 = half(mu + z1 * sigma); x2 = half(mu + (z1 + w) * sigma);
+    ans = normCdf((x2 - mu) / sigma) - normCdf((x1 - mu) / sigma);
+  } while (x2 <= x1 || ans < 0.01 || ans > 0.97);
+  return { mu, sigma, x1, x2, ans, guess: 25, done: false };
+}
+function dlGuessStart() { dl.gs = { round: 1, total: 0, log: [], cur: dlGuessNew() }; }
+const dlGuessPoints = err => Math.max(0, Math.round(100 - 4 * err));      // 1 point lost per 0.25% off
+const dlGuessRate = err => err <= 2 ? "Excellent" : err <= 5 ? "Good" : err <= 10 ? "Close" : "Keep practising";
+
+function dlGuess() {
+  if (!dl.gs) dlGuessStart();
+  const G = dl.gs, c = G.cur;
+  const finished = G.round > GUESS_ROUNDS;
+  if (finished) {
+    document.getElementById("dl-body").innerHTML = `
+      <div style="max-width:640px;margin:0 auto"><div class="card" style="text-align:center">
+        <p class="text-2">Game over · ${GUESS_ROUNDS} rounds</p>
+        <h1 style="margin:6px 0">${G.total} / ${GUESS_ROUNDS * 100}</h1>
+        <div class="table-wrap" style="margin-top:14px"><table class="table"><thead><tr><th>Round</th><th>Area</th><th class="num">Your guess</th><th class="num">Answer</th><th class="num">Points</th></tr></thead>
+          <tbody>${G.log.map((r, i) => `<tr><td>${i + 1}</td><td>P(${r.x1} &lt; X &lt; ${r.x2})</td><td class="num">${r.guess}%</td><td class="num">${(r.ans * 100).toFixed(1)}%</td><td class="num">${r.pts}</td></tr>`).join("")}</tbody></table></div>
+        <button class="btn btn-primary btn-lg" id="dl-g-again" style="margin-top:18px">Play again</button>
+      </div></div>`;
+    document.getElementById("dl-g-again").onclick = () => { dlGuessStart(); dlGuess(); };
+    return;
+  }
+  const pdf = x => normPdf((x - c.mu) / c.sigma) / c.sigma;
+  const z1 = (c.x1 - c.mu) / c.sigma, z2 = (c.x2 - c.mu) / c.sigma, err = Math.abs(c.guess - c.ans * 100);
+  document.getElementById("dl-body").innerHTML = `
+    <div class="dl-layout">
+      <div class="card dl-chart-card">${dlSvg({ pdf, range: [c.mu - 4 * c.sigma, c.mu + 4 * c.sigma], x1: c.x1, x2: c.x2, shade: "between", handles: true,
+        pct: c.done ? (c.ans * 100).toFixed(2) + "%" : "?", label: "Guess the shaded area" })}</div>
+      <div class="dl-side"><div class="card">
+        <p class="text-2 small">Round ${G.round}/${GUESS_ROUNDS} · Total score ${G.total}</p>
+        <div class="dl-eq dl-big">X ~ N(μ = ${c.mu.toFixed(2)}, σ = ${c.sigma.toFixed(2)}). The shaded area is P(${c.x1.toFixed(2)} &lt; X &lt; ${c.x2.toFixed(2)}). How many percent do you guess?</div>
+        <label class="dl-slider"><span>Your guess: <strong id="dl-g-v">${c.guess}%</strong></span>
+          <input type="range" id="dl-g" min="0" max="100" step="1" value="${c.guess}" ${c.done ? "disabled" : ""}></label>
+        ${c.done ? `
+          <div class="callout ${err <= 5 ? "success" : "warning"}">${icon(err <= 5 ? "check" : "target", 18)}<div><strong>${dlGuessRate(err)}!</strong> Answer ${(c.ans * 100).toFixed(2)}% · you guessed ${c.guess}% · off by ${err.toFixed(1)}% → <strong>+${dlGuessPoints(err)} points</strong></div></div>
+          <div class="dl-res">
+            <div class="dl-eq">z<sub>1</sub> = (${c.x1.toFixed(2)} − ${c.mu.toFixed(2)}) / ${c.sigma.toFixed(2)} = <strong>${z1.toFixed(2)}</strong></div>
+            <div class="dl-eq">z<sub>2</sub> = (${c.x2.toFixed(2)} − ${c.mu.toFixed(2)}) / ${c.sigma.toFixed(2)} = <strong>${z2.toFixed(2)}</strong></div>
+            <div class="dl-eq">P = N(${z2.toFixed(2)}) − N(${z1.toFixed(2)}) = ${normCdf(z2).toFixed(4)} − ${normCdf(z1).toFixed(4)} = <strong>${c.ans.toFixed(4)}</strong></div>
+            <p class="text-2 small">Quick check with the 68–95–99.7 rule: about 34% lies between μ and μ ± 1σ, 13.5% between 1σ and 2σ, and 2.35% between 2σ and 3σ.</p>
+          </div>
+          <button class="btn btn-primary btn-lg btn-block" id="dl-g-next" style="margin-top:14px">${G.round < GUESS_ROUNDS ? "Next round" : "See final score"} ${icon("next", 18)}</button>`
+        : `<button class="btn btn-primary btn-lg" id="dl-g-lock">Lock in</button>
+           <p class="text-3 small" style="margin-top:10px">Tip: turn x into z = (x − μ)/σ in your head, then use 68–95–99.7.</p>`}
+      </div></div>
+    </div>`;
+  const sl = document.getElementById("dl-g");
+  sl.oninput = () => { c.guess = +sl.value; document.getElementById("dl-g-v").textContent = c.guess + "%"; };
+  const lock = document.getElementById("dl-g-lock");
+  if (lock) lock.onclick = () => {
+    c.done = true;
+    const e = Math.abs(c.guess - c.ans * 100), pts = dlGuessPoints(e);
+    G.total += pts; G.log.push({ x1: c.x1.toFixed(2), x2: c.x2.toFixed(2), guess: c.guess, ans: c.ans, pts });
+    dlGuess();
+  };
+  const nx = document.getElementById("dl-g-next");
+  if (nx) nx.onclick = () => { G.round++; if (G.round <= GUESS_ROUNDS) G.cur = dlGuessNew(); dlGuess(); window.scrollTo(0, 0); };
 }
