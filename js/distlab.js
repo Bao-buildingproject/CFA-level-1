@@ -330,8 +330,8 @@ function dlAdd(n) {
   if (dl.balls) dlBallsStart();
 }
 
-// ---------- Falling balls: each sample drops from a funnel, zig-zags like a
-// Galton board and lands on its histogram bar ----------
+// ---------- Falling balls: each sample drops straight down above its own value (across the whole axis), like a
+// rain of samples, and lands on its histogram bar ----------
 dl.balls = !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
 dl.queue = []; dl.active = []; dl.raf = null;
 
@@ -359,8 +359,6 @@ function dlBallsTick() {
   const lo = +svg.dataset.lo, hi = +svg.dataset.hi, ymax = +svg.dataset.ymax;
   const pw = W - DL.L - DL.R, ph = H - DL.T - DL.B;
   const X = x => DL.L + (x - lo) / (hi - lo) * pw, Y = y => DL.T + ph - Math.min(y, ymax) / ymax * ph;
-  const D = DISTS[dl.dist], m = D.moments(dl.p);
-  const sx = X(Math.min(hi, Math.max(lo, Number.isFinite(m.mean) ? m.mean : (lo + hi) / 2)));
 
   // spawn
   const nb = 40, bw = (hi - lo) / nb;
@@ -382,18 +380,13 @@ function dlBallsTick() {
   ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
   ctx.clearRect(0, 0, W, H);
   const css = getComputedStyle(document.documentElement);
-  // funnel
-  ctx.fillStyle = css.getPropertyValue("--text-3").trim() || "#8a94a6";
-  ctx.globalAlpha = 0.55;
-  ctx.beginPath(); ctx.moveTo(sx - 16, DL.T - 30); ctx.lineTo(sx + 16, DL.T - 30); ctx.lineTo(sx + 4, DL.T - 16); ctx.lineTo(sx - 4, DL.T - 16); ctx.closePath(); ctx.fill();
-  ctx.globalAlpha = 1;
   ctx.fillStyle = css.getPropertyValue("--primary").trim() || "#2952cc";
   const still = [];
   for (const b of dl.active) {
     b.t += 1 / b.dur;
     if (b.t >= 1) { dl.samples.push(b.v); dl.dirty = true; continue; }
-    const t = b.t, y0 = DL.T - 14;
-    const x = sx + (b.tx - sx) * t + Math.sin(t * Math.PI * 7 + b.ph) * b.amp * (1 - t);
+    const t = b.t, y0 = DL.T - 14 - b.amp * 2;     // drop straight down from above its own value
+    const x = b.tx;
     const y = y0 + (b.ty - y0) * t * t;
     ctx.beginPath(); ctx.arc(x, y, 3.6, 0, Math.PI * 2); ctx.fill();
     still.push(b);
