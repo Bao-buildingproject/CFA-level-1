@@ -659,3 +659,6 @@ details.disclosure > div { padding-top: var(--space-3); }
 .dl-ztab td { cursor: pointer; } .dl-ztab td:hover { background: var(--primary-soft); }
 .dl-ztab .dl-zrow th, .dl-ztab .dl-zrow td { background: var(--surface-2); }
 .dl-ztab td.dl-zon { background: var(--primary); color: #fff; font-weight: 700; }
+
+.dl-stage { position: relative; }
+#dl-balls { position: absolute; left: 0; top: 0; pointer-events: none; }

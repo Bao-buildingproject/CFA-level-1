@@ -125,7 +125,7 @@ function dlReset(key) {
 }
 dlReset("normal");
 
-function dlClear() { dl.samples = []; dlStop(); }
+function dlClear() { dl.samples = []; dlStop(); dlClearBalls(); }
 function dlStop() { if (dl.timer) { clearInterval(dl.timer); dl.timer = null; } }
 
 // ---------- Chart ----------
@@ -177,7 +177,7 @@ function dlSvg(o) {
   }
   if (o.pct !== undefined) { const mx = o.shade === "between" ? (cl(a) + cl(b)) / 2 : o.shade === "left" ? (lo + cl(a)) / 2 : o.shade === "right" ? (cl(b) + hi) / 2 : (lo + hi) / 2; pctLabel = `<text class="dl-pct" x="${X(mx)}" y="${Math.max(T + 20, Y(o.pdf(mx)) + (Y(0) - Y(o.pdf(mx))) * 0.45)}" text-anchor="middle">${o.pct}</text>`; }
 
-  return `<svg class="dl-svg" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" role="img" aria-label="${esc(o.label || "Distribution chart")}">
+  return `<svg class="dl-svg" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-ymax="${ymax}" role="img" aria-label="${esc(o.label || "Distribution chart")}">
     ${grid}${hist}${extra}${shade}${sig}<polyline class="dl-curve" points="${line(o.pdf)}"/>
     <line class="dl-axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>${marks}${pctLabel}${handles}</svg>`;
 }
@@ -252,7 +252,7 @@ function dlExplore() {
     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
   document.getElementById("dl-body").innerHTML = `
     <div class="dl-layout">
-      <div class="card dl-chart-card"><div id="dl-chart">${dlChartHtml()}</div>
+      <div class="card dl-chart-card"><div class="dl-stage"><div id="dl-chart">${dlChartHtml()}</div><canvas id="dl-balls" aria-hidden="true"></canvas></div>
         <p class="text-3 small dl-hint">Drag the green dots or tap the chart to move x<sub>1</sub>, x<sub>2</sub>.</p></div>
       <div class="dl-side">
         <div class="card">
@@ -275,6 +275,7 @@ function dlExplore() {
             <button class="btn btn-secondary btn-sm" id="dl-run">${icon("play", 14)} Run continuously</button>
             <button class="btn btn-ghost btn-sm" id="dl-clear">Clear</button>
           </div>
+          <label class="check-chip dl-check"><input type="checkbox" id="dl-balls-on" ${dl.balls ? "checked" : ""}> Falling balls animation</label>
           <div id="dl-sim">${dlSimHtml()}</div>
         </div>
       </div>
@@ -298,7 +299,7 @@ function dlBindExplore() {
     const el = document.getElementById("dlp-" + k);
     el.oninput = () => {
       dl.p[k] = +el.value; document.getElementById(`dlp-${k}-v`).textContent = fmt(dl.p[k]);
-      dl.samples = [];
+      dlClearBalls(); dl.samples = [];
       const [lo, hi] = D.range(dl.p);
       ["x1", "x2"].forEach(x => { const s = document.getElementById("dl-" + x); s.min = lo.toFixed(2); s.max = hi.toFixed(2); dl[x] = Math.min(hi, Math.max(lo, dl[x])); });
       dlRefresh();
@@ -307,20 +308,102 @@ function dlBindExplore() {
   ["x1", "x2"].forEach(k => { const el = document.getElementById("dl-" + k); el.oninput = () => { dl[k] = +el.value; dlRefresh(); }; });
   const std = document.getElementById("dl-std"); if (std) std.onchange = () => { dl.showStd = std.checked; dlRefresh(); };
   const sig = document.getElementById("dl-sig"); if (sig) sig.onchange = () => { dl.showSig = sig.checked; dlRefresh(); };
-  view.querySelectorAll("[data-dlsim]").forEach(b => b.onclick = () => { dlAdd(+b.dataset.dlsim); dlRefresh(); });
+  view.querySelectorAll("[data-dlsim]").forEach(b => b.onclick = () => { dlAdd(+b.dataset.dlsim); if (!dl.balls) dlRefresh(); });
+  const bl = document.getElementById("dl-balls-on");
+  bl.onchange = () => { dl.balls = bl.checked; if (!dl.balls) { dlFlushBalls(); dlRefresh(); } };
   const run = document.getElementById("dl-run");
   run.onclick = () => {
     if (dl.timer) { dlStop(); run.innerHTML = `${icon("play", 14)} Run continuously`; return; }
     run.innerHTML = `${icon("x", 14)} Stop`;
     dl.timer = setInterval(() => {
       if (currentRoute()[0] !== "dist" || dl.samples.length >= 50000) { dlStop(); run.innerHTML = `${icon("play", 14)} Run continuously`; return; }
-      dlAdd(Math.max(5, Math.round(dl.samples.length / 20))); dlRefresh();
+      if (dl.balls) { if (dl.queue.length < 120) dlAdd(Math.max(4, Math.round(dl.samples.length / 25))); }
+      else { dlAdd(Math.max(5, Math.round(dl.samples.length / 20))); dlRefresh(); }
     }, 80);
   };
   document.getElementById("dl-clear").onclick = () => { dlClear(); run.innerHTML = `${icon("play", 14)} Run continuously`; dlRefresh(); };
   dlBindChart();
 }
-function dlAdd(n) { const D = DISTS[dl.dist]; for (let i = 0; i < n; i++) dl.samples.push(D.sample(dl.p)); }
+function dlAdd(n) {
+  const D = DISTS[dl.dist];
+  for (let i = 0; i < n; i++) { const v = D.sample(dl.p); if (dl.balls) dl.queue.push(v); else dl.samples.push(v); }
+  if (dl.balls) dlBallsStart();
+}
+
+// ---------- Falling balls: each sample drops from a funnel, zig-zags like a
+// Galton board and lands on its histogram bar ----------
+dl.balls = !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+dl.queue = []; dl.active = []; dl.raf = null;
+
+function dlClearBalls() {
+  dl.queue = []; dl.active = [];
+  if (dl.raf) { cancelAnimationFrame(dl.raf); dl.raf = null; }
+  const c = document.getElementById("dl-balls"); if (c) c.getContext("2d").clearRect(0, 0, c.width, c.height);
+}
+function dlFlushBalls() {             // land everything now (used when the animation is turned off)
+  dl.active.forEach(b => dl.samples.push(b.v)); dl.queue.forEach(v => dl.samples.push(v));
+  dlClearBalls();
+}
+function dlBallsStart() { if (!dl.raf) { dl.frame = 0; dl.raf = requestAnimationFrame(dlBallsTick); } }
+
+function dlBallsTick() {
+  dl.raf = null;
+  const canvas = document.getElementById("dl-balls"), svg = document.querySelector("#dl-chart .dl-svg");
+  if (!canvas || !svg || currentRoute()[0] !== "dist") { dl.queue.forEach(v => dl.samples.push(v)); dl.active.forEach(b => dl.samples.push(b.v)); dl.queue = []; dl.active = []; return; }
+  const r = svg.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(r.width * dpr) || canvas.height !== Math.round(r.height * dpr)) {
+    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    canvas.style.width = r.width + "px"; canvas.style.height = r.height + "px";
+  }
+  const W = DL.W, H = DL.H, k = r.width / W;
+  const lo = +svg.dataset.lo, hi = +svg.dataset.hi, ymax = +svg.dataset.ymax;
+  const pw = W - DL.L - DL.R, ph = H - DL.T - DL.B;
+  const X = x => DL.L + (x - lo) / (hi - lo) * pw, Y = y => DL.T + ph - Math.min(y, ymax) / ymax * ph;
+  const D = DISTS[dl.dist], m = D.moments(dl.p);
+  const sx = X(Math.min(hi, Math.max(lo, Number.isFinite(m.mean) ? m.mean : (lo + hi) / 2)));
+
+  // spawn
+  const nb = 40, bw = (hi - lo) / nb;
+  const counts = new Array(nb).fill(0);
+  dl.samples.forEach(s => { const i = Math.floor((s - lo) / bw); if (i >= 0 && i < nb) counts[i]++; });
+  dl.active.forEach(b => { counts[b.bin]++; });
+  let spawn = Math.min(40, Math.ceil(dl.queue.length / 45));
+  while (spawn-- > 0 && dl.queue.length) {
+    const v = dl.queue.shift();
+    if (v < lo || v > hi || dl.active.length > 700) { dl.samples.push(v); dl.dirty = true; continue; }
+    const bin = Math.min(nb - 1, Math.floor((v - lo) / bw)), n = dl.samples.length + dl.active.length + 1;
+    const cnt = ++counts[bin];
+    const ty = Math.max(DL.T + 6, Y(cnt / (n * bw)) - 4);
+    dl.active.push({ v, bin, tx: X(v), ty, t: 0, dur: 38 + Math.random() * 18, ph: Math.random() * 6.28, amp: 4 + Math.random() * 6 });
+  }
+
+  // move & land
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement);
+  // funnel
+  ctx.fillStyle = css.getPropertyValue("--text-3").trim() || "#8a94a6";
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath(); ctx.moveTo(sx - 16, DL.T - 30); ctx.lineTo(sx + 16, DL.T - 30); ctx.lineTo(sx + 4, DL.T - 16); ctx.lineTo(sx - 4, DL.T - 16); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = css.getPropertyValue("--primary").trim() || "#2952cc";
+  const still = [];
+  for (const b of dl.active) {
+    b.t += 1 / b.dur;
+    if (b.t >= 1) { dl.samples.push(b.v); dl.dirty = true; continue; }
+    const t = b.t, y0 = DL.T - 14;
+    const x = sx + (b.tx - sx) * t + Math.sin(t * Math.PI * 7 + b.ph) * b.amp * (1 - t);
+    const y = y0 + (b.ty - y0) * t * t;
+    ctx.beginPath(); ctx.arc(x, y, 3.6, 0, Math.PI * 2); ctx.fill();
+    still.push(b);
+  }
+  dl.active = still;
+  dl.frame = (dl.frame || 0) + 1;
+  if (dl.dirty && (dl.frame % 3 === 0 || !dl.active.length)) { dl.dirty = false; dlMoveRefresh(); }
+  if (dl.active.length || dl.queue.length) dl.raf = requestAnimationFrame(dlBallsTick);
+  else { ctx.clearRect(0, 0, W, H); if (dl.dirty) { dl.dirty = false; dlMoveRefresh(); } }
+}
 
 function dlBindChart() {
   const svg = view.querySelector("#dl-chart .dl-svg");
