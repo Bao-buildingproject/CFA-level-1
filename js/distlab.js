@@ -147,9 +147,9 @@ function dlSvg(o) {
   const line = (f, a = lo, b = hi) => { const pts = []; for (let i = 0; i <= N; i++) { const x = a + (b - a) * i / N; pts.push(`${X(x).toFixed(1)},${Y(f(x)).toFixed(1)}`); } return pts.join(" "); };
   const area = (f, a, b) => b > a ? `${X(a).toFixed(1)},${Y(0)} ${line(f, a, b)} ${X(b).toFixed(1)},${Y(0)}` : "";
 
-  const ys0 = niceStep(ymax, 4), xstep = niceStep(hi - lo, 9);
+  const ys0 = niceStep(ymax, 4), xstep = niceStep(hi - lo, W < 500 ? 5 : 9), yd = Math.max(0, 1 - Math.floor(Math.log10(ys0)));
   let grid = "";
-  for (let y = ys0; y < ymax; y += ys0) grid += `<line class="dl-grid" x1="${L}" x2="${W - R}" y1="${Y(y)}" y2="${Y(y)}"/><text class="dl-tick" x="${L - 6}" y="${Y(y) + 4}" text-anchor="end">${+y.toFixed(3)}</text>`;
+  for (let y = ys0; y < ymax; y += ys0) grid += `<line class="dl-grid" x1="${L}" x2="${W - R}" y1="${Y(y)}" y2="${Y(y)}"/><text class="dl-tick" x="${L - 6}" y="${Y(y) + 4}" text-anchor="end">${+y.toFixed(yd)}</text>`;
   for (let x = Math.ceil(lo / xstep) * xstep; x <= hi + 1e-9; x += xstep) grid += `<line class="dl-grid" x1="${X(x)}" x2="${X(x)}" y1="${T}" y2="${Y(0)}"/><text class="dl-tick" x="${X(x)}" y="${H - 10}" text-anchor="middle">${+x.toFixed(2)}</text>`;
 
   const a = Math.min(o.x1, o.x2), b = Math.max(o.x1, o.x2);
@@ -184,7 +184,7 @@ function dlSvg(o) {
 }
 
 // ---------- Page ----------
-const DL_TABS = [["explore", "Explore"], ["ztable", "Tables"], ["shape", "Skew & Kurtosis"], ["guess", "Guess %"], ["quiz", "Quick quiz"]];
+const DL_TABS = [["explore", "Explore"], ["ztable", "Tables"], ["shape", "Skew & Kurtosis"], ["guess", "Guess %"], ["sampling", "Sampling & tests"], ["quiz", "Quick quiz"]];
 
 function renderDist(tab) {
   dlStop();
@@ -194,7 +194,7 @@ function renderDist(tab) {
     ${pageHeader("Distributions", "Drag to calculate, simulate to check, read the z-table like in the exam.")}
     <div class="tabs" role="tablist">${DL_TABS.map(([k, l]) => `<a class="tab ${dl.tab === k ? "active" : ""}" href="#/dist/${k}">${l}</a>`).join("")}</div>
     <div id="dl-body"></div>`;
-  ({ explore: dlExplore, ztable: dlTables, shape: dlShape, guess: dlGuess, quiz: dlQuiz })[dl.tab]();
+  ({ explore: dlExplore, ztable: dlTables, shape: dlShape, guess: dlGuess, sampling: dlSampling, quiz: dlQuiz })[dl.tab]();
 }
 
 // ----- Explore -----

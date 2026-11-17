@@ -678,3 +678,38 @@ details.disclosure > div { padding-top: var(--space-3); }
 .dl-tabwrap thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .dl-tabwrap tbody th { position: sticky; left: 0; background: var(--surface); }
 .dl-ztab thead th { text-transform: none; }
+
+/* Sampling & tests */
+.sm-subs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-4); }
+.sm-sub { border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; padding: 10px 16px; border-radius: 12px; cursor: pointer; }
+.sm-sub.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.sm-cap { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); margin: 0 0 10px; }
+.sm-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 14px; font-size: .9rem; }
+.sm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fish-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; background: currentColor; }
+.fish-ring { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 2px solid var(--danger); }
+.fish-s { color: var(--primary); } .fish-m { color: var(--warning); } .fish-l { color: var(--success); }
+.sm-cages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 900px) { .sm-cages { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.sm-cage { border: 2px solid var(--border); border-radius: 16px; padding: 10px 8px; }
+.sm-cage-t { text-align: center; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+.sm-fishes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 2px; }
+.fish-cell { display: flex; flex-direction: column; align-items: center; font-size: .78rem; color: var(--text-2); padding: 3px 0; border-radius: 10px; border: 2px solid transparent; }
+.fish-cell.fish-on { border-color: var(--danger); background: var(--danger-soft); color: var(--text); font-weight: 700; }
+.fish { width: 30px; height: 17px; fill: currentColor; }
+.fish .fish-eye { fill: var(--surface); }
+.sm-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+@media (min-width: 900px) { .sm-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.sm-stat { background: var(--surface-2); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.sm-stat b { font-size: 1.25rem; } .sm-stat span { font-size: .8rem; color: var(--text-2); }
+.sm-catch { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.sm-chip { font-size: .78rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); border-left: 4px solid currentColor; }
+.sm-chip.fish-s, .sm-chip.fish-m, .sm-chip.fish-l { color: inherit; }
+.sm-chip.fish-s { border-left-color: var(--primary); } .sm-chip.fish-m { border-left-color: var(--warning); } .sm-chip.fish-l { border-left-color: var(--success); }
+.sm-empty { display: grid; place-items: center; gap: 8px; min-height: 200px; color: var(--text-3); text-align: center; }
+
+.dl-xbar { stroke: var(--danger); stroke-width: 3; }
+.dl-xbar-t { fill: var(--danger); font-size: 14px; }
+.sm-dot { fill: var(--danger); stroke: var(--surface); stroke-width: 1.5; animation: smdrop .55s cubic-bezier(.3, .8, .4, 1) both; }
+@keyframes smdrop { from { transform: translateY(-90px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sm-dot { animation: none; } }
