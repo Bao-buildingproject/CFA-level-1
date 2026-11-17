@@ -739,3 +739,14 @@ details.disclosure > div { padding-top: var(--space-3); }
 #update-bar .btn { background: #fff; color: var(--primary); border: none; white-space: nowrap; }
 .update-link { display: block; margin-top: 6px; padding: 0; border: none; background: none; font: inherit; font-size: .72rem; color: var(--text-3); cursor: pointer; }
 .update-link:hover { color: var(--primary); text-decoration: underline; }
+
+/* Access gate */
+body.gated .sidebar, body.gated .mobile-header, body.gated .bottom-nav { display: none !important; }
+body.gated .app { display: block; }
+body.gated .main-wrap { margin: 0; padding: 0; width: 100%; max-width: none; }
+.gate { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px 16px; }
+.gate-brand { display: flex; align-items: center; gap: 12px; }
+.gate-card { width: 100%; max-width: 440px; }
+.gate-accts { display: flex; flex-wrap: wrap; gap: 8px; }
+.gate-acct { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 8px; border: 2px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
+.gate-acct.on { border-color: var(--primary); background: var(--primary-soft); }

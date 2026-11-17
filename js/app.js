@@ -279,6 +279,7 @@ const ROUTES = {
   mock: (sub, id) => sub === "run" ? renderMockRun() : sub === "result" ? renderMockResult(id) : renderMock(),
   settings: renderSettings,
   more: renderMore,
+  signout: signOut,
   qbank: renderQBank,
   analysis: renderAnalysis,
   dist: renderDist,
@@ -295,7 +296,8 @@ function renderMore() {
     ["dist", "target", "Distributions (Quant)", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "home", "Profiles", `${PROFILES.list.length} profile(s) · switch user`],
-    ["settings", "settings", "Settings", "Backup, exam date, theme"]
+    ["settings", "settings", "Settings", "Backup, exam date, theme"],
+    ["signout", "back", "Sign out", "Lock the site until you sign in again"]
   ];
   view.innerHTML = `${pageHeader("More")}
     <div class="card"><div class="list">${items.map(([r, ic, label, sub]) => `
@@ -306,7 +308,8 @@ function renderMore() {
 }
 
 function router() {
-  if (isLocked()) { renderLock(); refreshShell(); return; }
+  if (isLocked()) { renderGate(); return; }
+  document.body.classList.remove("gated");
   stopMockTimer();
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
@@ -317,25 +320,235 @@ function router() {
   window.scrollTo(0, 0);
 }
 
-window.addEventListener("hashchange", router);
-applyTheme();
-router();
 
 
 // ================= PROFILES (#/profiles) =================
 const UNLOCK_KEY = "cfaStudy_unlocked";
 function isUnlocked(id) { try { return sessionStorage.getItem(UNLOCK_KEY) === id; } catch (e) { return false; } }
 function markUnlocked(id) { try { sessionStorage.setItem(UNLOCK_KEY, id); } catch (e) { /* ignore */ } }
-function isLocked() { const p = activeProfile(); return !!p.pinHash && !isUnlocked(p.id); }
-const PIN_RULE = v => /^\d{4}$/.test(v) ? "" : "PIN must be exactly 4 digits";
+function isLocked() { return gateNeeded(); }
+const PIN_RULE = v => (v && v.length >= 4) ? "" : "Use at least 4 characters";
 
 async function askPinFor(profile) {
-  const pin = await promptDialog({ title: `Unlock ${profile.name}`, label: "4-digit PIN", type: "password", inputmode: "numeric", maxlength: 4, confirmText: "Unlock", validate: PIN_RULE });
+  const pin = await promptDialog({ title: `Unlock ${profile.name}`, label: "Password", type: "password", inputmode: "text", maxlength: 40, confirmText: "Unlock", validate: PIN_RULE });
   if (pin === null) return false;
   if (await hashPin(pin) !== profile.pinHash) { toast("Wrong PIN", "error"); return false; }
   return true;
 }
 
+async function goToProfile(id) {
+  const p = PROFILES.list.find(x => x.id === id);
+  if (!p) return;
+  if (p.pinHash && !(await askPinFor(p))) return;
+  switchProfile(id);
+  markUnlocked(id);
+  applyTheme();
+  toast(`Switched to ${p.name}`);
+  location.hash = "#/dashboard";
+  router();
+}
+
+function profileSummary(id) {
+  try {
+    const d = id === PROFILES.active ? DATA : JSON.parse(localStorage.getItem(profileKey(id)) || "{}");
+    const qs = (d.questions || []).filter(q => (q.attempts || []).length).length;
+    return `${qs} questions practised · ${(d.mocks || []).length} mock(s)`;
+  } catch (e) { return ""; }
+}
+
+function renderProfiles() {
+  const cur = activeProfile();
+  view.innerHTML = `
+    ${pageHeader("Profiles", "Each person gets separate progress, questions, flashcards and mock history on this device", `<button class="btn btn-secondary" id="btn-signout">Sign out</button>`)}
+    <div class="card">
+      <div class="list">${PROFILES.list.map(p => `
+        <div class="list-item">
+          ${avatarHtml(p, 40)}
+          <div class="list-main">
+            <div class="list-title">${esc(p.name)} ${p.id === cur.id ? '<span class="badge badge-success">Active</span>' : ""} ${p.pinHash ? '<span class="badge">PIN</span>' : ""} ${p.hideTests ? '<span class="badge">Practice &amp; Mock hidden</span>' : ""}</div>
+            <div class="list-meta">${profileSummary(p.id)}</div>
+          </div>
+          ${p.id === cur.id ? "" : `<button class="btn btn-primary btn-sm" data-switch="${p.id}">Switch</button>`}
+          ${isOwner() ? `<button class="btn btn-ghost btn-sm" data-hidetests="${p.id}">${p.hideTests ? "Show Practice &amp; Mock" : "Hide Practice &amp; Mock"}</button>` : ""}
+          <button class="icon-btn" data-rename="${p.id}" aria-label="Rename ${esc(p.name)}" title="Rename">${icon("settings", 18)}</button>
+          ${PROFILES.list.length > 1 && isOwner() ? `<button class="icon-btn danger" data-delprof="${p.id}" aria-label="Delete ${esc(p.name)}" title="Delete">${icon("trash", 18)}</button>` : ""}
+        </div>`).join("")}</div>
+    </div>
+
+    <div class="grid grid-2 section">
+      <div class="card">
+        <div class="card-head"><h2>Add a profile</h2></div>
+        <label class="field"><span class="field-label">Name</span><input class="input" id="np-name" maxlength="30" placeholder="e.g. Minh"></label>
+        <label class="field"><span class="field-label">Password (at least 4 characters, optional here)</span><input class="input" id="np-pin" type="password" maxlength="40" autocomplete="new-password"></label>
+        <label class="check-chip" style="margin-top:6px"><input type="checkbox" id="np-hide" checked> Hide Practice and Mock exams</label>
+        <div class="form-actions"><button class="btn btn-primary" id="btn-np">${icon("plus", 18)} Create profile</button></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>PIN for ${esc(cur.name)}</h2></div>
+        <p class="text-2 small">A PIN stops others on this device from opening your profile by accident. It is a simple lock, not strong security — anyone with access to the browser's storage could still read the data.</p>
+        <div class="row-gap" style="margin-top:14px">
+          <button class="btn btn-secondary" id="btn-setpin">${cur.pinHash ? "Change PIN" : "Set PIN"}</button>
+          ${cur.pinHash ? `<button class="btn btn-ghost" id="btn-rmpin">Remove PIN</button>` : ""}
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info section">${icon("alert", 18)}<div>Profiles live in this browser only. To use a profile on another device, export a backup in Settings and import it there into a profile. Online accounts with automatic sync need the Firebase setup.</div></div>`;
+
+  view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
+  document.getElementById("btn-signout").onclick = signOut;
+
+  view.querySelectorAll("[data-hidetests]").forEach(b => b.onclick = () => {
+    const p = PROFILES.list.find(x => x.id === b.dataset.hidetests);
+    p.hideTests = !p.hideTests; saveProfiles(); renderProfiles(); refreshShell();
+    toast(p.hideTests ? `Practice and Mock exams hidden for ${p.name}` : `Practice and Mock exams shown for ${p.name}`);
+  });
+
+  view.querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
+    const p = PROFILES.list.find(x => x.id === b.dataset.rename);
+    const name = await promptDialog({ title: "Rename profile", label: "Name", value: p.name, maxlength: 30, confirmText: "Save", validate: v => v ? "" : "Name can't be empty" });
+    if (name === null) return;
+    p.name = name; saveProfiles(); renderProfiles(); refreshShell(); toast("Profile renamed");
+  });
+
+  view.querySelectorAll("[data-delprof]").forEach(b => b.onclick = async () => {
+    const p = PROFILES.list.find(x => x.id === b.dataset.delprof);
+    if (p.pinHash && !(await askPinFor(p))) return;
+    if (!await confirmDialog({ title: `Delete ${p.name}?`, message: "All progress, questions, flashcards and mock history in this profile will be erased from this device. Export a backup first if needed.", confirmText: "Delete profile", danger: true, requireText: "DELETE" })) return;
+    deleteProfile(p.id); applyTheme(); renderProfiles(); refreshShell(); toast("Profile deleted");
+  });
+
+  document.getElementById("btn-np").onclick = async () => {
+    const nameEl = document.getElementById("np-name"), pinEl = document.getElementById("np-pin");
+    const name = nameEl.value.trim(), pin = pinEl.value.trim();
+    nameEl.classList.toggle("invalid", !name);
+    if (!name) { toast("Enter a name", "error"); return; }
+    if (pin && PIN_RULE(pin)) { pinEl.classList.add("invalid"); toast(PIN_RULE(pin), "error"); return; }
+    const id = createProfile(name, pin ? await hashPin(pin) : null, document.getElementById("np-hide").checked);
+    switchProfile(id); markUnlocked(id); applyTheme();
+    toast(`Profile ${name} created`);
+    location.hash = "#/dashboard"; router();
+  };
+
+  document.getElementById("btn-setpin").onclick = async () => {
+    if (cur.pinHash && !(await askPinFor(cur))) return;
+    const pin = await promptDialog({ title: "Set a password", label: "New password", type: "password", inputmode: "text", maxlength: 40, confirmText: "Save", validate: PIN_RULE });
+    if (pin === null) return;
+    cur.pinHash = await hashPin(pin); saveProfiles(); markUnlocked(cur.id); renderProfiles(); toast("PIN saved");
+  };
+  const rm = document.getElementById("btn-rmpin");
+  if (rm) rm.onclick = async () => {
+    if (!(await askPinFor(cur))) return;
+    cur.pinHash = null; saveProfiles(); renderProfiles(); toast("PIN removed");
+  };
+}
+
+// ---------- Lock screen ----------
+// ================= ACCESS GATE (sign in / create account) =================
+const INVITE_FROM_LINK = (() => {
+  try {
+    const u = new URL(location.href), c = u.searchParams.get("invite");
+    if (c) { u.searchParams.delete("invite"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+    return c || "";
+  } catch (e) { return ""; }
+})();
+const normInvite = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+async function hashInvite(v) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-invite:" + normInvite(v)));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+const hasStoredData = id => { try { return localStorage.getItem(profileKey(id)) !== null; } catch (e) { return false; } };
+const gateAccounts = () => PROFILES.list.filter(p => p.pinHash || hasStoredData(p.id));
+const isPhantom = p => !p.pinHash && !hasStoredData(p.id) && PROFILES.list.length === 1;
+function gateNeeded() { const p = activeProfile(); return !(p.pinHash && isUnlocked(p.id)); }
+const gate = { tab: null, sel: null, fails: 0, until: 0, err: "" };
+
+function signOut() {
+  try { sessionStorage.removeItem(UNLOCK_KEY); } catch (e) { /* ignore */ }
+  if (typeof lockOwner === "function") lockOwner();
+  location.hash = "#/dashboard"; router();
+}
+
+function gateWait() { return Math.max(0, Math.ceil((gate.until - Date.now()) / 1000)); }
+function gateFail() { gate.fails++; if (gate.fails >= 5) { gate.until = Date.now() + 30000; gate.fails = 0; } }
+
+async function gateEnter(id) {
+  if (PROFILES.active !== id) switchProfile(id);
+  markUnlocked(id); applyTheme();
+  document.body.classList.remove("gated");
+  gate.err = ""; gate.tab = null;
+  location.hash = "#/dashboard"; router(); refreshShell();
+}
+
+function renderGate() {
+  document.body.classList.add("gated");
+  const accts = gateAccounts(), needCode = !!(typeof ACCESS !== "undefined" && ACCESS.inviteHash);
+  if (!accts.length) gate.tab = "create"; else if (!gate.tab) gate.tab = INVITE_FROM_LINK ? "create" : "signin";
+  if (!gate.sel || !accts.some(p => p.id === gate.sel)) gate.sel = (accts.find(p => p.id === PROFILES.active) || accts[0] || {}).id;
+  const sel = accts.find(p => p.id === gate.sel);
+  const noPw = sel && !sel.pinHash;
+
+  view.innerHTML = `
+    <div class="gate">
+      <div class="gate-brand"><div class="brand-mark">L1</div><div><div class="brand-name">CFA Study</div><div class="brand-sub">Level I · May 2027</div></div></div>
+      <div class="card gate-card">
+        ${accts.length ? `<div class="tabs"><button class="tab ${gate.tab === "signin" ? "active" : ""}" data-gtab="signin">Sign in</button><button class="tab ${gate.tab === "create" ? "active" : ""}" data-gtab="create">Create account</button></div>` : `<h1 style="margin-bottom:4px">Welcome</h1><p class="text-2" style="margin-bottom:14px">Create your account to start studying.</p>`}
+        ${gate.err ? `<div class="callout danger" style="margin-bottom:12px">${icon("alert", 18)}<div>${esc(gate.err)}</div></div>` : ""}
+        ${gate.tab === "signin" ? `
+          <p class="sm-cap">Who is studying?</p>
+          <div class="gate-accts">${accts.map(a => `<button class="gate-acct ${a.id === gate.sel ? "on" : ""}" data-gsel="${a.id}">${avatarHtml(a, 32)}<span>${esc(a.name)}</span></button>`).join("")}</div>
+          <label class="field" style="margin-top:14px"><span class="field-label">${noPw ? `This profile has no password yet — create one for ${esc(sel.name)}` : "Password"}</span>
+            <input class="input" id="g-pw" type="password" maxlength="40" autocomplete="${noPw ? "new-password" : "current-password"}"></label>
+          ${noPw ? `<label class="field"><span class="field-label">Repeat password</span><input class="input" id="g-pw2" type="password" maxlength="40" autocomplete="new-password"></label>` : ""}
+          <button class="btn btn-primary btn-lg btn-block" id="g-go">${noPw ? "Set password & enter" : "Sign in"}</button>`
+        : `
+          <label class="field"><span class="field-label">Your name</span><input class="input" id="g-name" maxlength="30" autocomplete="nickname" placeholder="e.g. Minh"></label>
+          <label class="field"><span class="field-label">Password (at least 4 characters)</span><input class="input" id="g-pw" type="password" maxlength="40" autocomplete="new-password"></label>
+          <label class="field"><span class="field-label">Repeat password</span><input class="input" id="g-pw2" type="password" maxlength="40" autocomplete="new-password"></label>
+          ${needCode ? `<label class="field"><span class="field-label">Invitation code</span><input class="input" id="g-code" maxlength="30" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" placeholder="CFA-XXXX-XXXX-XXXX"></label>` : ""}
+          <label class="check-chip" style="margin:4px 0 14px"><input type="checkbox" id="g-hide" checked> Hide Practice and Mock exams</label>
+          <button class="btn btn-primary btn-lg btn-block" id="g-go">Create account & start</button>`}
+        <p class="text-3 small" style="margin-top:14px">Accounts are stored on this device. Your progress stays in this browser; use Settings → Backup to move it to another device.</p>
+      </div>
+    </div>`;
+
+  view.querySelectorAll("[data-gtab]").forEach(b => b.onclick = () => { gate.tab = b.dataset.gtab; gate.err = ""; renderGate(); });
+  view.querySelectorAll("[data-gsel]").forEach(b => b.onclick = () => { gate.sel = b.dataset.gsel; gate.err = ""; renderGate(); });
+  const go = document.getElementById("g-go");
+  view.querySelectorAll("input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") go.click(); }));
+  const fail = msg => { gate.err = msg; renderGate(); };
+
+  go.onclick = async () => {
+    if (gateWait()) return fail(`Too many attempts. Try again in ${gateWait()} seconds.`);
+    const pw = document.getElementById("g-pw").value;
+    if (gate.tab === "signin") {
+      if (noPw) {
+        if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
+        if (pw !== document.getElementById("g-pw2").value) return fail("The two passwords do not match.");
+        sel.pinHash = await hashPin(pw); saveProfiles(); return gateEnter(sel.id);
+      }
+      if (await hashPin(pw) !== sel.pinHash) { gateFail(); return fail(gateWait() ? `Too many attempts. Try again in ${gateWait()} seconds.` : "Wrong password."); }
+      return gateEnter(sel.id);
+    }
+    // create account
+    const name = document.getElementById("g-name").value.trim();
+    if (!name) return fail("Enter your name.");
+    if (accts.some(a => a.name.toLowerCase() === name.toLowerCase())) return fail("That name is already used on this device. Choose another or sign in.");
+    if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
+    if (pw !== document.getElementById("g-pw2").value) return fail("The two passwords do not match.");
+    if (needCode) {
+      const code = document.getElementById("g-code").value;
+      if (await hashInvite(code) !== ACCESS.inviteHash) { gateFail(); return fail(gateWait() ? `Too many attempts. Try again in ${gateWait()} seconds.` : "The invitation code is not valid. Ask the course owner for it."); }
+    }
+    const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
+    let id;
+    const first = PROFILES.list[0];
+    if (isPhantom(first)) { first.name = name; first.pinHash = ph; first.hideTests = hide; first.createdAt = todayStr(); id = first.id; saveProfiles(); saveData(); }
+    else id = createProfile(name, ph, hide);
+    toast(`Welcome, ${name}!`);
+    gateEnter(id);
+  };
+}
 async function goToProfile(id) {
   const p = PROFILES.list.find(x => x.id === id);
   if (!p) return;
@@ -379,7 +592,7 @@ function renderProfiles() {
       <div class="card">
         <div class="card-head"><h2>Add a profile</h2></div>
         <label class="field"><span class="field-label">Name</span><input class="input" id="np-name" maxlength="30" placeholder="e.g. Minh"></label>
-        <label class="field"><span class="field-label">4-digit PIN (optional)</span><input class="input" id="np-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password"></label>
+        <label class="field"><span class="field-label">Password (at least 4 characters, optional here)</span><input class="input" id="np-pin" type="password" maxlength="40" autocomplete="new-password"></label>
         <label class="check-chip" style="margin-top:6px"><input type="checkbox" id="np-hide" checked> Hide Practice and Mock exams</label>
         <div class="form-actions"><button class="btn btn-primary" id="btn-np">${icon("plus", 18)} Create profile</button></div>
       </div>
@@ -431,7 +644,7 @@ function renderProfiles() {
 
   document.getElementById("btn-setpin").onclick = async () => {
     if (cur.pinHash && !(await askPinFor(cur))) return;
-    const pin = await promptDialog({ title: "Set a 4-digit PIN", label: "New PIN", type: "password", inputmode: "numeric", maxlength: 4, confirmText: "Save", validate: PIN_RULE });
+    const pin = await promptDialog({ title: "Set a password", label: "New password", type: "password", inputmode: "text", maxlength: 40, confirmText: "Save", validate: PIN_RULE });
     if (pin === null) return;
     cur.pinHash = await hashPin(pin); saveProfiles(); markUnlocked(cur.id); renderProfiles(); toast("PIN saved");
   };
@@ -499,3 +712,9 @@ async function checkForUpdate(manual) {
 checkForUpdate(false);
 
 (() => { const b = document.getElementById("side-version"); if (b) { b.textContent = "v" + APP_VERSION; b.onclick = () => checkForUpdate(true); } })();
+
+// ================= START =================
+// (runs last so every const above — gate, profiles, version — is already defined)
+window.addEventListener("hashchange", router);
+applyTheme();
+router();
