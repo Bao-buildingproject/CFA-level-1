@@ -175,7 +175,7 @@ function dlSvg(o) {
     handles = `${lab(o.x1, 1, 0)}${lab(o.x2, 2, close ? 14 : 0)}
       <circle class="dl-handle" cx="${X(cl(o.x1))}" cy="${Y(0)}" r="9"/><circle class="dl-handle" cx="${X(cl(o.x2))}" cy="${Y(0)}" r="9"/>`;
   }
-  if (o.pct !== undefined) { const mx = o.shade === "between" ? (cl(a) + cl(b)) / 2 : o.shade === "left" ? (lo + cl(a)) / 2 : o.shade === "right" ? (cl(b) + hi) / 2 : (lo + hi) / 2; pctLabel = `<text class="dl-pct ${o.pctCls || ""}" x="${X(mx)}" y="${Math.max(T + 20, Y(o.pdf(mx)) + (Y(0) - Y(o.pdf(mx))) * 0.45)}" text-anchor="middle">${o.pct}</text>`; }
+  if (o.pct !== undefined) { const mx = o.shade === "between" ? (cl(a) + cl(b)) / 2 : o.shade === "left" ? Math.max(lo + (hi - lo) * 0.2, (lo + (hi - lo) * 0.12 + cl(a)) / 2) : o.shade === "right" ? Math.min(hi - (hi - lo) * 0.15, (cl(b) + hi) / 2) : (lo + hi) / 2; pctLabel = `<text class="dl-pct ${o.pctCls || ""}" x="${X(mx)}" y="${Math.max(T + 20, Y(o.pdf(mx)) + (Y(0) - Y(o.pdf(mx))) * 0.45)}" text-anchor="middle">${o.pct}</text>`; }
 
   return `<svg class="dl-svg" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-ymax="${ymax}" role="img" aria-label="${esc(o.label || "Distribution chart")}">
     ${grid}${hist}${extra}${shade}${sig}<polyline class="dl-curve" points="${line(o.pdf)}"/>
@@ -436,7 +436,7 @@ function dlZTable() {
   document.getElementById("dl-body").innerHTML = `
     <div class="dl-layout">
       <div class="card dl-chart-card">
-        <div id="dl-zchart">${dlSvg({ pdf: normPdf, range: [-4, 4], x1: -40, x2: z, shade: "left", pct: `N(z) = ${normCdf(z).toFixed(4)}`, marks: [{ x: z, label: `z = ${z.toFixed(2)}` }], label: "Standard normal" })}</div>
+        <div id="dl-zchart">${dlSvg({ pdf: normPdf, range: [-4, 4], x1: z, x2: z, shade: "left", areaCls: "dl-area-red", pctCls: "dl-pct-red", dot: z, pct: `N(z) = ${normCdf(z).toFixed(4)}`, marks: [{ x: z, label: `z = ${z.toFixed(2)}` }], label: "Standard normal" })}</div>
       </div>
       <div class="dl-side"><div class="card">
         ${dlTableSelect()}
