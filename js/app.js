@@ -297,7 +297,7 @@ function renderMore() {
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "home", "Profiles", `${PROFILES.list.length} profile(s) · switch user`],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],
-    ["signout", "back", "Sign out", "Lock the site until you sign in again"]
+    ["signout", "back", "Log out", "Sign out of this device"]
   ];
   view.innerHTML = `${pageHeader("More")}
     <div class="card"><div class="list">${items.map(([r, ic, label, sub]) => `
@@ -381,10 +381,17 @@ function profileSummary(id) {
 }
 
 function renderProfiles() {
-  const cur = activeProfile();
-  view.innerHTML = `
-    ${pageHeader("Profiles", "Each person gets separate progress, questions, flashcards and mock history on this device", `<button class="btn btn-secondary" id="btn-signout">Sign out</button>`)}
-    <div class="card">
+  const cur = activeProfile(), owner = isOwner();
+  const account = `
+    <div class="card account-card">
+      ${avatarHtml(cur, 64)}
+      <div class="account-name">${esc(cur.name)}</div>
+      <p class="text-2 small">You are logged in on this device.</p>
+      <button class="btn btn-primary btn-lg" id="btn-signout">Log out</button>
+    </div>`;
+  // Managing other profiles (switch, add, delete, password) is for the owner only
+  const manage = !owner ? "" : `
+    <div class="card section">
       <div class="list">${PROFILES.list.map(p => `
         <div class="list-item">
           ${avatarHtml(p, 40)}
@@ -418,10 +425,11 @@ function renderProfiles() {
     </div>
 
     <div class="callout info section">${icon("alert", 18)}<div>Profiles live in this browser only. To use a profile on another device, export a backup in Settings and import it there into a profile. Online accounts with automatic sync need the Firebase setup.</div></div>`;
+  view.innerHTML = `${pageHeader("Account", owner ? "Owner tools are shown below" : "")}${account}${manage}`;
 
-  view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
   document.getElementById("btn-signout").onclick = signOut;
-
+  if (!owner) return;
+  view.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => goToProfile(b.dataset.switch));
   view.querySelectorAll("[data-hidetests]").forEach(b => b.onclick = () => {
     const p = PROFILES.list.find(x => x.id === b.dataset.hidetests);
     p.hideTests = !p.hideTests; saveProfiles(); renderProfiles(); refreshShell();
