@@ -464,6 +464,17 @@ async function hashInvite(v) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-invite:" + normInvite(v)));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
+// A valid code from the invitation link is remembered on this device, so the field is not needed
+let INVITE_OK = false, INVITE_CODE = "";
+(async () => {
+  let c = INVITE_FROM_LINK;
+  if (!c) { try { c = localStorage.getItem("cfaStudy_invite") || ""; } catch (e) { /* ignore */ } }
+  if (!c || typeof ACCESS === "undefined" || !ACCESS.inviteHash) return;
+  if (await hashInvite(c) !== ACCESS.inviteHash) return;
+  INVITE_OK = true; INVITE_CODE = c;
+  try { localStorage.setItem("cfaStudy_invite", c); } catch (e) { /* ignore */ }
+  if (document.body.classList.contains("gated") && typeof renderGate === "function") renderGate();
+})();
 const hasStoredData = id => { try { return localStorage.getItem(profileKey(id)) !== null; } catch (e) { return false; } };
 const gateAccounts = () => PROFILES.list.filter(p => p.pinHash || hasStoredData(p.id));
 const isPhantom = p => !p.pinHash && !hasStoredData(p.id) && PROFILES.list.length === 1;
@@ -515,7 +526,8 @@ function renderGate() {
       ${err}
       ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
       ${gatePw("g-pw", "Password (4+ characters)", "new-password")}
-      ${needCode ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
+      ${needCode && !INVITE_OK ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
+      ${needCode && INVITE_OK ? `<p class="gate-invited">✓ Invitation accepted</p>` : ""}
       <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
       <button class="gate-btn gold" id="g-go">Sign Up</button>
       ${accts.length ? `<p class="gate-alt">Already have an account? <button class="gate-link" data-gtab="signin">Sign in</button></p>` : ""}`;
@@ -587,7 +599,7 @@ function renderGate() {
     if (nameTaken(name)) return fail(`The username “${name}” is already taken. Choose another, or sign in if it is yours.`);
     if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
     if (needCode) {
-      const code = document.getElementById("g-code").value;
+      const code = INVITE_OK ? INVITE_CODE : document.getElementById("g-code").value;
       if (await hashInvite(code) !== ACCESS.inviteHash) { gateFail(); return fail(gateWait() ? waitMsg() : "The invitation code is not valid. Ask the course owner for it."); }
     }
     const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
