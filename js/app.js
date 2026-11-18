@@ -324,7 +324,31 @@ function router() {
 
 // ================= PROFILES (#/profiles) =================
 const UNLOCK_KEY = "cfaStudy_unlocked";
-function isUnlocked(id) { try { return sessionStorage.getItem(UNLOCK_KEY) === id; } catch (e) { return false; } }
+// "Remember me": stay signed in on this device for 30 days (otherwise until the tab is closed)
+const REMEMBER_KEY = "cfaStudy_remember", REMEMBER_DAYS = 30;
+function rememberedId() {
+  try {
+    const r = JSON.parse(localStorage.getItem(REMEMBER_KEY) || "null");
+    if (r && r.id && r.until > Date.now()) return r.id;
+    if (r) localStorage.removeItem(REMEMBER_KEY);
+  } catch (e) { /* ignore */ }
+  return null;
+}
+function setRemember(id, on) {
+  try {
+    localStorage.setItem("cfaStudy_rememberPref", on ? "1" : "0");
+    if (on) localStorage.setItem(REMEMBER_KEY, JSON.stringify({ id, until: Date.now() + REMEMBER_DAYS * 86400000 }));
+    else localStorage.removeItem(REMEMBER_KEY);
+  } catch (e) { /* ignore */ }
+}
+const rememberPref = () => { try { return localStorage.getItem("cfaStudy_rememberPref") === "1"; } catch (e) { return false; } };
+function isUnlocked(id) {
+  try {
+    if (sessionStorage.getItem(UNLOCK_KEY) === id) return true;
+    if (rememberedId() === id) { sessionStorage.setItem(UNLOCK_KEY, id); return true; }
+  } catch (e) { /* ignore */ }
+  return false;
+}
 function markUnlocked(id) { try { sessionStorage.setItem(UNLOCK_KEY, id); } catch (e) { /* ignore */ } }
 function isLocked() { return gateNeeded(); }
 const PIN_RULE = v => (v && v.length >= 4) ? "" : "Use at least 4 characters";
@@ -482,7 +506,7 @@ function gateNeeded() { const p = activeProfile(); return !(p.pinHash && isUnloc
 const gate = { tab: null, sel: null, fails: 0, until: 0, err: "" };
 
 function signOut() {
-  try { sessionStorage.removeItem(UNLOCK_KEY); } catch (e) { /* ignore */ }
+  try { sessionStorage.removeItem(UNLOCK_KEY); localStorage.removeItem(REMEMBER_KEY); } catch (e) { /* ignore */ }
   if (typeof lockOwner === "function") lockOwner();
   location.hash = "#/dashboard"; router();
 }
@@ -492,6 +516,8 @@ function gateFail() { gate.fails++; if (gate.fails >= 5) { gate.until = Date.now
 
 async function gateEnter(id) {
   if (PROFILES.active !== id) switchProfile(id);
+  const rm = document.getElementById("g-remember");
+  setRemember(id, !!(rm && rm.checked));
   markUnlocked(id); applyTheme();
   document.body.classList.remove("gated");
   gate.err = ""; gate.tab = null;
@@ -529,6 +555,7 @@ function renderGate() {
       ${needCode && !INVITE_OK ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
       ${needCode && INVITE_OK ? `<p class="gate-invited">✓ Invitation accepted</p>` : ""}
       <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
+      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn gold" id="g-go">Sign Up</button>
       ${accts.length ? `<p class="gate-alt">Already have an account? <button class="gate-link" data-gtab="signin">Sign in</button></p>` : ""}`;
   } else if (gate.tab === "setpw") {
@@ -538,6 +565,7 @@ function renderGate() {
       <p class="gate-sub">Hi <strong>${esc(setP.name)}</strong> — your profile has no password yet. Choose one to protect it.</p>
       ${err}
       ${gatePw("g-pw", "New password (min. 4)", "new-password")}
+      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn navy" id="g-go">Save &amp; enter ${GATE_ICONS.arrow}</button>
       <p class="gate-alt"><button class="gate-link" data-gtab="signin">Back</button></p>`;
   } else {
@@ -547,6 +575,7 @@ function renderGate() {
       ${err}
       ${gateField("user", `<input id="g-id" placeholder="Username" autocomplete="username" value="${esc(last)}" aria-label="Username">`)}
       ${gatePw("g-pw", "Password", "current-password")}
+      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn navy" id="g-go">Sign In ${GATE_ICONS.arrow}</button>
       <div class="gate-or"><span>or</span></div>
       <button class="gate-btn outline" data-gtab="create">Create Account</button>`;

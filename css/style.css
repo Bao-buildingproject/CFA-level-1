@@ -784,6 +784,7 @@ body.gated .main { padding: 0; max-width: none; }
 .gate-alt { margin: 1.1em 0 0; font-size: .95em; color: #2c3b5a; }
 .gate-link { border: none; background: none; padding: 0; font: inherit; font-weight: 700; color: #9a6b24; cursor: pointer; text-decoration: underline; }
 .gate-err { margin: 0 0 1em; padding: .7em 1em; border-radius: 1em; background: #fde9e7; color: #a32d22; font-size: .95em; text-align: left; border: 1px solid #f6c9c4; }
+.gate-remember { margin-top: -.2em; }
 .gate-invited { margin: -.2em 0 .8em; font-size: .95em; font-weight: 600; color: #2f7a4d; }
 .gate-foot { margin: 0; font-size: .78rem; color: #33405c; text-align: center; background: rgba(255, 255, 255, .85); padding: 4px 14px; border-radius: 999px; }
 
@@ -808,7 +809,7 @@ body.gated .main { padding: 0; max-width: none; }
   .gate-btn { height: 2.35em; font-size: 2em; } .gate-create .gate-btn { height: 2.45em; font-size: 2.05em; margin-top: .1em; }
   .gate-btn.outline { height: 2.3em; font-size: 1.6em; }
   .gate-or { font-size: 1.3em; margin: 1em 3em; } .gate-alt { font-size: 1.3em; }
-  .gate-check { font-size: 1.35em; } .gate-invited { font-size: 1.3em; } .gate-err { font-size: 1.2em; }
+  .gate-check { font-size: 1.35em; } .gate-signin .gate-remember { margin: -.4em .4em .9em; } .gate-invited { font-size: 1.3em; } .gate-err { font-size: 1.2em; }
   .gate-orn { margin: .6em auto 1.6em; }
   .gate-signin .gate-laurel-row, .gate-setpw .gate-laurel-row { margin-top: .9em; }
   .gate-btn.navy, .gate-btn.outline { font-family: "Playfair Display", Georgia, serif; font-weight: 600; letter-spacing: .01em; }
