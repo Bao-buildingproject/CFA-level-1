@@ -487,76 +487,123 @@ async function gateEnter(id) {
   location.hash = "#/dashboard"; router(); refreshShell();
 }
 
+const emailKey = e => String(e || "").trim().toLowerCase();
+const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+const emailTaken = e => PROFILES.list.some(p => !isPhantom(p) && p.email && emailKey(p.email) === emailKey(e));
+function findAccount(idv) {
+  const k = nameKey(idv), e = emailKey(idv);
+  return gateAccounts().find(a => (a.email && emailKey(a.email) === e) || nameKey(a.name) === k);
+}
+
+function gateField(icon, inner, extra = "") {
+  return `<div class="gate-field">${GATE_ICONS[icon]}${inner}${extra}</div>`;
+}
+const gatePw = (id, ph, auto) => gateField("lock", `<input id="${id}" type="password" placeholder="${ph}" maxlength="40" autocomplete="${auto}" aria-label="${ph}">`,
+  `<button type="button" class="gate-eye" data-eye="${id}" aria-label="Show or hide password">${GATE_ICONS.eye}</button>`);
+
 function renderGate() {
   document.body.classList.add("gated");
   const accts = gateAccounts(), needCode = !!(typeof ACCESS !== "undefined" && ACCESS.inviteHash);
   if (!accts.length) gate.tab = "create"; else if (!gate.tab) gate.tab = INVITE_FROM_LINK ? "create" : "signin";
-  if (!gate.sel || !accts.some(p => p.id === gate.sel)) gate.sel = (accts.find(p => p.id === PROFILES.active) || accts[0] || {}).id;
-  const sel = accts.find(p => p.id === gate.sel);
-  const noPw = sel && !sel.pinHash;
+  let last = ""; try { last = localStorage.getItem("cfaStudy_last") || ""; } catch (e) { /* ignore */ }
+  const setP = gate.tab === "setpw" ? PROFILES.list.find(p => p.id === gate.sel) : null;
+  if (gate.tab === "setpw" && !setP) gate.tab = "signin";
+
+  const err = gate.err ? `<div class="gate-err" role="alert">${esc(gate.err)}</div>` : "";
+  let body;
+  if (gate.tab === "create") {
+    body = `
+      <h1 class="gate-serif gate-h">Sign Up</h1>
+      <div class="gate-orn"><i></i><b></b><i></i></div>
+      ${err}
+      ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
+      ${gateField("mail", `<input id="g-email" type="email" maxlength="60" placeholder="Email" autocomplete="email" aria-label="Email">`)}
+      ${gatePw("g-pw", "Password (min. 4 characters)", "new-password")}
+      ${needCode ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
+      <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
+      <button class="gate-btn gold" id="g-go">Sign Up</button>
+      ${accts.length ? `<p class="gate-alt">Already have an account? <button class="gate-link" data-gtab="signin">Sign in</button></p>` : ""}`;
+  } else if (gate.tab === "setpw") {
+    body = `
+      <h1 class="gate-serif gate-h" style="font-size:2rem">Create a password</h1>
+      <div class="gate-orn"><i></i><b></b><i></i></div>
+      <p class="gate-sub">Hi <strong>${esc(setP.name)}</strong> — your profile has no password yet. Choose one to protect it.</p>
+      ${err}
+      ${gatePw("g-pw", "New password (min. 4)", "new-password")}
+      <button class="gate-btn navy" id="g-go">Save &amp; enter ${GATE_ICONS.arrow}</button>
+      <p class="gate-alt"><button class="gate-link" data-gtab="signin">Back</button></p>`;
+  } else {
+    body = `
+      <div class="gate-laurel-row">${gateLaurel(false)}<h1 class="gate-serif gate-h gate-h1">Learning CFA Level 1</h1>${gateLaurel(true)}</div>
+      <p class="gate-sub">Your Professional Learning Platform for CFA® Level I</p>
+      ${err}
+      ${gateField("mail", `<input id="g-id" placeholder="Email or username" autocomplete="username" value="${esc(last)}" aria-label="Email or username">`)}
+      ${gatePw("g-pw", "Password", "current-password")}
+      <button class="gate-btn navy" id="g-go">Sign In ${GATE_ICONS.arrow}</button>
+      <div class="gate-or"><span>or</span></div>
+      <button class="gate-btn outline" data-gtab="create">Create Account</button>`;
+  }
 
   view.innerHTML = `
     <div class="gate">
-      <div class="gate-brand"><div class="brand-mark">L1</div><div><div class="brand-name">CFA Study</div><div class="brand-sub">Level I · May 2027</div></div></div>
-      <div class="card gate-card">
-        ${accts.length ? `<div class="tabs"><button class="tab ${gate.tab === "signin" ? "active" : ""}" data-gtab="signin">Sign in</button><button class="tab ${gate.tab === "create" ? "active" : ""}" data-gtab="create">Create account</button></div>` : `<h1 style="margin-bottom:4px">Welcome</h1><p class="text-2" style="margin-bottom:14px">Create your account to start studying.</p>`}
-        ${gate.err ? `<div class="callout danger" style="margin-bottom:12px">${icon("alert", 18)}<div>${esc(gate.err)}</div></div>` : ""}
-        ${gate.tab === "signin" ? `
-          <p class="sm-cap">Who is studying?</p>
-          <div class="gate-accts">${accts.map(a => `<button class="gate-acct ${a.id === gate.sel ? "on" : ""}" data-gsel="${a.id}">${avatarHtml(a, 32)}<span>${esc(a.name)}</span></button>`).join("")}</div>
-          <label class="field" style="margin-top:14px"><span class="field-label">${noPw ? `This profile has no password yet — create one for ${esc(sel.name)}` : "Password"}</span>
-            <input class="input" id="g-pw" type="password" maxlength="40" autocomplete="${noPw ? "new-password" : "current-password"}"></label>
-          ${noPw ? `<label class="field"><span class="field-label">Repeat password</span><input class="input" id="g-pw2" type="password" maxlength="40" autocomplete="new-password"></label>` : ""}
-          <button class="btn btn-primary btn-lg btn-block" id="g-go">${noPw ? "Set password & enter" : "Sign in"}</button>`
-        : `
-          <label class="field"><span class="field-label">Your name</span><input class="input" id="g-name" maxlength="30" autocomplete="nickname" placeholder="e.g. Minh"></label>
-          <label class="field"><span class="field-label">Password (at least 4 characters)</span><input class="input" id="g-pw" type="password" maxlength="40" autocomplete="new-password"></label>
-          <label class="field"><span class="field-label">Repeat password</span><input class="input" id="g-pw2" type="password" maxlength="40" autocomplete="new-password"></label>
-          ${needCode ? `<label class="field"><span class="field-label">Invitation code</span><input class="input" id="g-code" maxlength="30" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" placeholder="CFA-XXXX-XXXX-XXXX"></label>` : ""}
-          <label class="check-chip" style="margin:4px 0 14px"><input type="checkbox" id="g-hide" checked> Hide Practice and Mock exams</label>
-          <button class="btn btn-primary btn-lg btn-block" id="g-go">Create account & start</button>`}
-        <p class="text-3 small" style="margin-top:14px">Accounts are stored on this device. Your progress stays in this browser; use Settings → Backup to move it to another device.</p>
+      ${gateArt()}
+      <div class="gate-card">
+        <div class="gate-brand">${gateLogoSvg(gate.tab === "signin" ? 64 : 58)}<div class="gate-serif gate-name">CFA Study</div></div>
+        ${body}
       </div>
+      <p class="gate-foot">Your account is stored on this device only.</p>
     </div>`;
 
   view.querySelectorAll("[data-gtab]").forEach(b => b.onclick = () => { gate.tab = b.dataset.gtab; gate.err = ""; renderGate(); });
-  view.querySelectorAll("[data-gsel]").forEach(b => b.onclick = () => { gate.sel = b.dataset.gsel; gate.err = ""; renderGate(); });
+  view.querySelectorAll("[data-eye]").forEach(b => b.onclick = () => {
+    const i = document.getElementById(b.dataset.eye), show = i.type === "password";
+    i.type = show ? "text" : "password"; b.innerHTML = show ? GATE_ICONS.eyeOff : GATE_ICONS.eye;
+  });
   const go = document.getElementById("g-go");
-  view.querySelectorAll("input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") go.click(); }));
+  view.querySelectorAll(".gate-field input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") go.click(); }));
+  const first = view.querySelector(".gate-field input:not([value=''])") ? null : view.querySelector(".gate-field input");
+  if (first && window.matchMedia("(min-width: 700px)").matches) first.focus();
   const fail = msg => { gate.err = msg; renderGate(); };
+  const waitMsg = () => `Too many attempts. Try again in ${gateWait()} seconds.`;
 
   go.onclick = async () => {
-    if (gateWait()) return fail(`Too many attempts. Try again in ${gateWait()} seconds.`);
+    if (gateWait()) return fail(waitMsg());
     const pw = document.getElementById("g-pw").value;
+
+    if (gate.tab === "setpw") {
+      if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
+      setP.pinHash = await hashPin(pw); saveProfiles(); return gateEnter(setP.id);
+    }
     if (gate.tab === "signin") {
-      if (noPw) {
-        if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
-        if (pw !== document.getElementById("g-pw2").value) return fail("The two passwords do not match.");
-        sel.pinHash = await hashPin(pw); saveProfiles(); return gateEnter(sel.id);
-      }
-      if (await hashPin(pw) !== sel.pinHash) { gateFail(); return fail(gateWait() ? `Too many attempts. Try again in ${gateWait()} seconds.` : "Wrong password."); }
-      return gateEnter(sel.id);
+      const idv = document.getElementById("g-id").value.trim(), acct = idv && findAccount(idv);
+      if (!idv || !pw && acct && acct.pinHash) return fail("Enter your email or username and your password.");
+      if (acct && !acct.pinHash) { gate.tab = "setpw"; gate.sel = acct.id; gate.err = ""; return renderGate(); }
+      if (!acct || await hashPin(pw) !== acct.pinHash) { gateFail(); return fail(gateWait() ? waitMsg() : "Email, username or password is incorrect."); }
+      try { localStorage.setItem("cfaStudy_last", acct.name); } catch (e) { /* ignore */ }
+      return gateEnter(acct.id);
     }
     // create account
-    const name = document.getElementById("g-name").value.trim();
-    if (!name) return fail("Enter your name.");
-    if (!nameKey(name)) return fail("Use letters or numbers in your name.");
-    if (nameTaken(name)) return fail(`The name “${name}” is already taken. Choose a different name, or sign in if it is yours.`);
+    const name = document.getElementById("g-name").value.trim(), email = emailKey(document.getElementById("g-email").value);
+    if (!name || !nameKey(name)) return fail("Enter a username (letters or numbers).");
+    if (nameTaken(name)) return fail(`The username “${name}” is already taken. Choose another, or sign in if it is yours.`);
+    if (!emailOk(email)) return fail("Enter a valid email address.");
+    if (emailTaken(email)) return fail("That email is already registered. Sign in instead.");
     if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
-    if (pw !== document.getElementById("g-pw2").value) return fail("The two passwords do not match.");
     if (needCode) {
       const code = document.getElementById("g-code").value;
-      if (await hashInvite(code) !== ACCESS.inviteHash) { gateFail(); return fail(gateWait() ? `Too many attempts. Try again in ${gateWait()} seconds.` : "The invitation code is not valid. Ask the course owner for it."); }
+      if (await hashInvite(code) !== ACCESS.inviteHash) { gateFail(); return fail(gateWait() ? waitMsg() : "The invitation code is not valid. Ask the course owner for it."); }
     }
     const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
     let id;
-    const first = PROFILES.list[0];
-    if (isPhantom(first)) { first.name = name; first.pinHash = ph; first.hideTests = hide; first.createdAt = todayStr(); id = first.id; saveProfiles(); saveData(); }
-    else id = createProfile(name, ph, hide);
+    const firstP = PROFILES.list[0];
+    if (isPhantom(firstP)) { firstP.name = name; firstP.email = email; firstP.pinHash = ph; firstP.hideTests = hide; firstP.createdAt = todayStr(); id = firstP.id; saveProfiles(); saveData(); }
+    else { id = createProfile(name, ph, hide); PROFILES.list.find(p => p.id === id).email = email; saveProfiles(); }
+    try { localStorage.setItem("cfaStudy_last", name); } catch (e) { /* ignore */ }
     toast(`Welcome, ${name}!`);
     gateEnter(id);
   };
 }
+
 // ================= VERSION CHECK =================
 // Phones often keep old copies of the site. The page version comes from the ?v= on this script;
 // version.json (never cached) holds the newest version. If they differ, offer a one-tap update.
