@@ -487,12 +487,9 @@ async function gateEnter(id) {
   location.hash = "#/dashboard"; router(); refreshShell();
 }
 
-const emailKey = e => String(e || "").trim().toLowerCase();
-const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
-const emailTaken = e => PROFILES.list.some(p => !isPhantom(p) && p.email && emailKey(p.email) === emailKey(e));
 function findAccount(idv) {
-  const k = nameKey(idv), e = emailKey(idv);
-  return gateAccounts().find(a => (a.email && emailKey(a.email) === e) || nameKey(a.name) === k);
+  const k = nameKey(idv);
+  return k ? gateAccounts().find(a => nameKey(a.name) === k) : null;
 }
 
 function gateField(icon, inner, extra = "") {
@@ -517,7 +514,6 @@ function renderGate() {
       <div class="gate-orn"><i></i><b></b><i></i></div>
       ${err}
       ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
-      ${gateField("mail", `<input id="g-email" type="email" maxlength="60" placeholder="Email" autocomplete="email" aria-label="Email">`)}
       ${gatePw("g-pw", "Password (min. 4 characters)", "new-password")}
       ${needCode ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
       <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
@@ -537,7 +533,7 @@ function renderGate() {
       <div class="gate-laurel-row">${gateLaurel(false)}<h1 class="gate-serif gate-h gate-h1">Learning CFA Level 1</h1>${gateLaurel(true)}</div>
       <p class="gate-sub">Your Professional Learning Platform for CFA® Level I</p>
       ${err}
-      ${gateField("mail", `<input id="g-id" placeholder="Email or username" autocomplete="username" value="${esc(last)}" aria-label="Email or username">`)}
+      ${gateField("user", `<input id="g-id" placeholder="Username" autocomplete="username" value="${esc(last)}" aria-label="Username">`)}
       ${gatePw("g-pw", "Password", "current-password")}
       <button class="gate-btn navy" id="g-go">Sign In ${GATE_ICONS.arrow}</button>
       <div class="gate-or"><span>or</span></div>
@@ -576,18 +572,16 @@ function renderGate() {
     }
     if (gate.tab === "signin") {
       const idv = document.getElementById("g-id").value.trim(), acct = idv && findAccount(idv);
-      if (!idv || !pw && acct && acct.pinHash) return fail("Enter your email or username and your password.");
+      if (!idv || !pw && acct && acct.pinHash) return fail("Enter your username and your password.");
       if (acct && !acct.pinHash) { gate.tab = "setpw"; gate.sel = acct.id; gate.err = ""; return renderGate(); }
-      if (!acct || await hashPin(pw) !== acct.pinHash) { gateFail(); return fail(gateWait() ? waitMsg() : "Email, username or password is incorrect."); }
+      if (!acct || await hashPin(pw) !== acct.pinHash) { gateFail(); return fail(gateWait() ? waitMsg() : "Username or password is incorrect."); }
       try { localStorage.setItem("cfaStudy_last", acct.name); } catch (e) { /* ignore */ }
       return gateEnter(acct.id);
     }
     // create account
-    const name = document.getElementById("g-name").value.trim(), email = emailKey(document.getElementById("g-email").value);
+    const name = document.getElementById("g-name").value.trim();
     if (!name || !nameKey(name)) return fail("Enter a username (letters or numbers).");
     if (nameTaken(name)) return fail(`The username “${name}” is already taken. Choose another, or sign in if it is yours.`);
-    if (!emailOk(email)) return fail("Enter a valid email address.");
-    if (emailTaken(email)) return fail("That email is already registered. Sign in instead.");
     if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
     if (needCode) {
       const code = document.getElementById("g-code").value;
@@ -596,8 +590,8 @@ function renderGate() {
     const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
     let id;
     const firstP = PROFILES.list[0];
-    if (isPhantom(firstP)) { firstP.name = name; firstP.email = email; firstP.pinHash = ph; firstP.hideTests = hide; firstP.createdAt = todayStr(); id = firstP.id; saveProfiles(); saveData(); }
-    else { id = createProfile(name, ph, hide); PROFILES.list.find(p => p.id === id).email = email; saveProfiles(); }
+    if (isPhantom(firstP)) { firstP.name = name; firstP.pinHash = ph; firstP.hideTests = hide; firstP.createdAt = todayStr(); id = firstP.id; saveProfiles(); saveData(); }
+    else { id = createProfile(name, ph, hide); }
     try { localStorage.setItem("cfaStudy_last", name); } catch (e) { /* ignore */ }
     toast(`Welcome, ${name}!`);
     gateEnter(id);
