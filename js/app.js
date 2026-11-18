@@ -514,7 +514,7 @@ function renderGate() {
       <div class="gate-orn"><i></i><b></b><i></i></div>
       ${err}
       ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
-      ${gatePw("g-pw", "Password (min. 4 characters)", "new-password")}
+      ${gatePw("g-pw", "Password (4+ characters)", "new-password")}
       ${needCode ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
       <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
       <button class="gate-btn gold" id="g-go">Sign Up</button>
@@ -540,12 +540,15 @@ function renderGate() {
       <button class="gate-btn outline" data-gtab="create">Create Account</button>`;
   }
 
+  const brand = `<div class="gate-brand">${gateLogoSvg(80)}<div class="gate-serif gate-name">CFA Study</div></div>`;
   view.innerHTML = `
-    <div class="gate">
-      ${gateArt()}
-      <div class="gate-card">
-        <div class="gate-brand">${gateLogoSvg(gate.tab === "signin" ? 64 : 58)}<div class="gate-serif gate-name">CFA Study</div></div>
-        ${body}
+    <div class="gate gate-${gate.tab}">
+      <div class="gate-stage">
+        ${gate.tab === "create" ? `<div class="gate-ext">${brand}</div>` : ""}
+        <div class="gate-card">
+          ${gate.tab === "create" ? "" : brand}
+          ${body}
+        </div>
       </div>
       <p class="gate-foot">Your account is stored on this device only.</p>
     </div>`;
