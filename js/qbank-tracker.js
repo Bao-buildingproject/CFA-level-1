@@ -42,6 +42,10 @@ function weightShare(t) {
   return Math.round((mid(t) / total) * 100);
 }
 
+// Shown only while this device has no sets to answer
+function qbImportButtonHtml() {
+  return `<label class="btn btn-primary" style="margin-top:16px">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>`;
+}
 const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). The sets then show up here with a <strong>Do it</strong> button. They stay in this browser, so import them once on each device.";
 let qbOpen = null;
 let qbBulkReport = null;
@@ -89,8 +93,7 @@ function renderQBank(sub, fileId, mode) {
   const sets = tiles.reduce((n, x) => n + x.sets, 0), redo = tiles.reduce((n, x) => n + x.redo, 0);
 
   view.innerHTML = `
-    ${pageHeader("Question Bank", sets ? `10 topics · ${sets} sets on this device · pick a topic to see its sets` : "Your question sets, answered right here",
-      `<label class="btn ${sets ? "btn-ghost" : "btn-primary"}">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>`)}
+    ${pageHeader("Question Bank", sets ? `10 topics · ${sets} sets on this device · pick a topic to see its sets` : "Your question sets, answered right here")}
     <div id="qb-progress"></div>
     ${qbBulkReport ? qbReportHtml(qbBulkReport) : ""}
     <div class="grid grid-stats">
@@ -102,7 +105,7 @@ function renderQBank(sub, fileId, mode) {
     ${sets ? `
       <div class="section-title section">Topics</div>
       <div class="qbt-grid">${tiles.map(qbTileHtml).join("")}</div>`
-      : `<div class="card section">${emptyState("flag", "No question sets on this device yet", QB_EMPTY_HINT)}</div>`}
+      : `<div class="card section">${emptyState("flag", "No question sets on this device yet", QB_EMPTY_HINT, qbImportButtonHtml())}</div>`}
     ${qbMockCardHtml()}`;
 
   bindQBank();
@@ -144,7 +147,7 @@ function renderQBTopic(topicId) {
       `<label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`,
       `Topic ${idx + 1} of ${TOPICS.length}`)}
     ${files.length ? `<div class="card"><div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div></div>`
-      : `<div class="card">${emptyState("flag", "No sets of this topic on this device", QB_EMPTY_HINT)}</div>`}
+      : `<div class="card">${emptyState("flag", "No sets of this topic on this device", QB_EMPTY_HINT, qbImportButtonHtml())}</div>`}
     <div class="qbt-pager section">
       ${prev ? `<a class="btn btn-ghost" href="#/qbank/topic/${prev.id}">${icon("prev", 16)} ${prev.name}</a>` : "<span></span>"}
       ${next ? `<a class="btn btn-ghost" href="#/qbank/topic/${next.id}">${next.name} ${icon("next", 16)}</a>` : "<span></span>"}
