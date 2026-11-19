@@ -680,6 +680,10 @@ a.ag-row:hover .ag-label { color: var(--brass-ink); }
 .slip h2 { font-size: 1.15rem; }
 .slip p { margin-top: 4px; }
 .slip .btn { margin-top: 14px; }
+.slips:has(> .slip:only-child) { grid-template-columns: 1fr; }
+.slip-wide { align-items: center; }
+.slip-wide .slip-text { flex: 1; min-width: 0; }
+.slip-wide .btn { margin-top: 0; flex: none; }
 
 /* Practice — question --------------------------------------- */
 .q-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }

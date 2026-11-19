@@ -162,7 +162,6 @@ function renderDashboard() {
   const qs = quizStats();
   const log = DATA.dailyLog[todayStr()] || {};
   const lastMock = DATA.mocks[DATA.mocks.length - 1];
-  const backupAgo = DATA.settings.lastBackup ? daysBetween(DATA.settings.lastBackup, todayStr()) : null;
   const tests = !testsHidden();
   const WK = weakStats();
   const tot = Object.values(WK.topic).reduce((a, x) => ({ answered: a.answered + x.answered, right: a.right + x.right }), { answered: 0, right: 0 });
@@ -254,22 +253,14 @@ function renderDashboard() {
     <div class="ledger-foot">${STRIP_LEGEND}<a href="#/study" class="small" style="font-weight:600">Open the study plan →</a></div>
 
     <div class="slips">
-      <div class="card slip">
+      <div class="card slip slip-wide">
         <div class="slip-ico">${icon("external", 19)}</div>
-        <div><h2>CFA Learning Ecosystem</h2>
-          <p class="text-2 small">Official practice questions. Log your scores and missed questions on each topic page.</p>
-          <a class="btn btn-secondary btn-sm" href="${LES_URL}" target="_blank" rel="noopener">Open CFA Practice</a></div>
-      </div>
-      <div class="card slip">
-        <div class="slip-ico">${icon("download", 19)}</div>
-        <div style="flex:1;min-width:0"><div class="row-between"><h2>Backup</h2>
-          <span class="badge ${backupAgo === null || backupAgo >= 3 ? "badge-warning" : "badge-success"}">${backupAgo === null ? "Never" : backupAgo === 0 ? "Today" : `${backupAgo}d ago`}</span></div>
-          <p class="text-2 small">Your data lives in this browser. Export a backup to Google Drive regularly.</p>
-          <button class="btn btn-secondary btn-sm" id="dash-export">Export backup</button></div>
+        <div class="slip-text"><h2>CFA Learning Ecosystem</h2>
+          <p class="text-2 small">Official practice questions. Log your scores and missed questions on each topic page.</p></div>
+        <a class="btn btn-secondary btn-sm" href="${LES_URL}" target="_blank" rel="noopener">Open CFA Practice</a>
       </div>
     </div>`;
 
-  document.getElementById("dash-export").onclick = () => { exportData(); toast("Backup downloaded — upload it to Google Drive"); renderDashboard(); };
   if (ROUTE_ENTER) countDown(document.getElementById("cert-num"), days);
 }
 
