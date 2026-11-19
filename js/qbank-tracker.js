@@ -42,6 +42,7 @@ function weightShare(t) {
   return Math.round((mid(t) / total) * 100);
 }
 
+const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files — the sets then show up here with a <strong>Do it</strong> button.";
 let qbOpen = null;
 let qbBulkReport = null;
 
@@ -70,9 +71,10 @@ function renderQBank(sub, fileId, mode) {
   qbRun = null;
   const topics = TOPICS.slice().sort((a, b) => weightShare(b) - weightShare(a));
   const all = topics.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; a.files += s.files; return a; }, { done: 0, right: 0, files: 0 });
+  const loaded = topics.reduce((n, t) => n + (QBANK_FILES[t.id] || []).filter(f => QBI[f[2]] && !qbSkipped(f[2])).length, 0);
 
   view.innerHTML = `
-    ${pageHeader("Question Bank", `Your question sets · sorted by 2027 exam weight · ${all.files} active sets`,
+    ${pageHeader("Question Bank", `Your question sets · sorted by 2027 exam weight · ${loaded} active sets`,
       `<label class="btn btn-primary">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>
        <label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
     <div id="qb-progress"></div>
@@ -86,20 +88,19 @@ function renderQBank(sub, fileId, mode) {
     <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions with the full explanation, tables and figures. To add sets, press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). Imported questions stay only in this browser — import them once on each device.</div></div>
     ${qbMockCardHtml()}
     ${topics.map(t => {
-      const files = (QBANK_FILES[t.id] || []).filter(f => qbShowSkipped || !qbSkipped(f[2]));
+      // only sets whose questions are on this device — the others have nothing to open
+      const files = (QBANK_FILES[t.id] || []).filter(f => QBI[f[2]] && (qbShowSkipped || !qbSkipped(f[2])));
+      if (!files.length) return "";
       const ts = qbTopicStats(t.id);
-      const folder = `https://drive.google.com/drive/folders/${QBANK_FOLDERS[t.id]}`;
       return `
       <div class="card section">
         <div class="card-head" style="flex-wrap:wrap">
           <div><h2>${t.name}</h2>
             <p class="text-2 small">2027 weight ${t.weight} · aim for about <strong>${weightShare(t)} of every 100</strong> practice questions · ${ts.done} marked${ts.pct !== null ? ` · ${ts.pct}% right` : ""}${ts.skipped ? ` · ${ts.skipped} skipped` : ""}</p></div>
-          <a class="btn btn-ghost btn-sm" href="${folder}" target="_blank" rel="noopener">${icon("external", 16)} Folder (answers)</a>
         </div>
-        ${files.length ? `<div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div>`
-          : `<p class="text-2 small">No question files found in this folder yet. Upload them to the Drive folder and tell Claude to refresh the list.</p>`}
+        <div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div>
       </div>`;
-    }).join("")}`;
+    }).join("") || `<div class="card section">${emptyState("flag", "No question sets on this device yet", QB_EMPTY_HINT)}</div>`}`;
 
   bindQBank();
 }
