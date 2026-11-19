@@ -1393,3 +1393,90 @@ body.tutor-open .tutor-hint, body.tutor-off .tutor-hint, body.gated .tutor-hint 
   .tr-table td, .tr-table th { padding-left: 6px; padding-right: 6px; }
   .tr-head .page-actions { width: auto; }
 }
+
+/* Price board (bảng điện): always dark, standard Vietnamese layout */
+.vb-wrap, .vb-ixs, .qo { --px-up: #2fd27a; --px-down: #ff5a5a; --px-ref: #f2c14e; --px-ceil: #e389ff; --px-floor: #47d4f5; }
+.vb-ixs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.vb-ix { display: grid; gap: 1px; padding: 10px 14px; border-radius: var(--radius); background: #0b1120; border: 1px solid #1c2740; color: #e7eaf0; min-width: 0; }
+.vb-ix-name { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9aa4b8; }
+.vb-ix-v { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; }
+.vb-ix-c { font-family: var(--mono); font-size: 0.8rem; }
+.vb-ix-m { font-size: 0.72rem; color: #9aa4b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vb-ix-b { font-family: var(--mono); font-size: 0.72rem; }
+.vb-ix-b b { font-weight: 500; }
+.vb-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin-bottom: 10px; }
+.vb-groups { display: flex; gap: 6px; flex-wrap: wrap; }
+.vb-groups .tt-chip { padding: 6px 12px; }
+.tt-chip.active { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+.vb-tools .tr-add { margin: 0; flex-wrap: wrap; }
+.vb-tools .tr-add .input { width: 230px; flex: none; }
+.vb-wrap { position: relative; overflow: auto; max-height: calc(100vh - 150px); background: #0a0f1c; border: 1px solid #1c2740; border-radius: var(--radius); }
+.vb-wrap:fullscreen { max-height: none; height: 100vh; border-radius: 0; }
+.vb { width: 100%; min-width: 1180px; border-collapse: separate; border-spacing: 0; font-family: var(--mono); font-size: 12px; color: #dfe4ee; font-variant-numeric: tabular-nums; }
+.vb th, .vb td { padding: 5px 6px; text-align: right; white-space: nowrap; border-bottom: 1px solid #172036; border-right: 1px solid #131b2e; }
+.vb thead th { position: sticky; top: 0; z-index: 2; height: 26px; padding: 0 6px; box-sizing: border-box; background: #111a2e; color: #9aa4b8; font-family: var(--sans); font-size: 11px; font-weight: 600; text-align: center; }
+.vb thead tr:nth-child(2) th { top: 26px; }
+.vb thead .vb-g { color: #d4dbe8; letter-spacing: 0.04em; }
+.vb .vb-sym { position: sticky; left: 0; z-index: 1; text-align: left; font-weight: 700; font-size: 12.5px; background: #0d1426; }
+.vb thead .vb-sym { z-index: 3; background: #111a2e; }
+.vb .vb-mh, .vb td.vb-m { background: #0f1930; }
+.vb td.vb-ceil, .vb td.vb-floor, .vb td.vb-ref { background: #0c1428; }
+.vb td.vb-tot { color: #eef1f6; }
+.vb td.vb-f { color: #9aa4b8; }
+.vb tbody tr:hover td, .vb tbody tr:hover th { background: #15213b; }
+.vb-row { cursor: pointer; }
+.vb-row:focus-visible th { outline: 2px solid #f2c14e; outline-offset: -2px; }
+.vb-mine .vb-sym::after { content: "●"; font-size: 8px; color: #f2c14e; margin-left: 5px; vertical-align: 2px; }
+.vb td.vb-click { cursor: pointer; }
+.vb td.vb-click:hover { box-shadow: inset 0 0 0 1px #f2c14e; }
+.vb td.vb-flash { animation: vbFlash 1.4s ease-out; }
+@keyframes vbFlash { 0% { background: rgba(242, 193, 78, 0.42); } 100% { background: transparent; } }
+.vb-wait { text-align: center !important; color: #7d879c; padding: 14px !important; font-family: var(--sans); }
+.vb-note { margin-top: 10px; }
+
+/* Quick order bar (opens from a price on the board) */
+.qo {
+  position: fixed; z-index: 75; left: calc(var(--sidebar-w) + 20px); right: 20px; bottom: 16px;
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding: 12px 52px 12px 14px;
+  background: #0b1120; color: #e7eaf0; border: 1px solid #1c2740; border-top: 3px solid var(--qo-c, #2fd27a); border-radius: var(--radius-lg);
+  box-shadow: 0 24px 48px -18px rgba(0, 0, 0, 0.65); font-size: 0.88rem;
+}
+.qo-buy { --qo-c: #22b35e; }
+.qo-sell { --qo-c: #e04848; }
+.qo-f > span { display: block; margin-bottom: 4px; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #9aa4b8; }
+.qo .input, .qo .select { height: 40px; background: #121b30; color: #fff; border-color: #2a3654; }
+.qo .input:disabled { opacity: 0.6; }
+.qo .btn-secondary { background: #18233d; color: #e7eaf0; border-color: #2a3654; }
+.qo .tr-stepper { grid-template-columns: 38px minmax(0, 1fr) 38px; }
+.qo-sides { display: grid; grid-template-columns: 1fr 1fr; height: 40px; border: 1px solid #2a3654; border-radius: var(--radius-sm); overflow: hidden; }
+.qo-sides button { padding: 0 18px; border: 0; background: transparent; color: #9aa4b8; font: inherit; font-weight: 700; cursor: pointer; }
+.qo-sides .active.buy { background: #22b35e; color: #fff; }
+.qo-sides .active.sell { background: #e04848; color: #fff; }
+.qo-sym { width: 104px; }
+.qo-sym .input { text-transform: uppercase; }
+.qo-type { width: 84px; }
+.qo-price, .qo-qty { width: 176px; }
+.qo-info { flex: 1; min-width: 220px; align-self: center; font-size: 0.78rem; line-height: 1.6; color: #c9d2e3; }
+.qo-info strong { color: #fff; font-family: var(--mono); }
+.qo-go { height: 40px; min-width: 104px; }
+.qo-x { position: absolute; top: 8px; right: 8px; color: #9aa4b8; }
+.qo-x:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+body.qo-open .tutor-fab, body.qo-open .tutor-hint { display: none; }
+body.qo-open .main { padding-bottom: 150px; }
+@media (max-width: 1023px) { .vb-ixs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) {
+  .vb-tools .tr-add { width: 100%; }
+  .vb-tools .tr-add .input { width: auto; flex: 1; }
+  .vb-wrap { max-height: calc(100vh - 200px); margin: 0 -16px; border-radius: 0; border-left: 0; border-right: 0; }
+  .vb { font-size: 11px; }
+  .vb-ix { padding: 8px 10px; }
+  .vb-ix-v { font-size: 1rem; }
+  .qo { left: 8px; right: 8px; bottom: calc(64px + env(safe-area-inset-bottom)); padding: 12px; gap: 8px; }
+  .qo-sides { width: calc(100% - 40px); }
+  .qo-sym, .qo-type { width: calc(50% - 4px); }
+  .qo-price, .qo-qty { width: calc(50% - 4px); }
+  .qo .tr-stepper { grid-template-columns: 34px minmax(0, 1fr) 34px; }
+  .qo-info { min-width: 100%; }
+  .qo-go { width: 100%; }
+  body.qo-open .main { padding-bottom: 360px; }
+}
