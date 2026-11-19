@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { route: "practice", label: "Practice", icon: "check" },
   { route: "qbank", label: "Question Bank", icon: "flag" },
   { route: "analysis", label: "Weak spots", icon: "alert" },
+  { route: "dist", label: "Distributions", icon: "target" },
   { route: "mock", label: "Mock exams", icon: "clock" },
   { route: "settings", label: "Settings", icon: "settings" }
 ];
