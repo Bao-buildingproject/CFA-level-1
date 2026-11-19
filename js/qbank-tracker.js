@@ -42,7 +42,7 @@ function weightShare(t) {
   return Math.round((mid(t) / total) * 100);
 }
 
-const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files — the sets then show up here with a <strong>Do it</strong> button.";
+const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). The sets then show up here with a <strong>Do it</strong> button. They stay in this browser, so import them once on each device.";
 let qbOpen = null;
 let qbBulkReport = null;
 
@@ -69,41 +69,76 @@ function renderQBank(sub, fileId, mode) {
   if (sub === "import" && fileId) return renderQBImport(fileId);
   if (sub === "do" && fileId) return renderQBDo(fileId, mode);
   qbRun = null;
-  const topics = TOPICS.slice().sort((a, b) => weightShare(b) - weightShare(a));
-  const all = topics.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; a.files += s.files; return a; }, { done: 0, right: 0, files: 0 });
-  const loaded = topics.reduce((n, t) => n + (QBANK_FILES[t.id] || []).filter(f => QBI[f[2]] && !qbSkipped(f[2])).length, 0);
+  if (sub === "topic" && fileId) return renderQBTopic(fileId);
+  const all = TOPICS.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; return a; }, { done: 0, right: 0 });
+  const tiles = TOPICS.map(qbTopicSummary);
+  const sets = tiles.reduce((n, x) => n + x.sets, 0), redo = tiles.reduce((n, x) => n + x.redo, 0);
 
   view.innerHTML = `
-    ${pageHeader("Question Bank", `Your question sets · sorted by 2027 exam weight · ${loaded} active sets`,
-      `<label class="btn btn-primary">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>
-       <label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
+    ${pageHeader("Question Bank", sets ? `10 topics · ${sets} sets on this device · pick a topic to see its sets` : "Your question sets, answered right here",
+      `<label class="btn ${sets ? "btn-ghost" : "btn-primary"}">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>`)}
     <div id="qb-progress"></div>
     ${qbBulkReport ? qbReportHtml(qbBulkReport) : ""}
     <div class="grid grid-stats">
       <div class="card stat"><span class="stat-label">Questions marked</span><span class="stat-value">${all.done}</span></div>
       <div class="card stat"><span class="stat-label">Accuracy</span><span class="stat-value">${all.done ? pct(all.right, all.done) + "%" : "–"}</span></div>
-      <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
+      <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${redo}</span></div>
       <div class="card stat"><span class="stat-label">Answer on this site</span><span class="stat-value">${qbiQuestionCount()}</span><span class="stat-hint">questions imported</span></div>
     </div>
-    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions with the full explanation, tables and figures. To add sets, press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). Imported questions stay only in this browser — import them once on each device.</div></div>
-    ${qbMockCardHtml()}
-    ${topics.map(t => {
-      // only sets whose questions are on this device — the others have nothing to open
-      const files = (QBANK_FILES[t.id] || []).filter(f => QBI[f[2]] && (qbShowSkipped || !qbSkipped(f[2])));
-      if (!files.length) return "";
-      const ts = qbTopicStats(t.id);
-      return `
-      <div class="card section">
-        <div class="card-head" style="flex-wrap:wrap">
-          <div><h2>${t.name}</h2>
-            <p class="text-2 small">2027 weight ${t.weight} · aim for about <strong>${weightShare(t)} of every 100</strong> practice questions · ${ts.done} marked${ts.pct !== null ? ` · ${ts.pct}% right` : ""}${ts.skipped ? ` · ${ts.skipped} skipped` : ""}</p></div>
-        </div>
-        <div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div>
-      </div>`;
-    }).join("") || `<div class="card section">${emptyState("flag", "No question sets on this device yet", QB_EMPTY_HINT)}</div>`}`;
+    ${sets ? `
+      <div class="section-title section">Topics</div>
+      <div class="qbt-grid">${tiles.map(qbTileHtml).join("")}</div>`
+      : `<div class="card section">${emptyState("flag", "No question sets on this device yet", QB_EMPTY_HINT)}</div>`}
+    ${qbMockCardHtml()}`;
 
   bindQBank();
 }
+
+// Sets of a topic that can be opened on this device (skipped ones only when asked)
+function qbTopicFiles(topicId, withSkipped = qbShowSkipped) {
+  return (QBANK_FILES[topicId] || []).filter(f => QBI[f[2]] && (withSkipped || !qbSkipped(f[2])));
+}
+function qbTopicSummary(t, i) {
+  const files = qbTopicFiles(t.id, false);
+  const questions = files.reduce((n, f) => n + QBI[f[2]].questions.length, 0);
+  let done = 0, right = 0, redo = 0;
+  files.forEach(f => { const s = qbStats(f[2]); done += s.done; right += s.right; redo += s.redo.length; });
+  return { t, i, sets: files.length, questions, done, right, redo };
+}
+function qbTileHtml(x) {
+  const { t, i } = x;
+  const p = x.questions ? Math.min(100, pct(x.done, x.questions)) : 0;
+  return `<a class="card card-link qbt" href="#/qbank/topic/${t.id}">
+    <span class="qbt-num">${String(i + 1).padStart(2, "0")}</span>
+    <span class="qbt-name">${t.name}</span>
+    <span class="qbt-meta">${x.sets ? `${x.sets} set${x.sets === 1 ? "" : "s"} · ${x.questions} questions` : "No sets on this device"} · weight ${t.weight}</span>
+    <span class="qbt-bar">${progressBar(p)}</span>
+    <span class="qbt-foot">${x.done ? `${x.done} answered · ${pct(x.right, x.done)}% right${x.redo ? ` · <span class="qbt-redo">${x.redo} to redo</span>` : ""}` : "Not started"}</span>
+    <span class="qbt-chev">${icon("chevron", 18)}</span>
+  </a>`;
+}
+
+// ---------- One topic: its sets (#/qbank/topic/<topicId>) ----------
+function renderQBTopic(topicId) {
+  const idx = TOPICS.findIndex(t => t.id === topicId);
+  if (idx < 0) { location.hash = "#/qbank"; return; }
+  const t = TOPICS[idx], files = qbTopicFiles(t.id), ts = qbTopicStats(t.id);
+  const prev = TOPICS[idx - 1], next = TOPICS[idx + 1];
+  view.innerHTML = `
+    <a href="#/qbank" class="back-link">${icon("back", 16)} Question Bank</a>
+    ${pageHeader(t.name, `2027 weight ${t.weight} · aim for about <strong>${weightShare(t)} of every 100</strong> practice questions · ${ts.done} marked${ts.pct !== null ? ` · ${ts.pct}% right` : ""}${ts.skipped ? ` · ${ts.skipped} skipped` : ""}`,
+      `<label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`,
+      `Topic ${idx + 1} of ${TOPICS.length}`)}
+    ${files.length ? `<div class="card"><div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div></div>`
+      : `<div class="card">${emptyState("flag", "No sets of this topic on this device", QB_EMPTY_HINT)}</div>`}
+    <div class="qbt-pager section">
+      ${prev ? `<a class="btn btn-ghost" href="#/qbank/topic/${prev.id}">${icon("prev", 16)} ${prev.name}</a>` : "<span></span>"}
+      ${next ? `<a class="btn btn-ghost" href="#/qbank/topic/${next.id}">${next.name} ${icon("next", 16)}</a>` : "<span></span>"}
+    </div>`;
+  bindQBank();
+}
+// Re-draw whichever Question Bank screen is open
+function qbRerender() { const [, a, b, c] = currentRoute(); renderQBank(a, b, c); }
 
 function qbRowHtml(t, f) {
   const [n, title, id] = f;
@@ -186,7 +221,7 @@ async function startQBMock(n) {
 
 function bindQBank() {
   const tsel = document.getElementById("qbm-topic");
-  if (tsel) tsel.onchange = () => { qbMockTopic = tsel.value; renderQBank(); };
+  if (tsel) tsel.onchange = () => { qbMockTopic = tsel.value; qbRerender(); };
   view.querySelectorAll("[data-qbmock]").forEach(b => b.onclick = () => startQBMock(+b.dataset.qbmock));
   const pack = document.getElementById("qb-pack");
   if (pack) pack.onchange = async () => {
@@ -198,7 +233,7 @@ function bindQBank() {
     });
     qbBulkReport = report;
     toast(`Imported ${report.sets.length} set${report.sets.length === 1 ? "" : "s"}`, report.sets.length ? "success" : "error");
-    renderQBank();
+    qbRerender();
   };
   const bulk = document.getElementById("qb-bulk");
   if (bulk) bulk.onchange = async () => {
@@ -210,38 +245,38 @@ function bindQBank() {
     });
     qbBulkReport = report;
     toast(`Imported ${report.sets.length} set${report.sets.length === 1 ? "" : "s"}`, report.sets.length ? "success" : "error");
-    renderQBank();
+    qbRerender();
   };
   const rc = document.getElementById("qb-report-close");
-  if (rc) rc.onclick = () => { qbBulkReport = null; renderQBank(); };
+  if (rc) rc.onclick = () => { qbBulkReport = null; qbRerender(); };
   const sk = document.getElementById("qb-show-skipped");
-  if (sk) sk.onchange = () => { qbShowSkipped = sk.checked; renderQBank(); };
+  if (sk) sk.onchange = () => { qbShowSkipped = sk.checked; qbRerender(); };
   view.querySelectorAll("[data-qbskip]").forEach(b => b.onclick = () => {
     const id = b.dataset.qbskip, now = !qbSkipped(id);
-    qbState(id).skip = now; saveData(); renderQBank();
+    qbState(id).skip = now; saveData(); qbRerender();
     toast(now ? "Set skipped" : "Set restored");
   });
-  view.querySelectorAll("[data-qbtoggle]").forEach(b => b.onclick = () => { qbOpen = qbOpen === b.dataset.qbtoggle ? null : b.dataset.qbtoggle; renderQBank(); });
+  view.querySelectorAll("[data-qbtoggle]").forEach(b => b.onclick = () => { qbOpen = qbOpen === b.dataset.qbtoggle ? null : b.dataset.qbtoggle; qbRerender(); });
   view.querySelectorAll("[data-qbsave]").forEach(b => b.onclick = () => {
     const id = b.dataset.qbsave, el = document.getElementById("qbc-" + id), n = parseInt(el.value, 10);
     if (!(n >= 1 && n <= 200)) { el.classList.add("invalid"); toast("Enter the number of questions (1–200)", "error"); return; }
-    qbState(id).count = n; saveData(); renderQBank();
+    qbState(id).count = n; saveData(); qbRerender();
   });
   view.querySelectorAll("[data-qbmark]").forEach(b => b.onclick = () => {
     const [id, k] = b.dataset.qbmark.split("|");
     const st = qbState(id), cur = st.marks[k] || "";
     const next = QB_MARKS[(QB_MARKS.indexOf(cur) + 1) % QB_MARKS.length];
     if (next) st.marks[k] = next; else delete st.marks[k];
-    saveData(); renderQBank();
+    saveData(); qbRerender();
   });
   view.querySelectorAll("[data-qbcount]").forEach(b => b.onclick = async () => {
     const st = qbState(b.dataset.qbcount);
     const v = await promptDialog({ title: "Number of questions", label: "Questions in this set", type: "number", inputmode: "numeric", value: String(st.count), confirmText: "Save", validate: x => (+x >= 1 && +x <= 200) ? "" : "Enter 1–200" });
     if (v === null) return;
-    st.count = +v; Object.keys(st.marks).forEach(k => { if (+k > st.count) delete st.marks[k]; }); saveData(); renderQBank();
+    st.count = +v; Object.keys(st.marks).forEach(k => { if (+k > st.count) delete st.marks[k]; }); saveData(); qbRerender();
   });
   view.querySelectorAll("[data-qbreset]").forEach(b => b.onclick = async () => {
     if (!await confirmDialog({ title: "Clear all marks for this set?", confirmText: "Clear", danger: true })) return;
-    qbState(b.dataset.qbreset).marks = {}; saveData(); renderQBank(); toast("Marks cleared");
+    qbState(b.dataset.qbreset).marks = {}; saveData(); qbRerender(); toast("Marks cleared");
   });
 }

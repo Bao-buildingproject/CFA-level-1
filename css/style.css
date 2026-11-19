@@ -1121,3 +1121,20 @@ body.gated .main { padding: 0; max-width: none; }
 .qb-table td ul { margin: 0; padding-left: 18px; }
 .choice .choice-text sub, .choice .choice-text sup, .q-rich sub, .q-rich sup, .qb-rich-expl sub, .qb-rich-expl sup { font-size: 0.72em; line-height: 0; }
 :root[data-theme="dark"] .qb-img { filter: none; }
+
+/* Question Bank: one tile per topic */
+.qbt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.qbt {
+  display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; align-items: center;
+  grid-template-areas: "num name chev" "num meta chev" "num bar chev" "num foot chev";
+  column-gap: 14px; row-gap: 3px; padding: 18px 18px 16px 20px;
+}
+.qbt-num { grid-area: num; align-self: start; padding-top: 5px; font-family: var(--mono); font-size: 0.82rem; font-weight: 500; color: var(--brass-ink); }
+.qbt-name { grid-area: name; font-family: var(--serif); font-size: 1.24rem; line-height: 1.2; color: var(--text); }
+.qbt-meta { grid-area: meta; font-size: 0.8rem; color: var(--text-2); }
+.qbt-bar { grid-area: bar; margin-top: 8px; }
+.qbt-foot { grid-area: foot; font-size: 0.78rem; color: var(--text-3); margin-top: 2px; }
+.qbt-redo { color: var(--danger); font-weight: 600; }
+.qbt-chev { grid-area: chev; color: var(--text-3); transition: transform 0.2s var(--ease), color 0.2s var(--ease); }
+.qbt:hover .qbt-chev { color: var(--brass-ink); transform: translateX(3px); }
+.qbt-pager { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

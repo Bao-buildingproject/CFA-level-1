@@ -485,7 +485,7 @@ function qbDraw() {
 
   document.getElementById("qb-quit").onclick = async () => {
     if (r.results.length && r.i < r.list.length && !await confirmDialog({ title: "Stop this set?", message: "Answers so far are already saved as marks.", confirmText: "Stop" })) return;
-    qbRun = null; location.hash = "#/qbank";
+    qbRun = null; location.hash = `#/qbank/topic/${r.info.topic.id}`;
   };
   view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => qbPick(b.dataset.pick));
   const next = document.getElementById("qb-next");
@@ -524,7 +524,7 @@ function qbDrawResult() {
         <div class="row-gap" style="justify-content:center;margin-top:20px">
           ${qbStats(r.fileId).redo.length ? `<button class="btn btn-primary" id="qb-redo">Redo wrong answers</button>` : ""}
           <button class="btn btn-secondary" id="qb-again">Do the whole set again</button>
-          <a class="btn btn-ghost" href="#/qbank">Back to Question Bank</a>
+          <a class="btn btn-ghost" href="#/qbank/topic/${r.info.topic.id}">Back to ${r.info.topic.name}</a>
         </div>
       </div>
     </div>`;
