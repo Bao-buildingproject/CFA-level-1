@@ -1228,3 +1228,5 @@ body.gated .tutor, body.tutor-off .tutor { display: none !important; }
   body.tutor-open { overflow: hidden; }
   .tt-row textarea { font-size: 16px; }
 }
+.check-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; line-height: 1.4; font-size: 0.9rem; }
+.check-row input { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; accent-color: var(--primary); }
