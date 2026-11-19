@@ -46,18 +46,31 @@ const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose th
 let qbOpen = null;
 let qbBulkReport = null;
 
+// Sets of the last import, grouped by topic: { topicId: { t, sets, q, noKey } }
+function qbReportByTopic(r) {
+  const by = {};
+  (r ? r.sets : []).forEach(x => {
+    const info = qbFileInfo(x.fileId);
+    if (!info) return;
+    const g = by[info.topic.id] = by[info.topic.id] || { t: info.topic, sets: 0, q: 0, noKey: 0 };
+    g.sets++; g.q += x.n; g.noKey += x.missingAns || 0;
+  });
+  return by;
+}
 function qbReportHtml(r) {
   const q = r.sets.reduce((a, x) => a + x.n, 0);
-  return `<div class="card section">
-    <div class="card-head"><div><h2>Import finished</h2><p class="text-2 small">${r.sets.length} sets · ${q} questions ready to answer</p></div>
-      <button class="btn btn-ghost btn-sm" id="qb-report-close">Close</button></div>
-    ${r.sets.length ? `<div class="list">${r.sets.map(x => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(x.title)}</div>
-      <div class="list-meta">${x.n}/${x.total} questions${x.missingAns ? ` · <span style="color:var(--warning)">${x.missingAns} ${r.pack ? "without an answer key in the source (shown, not scored)" : "without an answer mark — left out"}</span>` : ""}</div></div>
-      <a class="btn btn-primary btn-sm" href="#/qbank/do/${x.fileId}">${icon("play", 14)} Do it</a></div>`).join("")}</div>` : ""}
-    ${r.failed.length ? `<div class="callout danger" style="margin-top:12px">${icon("alert", 18)}<div><strong>Not imported:</strong><br>${r.failed.map(esc).join("<br>")}</div></div>` : ""}
-    ${r.skipped.length ? `<p class="text-3 small" style="margin-top:10px">Skipped: ${r.skipped.map(esc).join(", ")}</p>` : ""}
+  const by = qbReportByTopic(r), groups = TOPICS.filter(t => by[t.id]).map(t => by[t.id]);
+  const noKey = groups.reduce((n, g) => n + g.noKey, 0);
+  return `<div class="callout ${r.sets.length ? "success" : "danger"} qb-report">${icon(r.sets.length ? "check" : "alert", 18)}<div style="flex:1;min-width:0">
+      <strong>Import finished · ${r.sets.length} sets · ${q.toLocaleString("en-US")} questions.</strong> ${r.sets.length ? "Each set went into its topic — open a topic below to answer it." : ""}
+      ${groups.length ? `<div class="qb-chips">${groups.map(g => `<a class="qb-chip" href="#/qbank/topic/${g.t.id}"><span class="mono">${String(TOPICS.indexOf(g.t) + 1).padStart(2, "0")}</span>${g.t.name}<span class="qb-chip-n">${g.sets} set${g.sets === 1 ? "" : "s"}</span></a>`).join("")}</div>` : ""}
+      ${noKey ? `<div class="text-2 small" style="margin-top:8px">${noKey} question${noKey === 1 ? " has" : "s have"} ${r.pack ? "no answer key in the source — shown, not scored" : "no answer mark and were left out"}.</div>` : ""}
+      ${r.failed.length ? `<div style="margin-top:8px"><strong>Not imported:</strong><br>${r.failed.map(esc).join("<br>")}</div>` : ""}
+      ${r.skipped.length ? `<p class="text-3 small" style="margin-top:8px">Skipped: ${r.skipped.map(esc).join(", ")}</p>` : ""}
+    </div>
+    <button class="btn btn-ghost btn-sm" id="qb-report-close">Close</button>
   </div>`;
-}   // file id currently expanded
+}
 
 function renderQBank(sub, fileId, mode) {
   if (!qbiReady()) {
@@ -71,7 +84,8 @@ function renderQBank(sub, fileId, mode) {
   qbRun = null;
   if (sub === "topic" && fileId) return renderQBTopic(fileId);
   const all = TOPICS.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; return a; }, { done: 0, right: 0 });
-  const tiles = TOPICS.map(qbTopicSummary);
+  const added = qbReportByTopic(qbBulkReport);
+  const tiles = TOPICS.map((t, i) => ({ ...qbTopicSummary(t, i), added: added[t.id] ? added[t.id].sets : 0 }));
   const sets = tiles.reduce((n, x) => n + x.sets, 0), redo = tiles.reduce((n, x) => n + x.redo, 0);
 
   view.innerHTML = `
@@ -110,7 +124,7 @@ function qbTileHtml(x) {
   const p = x.questions ? Math.min(100, pct(x.done, x.questions)) : 0;
   return `<a class="card card-link qbt" href="#/qbank/topic/${t.id}">
     <span class="qbt-num">${String(i + 1).padStart(2, "0")}</span>
-    <span class="qbt-name">${t.name}</span>
+    <span class="qbt-name">${t.name}${x.added ? ` <span class="badge badge-success qbt-added">+${x.added} set${x.added === 1 ? "" : "s"}</span>` : ""}</span>
     <span class="qbt-meta">${x.sets ? `${x.sets} set${x.sets === 1 ? "" : "s"} · ${x.questions} questions` : "No sets on this device"} · weight ${t.weight}</span>
     <span class="qbt-bar">${progressBar(p)}</span>
     <span class="qbt-foot">${x.done ? `${x.done} answered · ${pct(x.right, x.done)}% right${x.redo ? ` · <span class="qbt-redo">${x.redo} to redo</span>` : ""}` : "Not started"}</span>

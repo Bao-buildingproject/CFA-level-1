@@ -1138,3 +1138,11 @@ body.gated .main { padding: 0; max-width: none; }
 .qbt-chev { grid-area: chev; color: var(--text-3); transition: transform 0.2s var(--ease), color 0.2s var(--ease); }
 .qbt:hover .qbt-chev { color: var(--brass-ink); transform: translateX(3px); }
 .qbt-pager { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.qbt-added { margin-left: 6px; vertical-align: 3px; font-family: var(--sans); }
+.qb-report { margin-bottom: 24px; }
+.qb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.qb-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 0.8rem; font-weight: 600; }
+.callout a.qb-chip { text-decoration: none; }
+.qb-chip:hover { border-color: var(--brass); text-decoration: none; }
+.qb-chip .mono { font-family: var(--mono); font-size: 0.72rem; color: var(--brass-ink); }
+.qb-chip-n { font-weight: 500; color: var(--text-3); white-space: nowrap; }
