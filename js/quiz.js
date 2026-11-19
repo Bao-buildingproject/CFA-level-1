@@ -143,6 +143,7 @@ function explanationHtml(q, picked) {
     return `<div class="explain">
       <div class="explain-head ${ok ? "ok" : "bad"}">${icon(ok ? "check" : "alert", 18)} ${ok ? "Correct" : picked ? `Incorrect — the answer is ${q.answer}` : `Not answered — the answer is ${q.answer}`}</div>
       ${body ? `<div class="explain-body"><div class="qb-rich-expl">${body}</div></div>` : ""}
+      ${typeof tutorAskFor === "function" ? `<div class="explain-ask">${tutorAskFor(q, picked)}</div>` : ""}
     </div>`;
   }
   const blocks = [
@@ -155,6 +156,7 @@ function explanationHtml(q, picked) {
   return `<div class="explain">
     <div class="explain-head ${ok ? "ok" : "bad"}">${icon(ok ? "check" : "alert", 18)} ${ok ? "Correct" : picked ? `Incorrect — the answer is ${q.answer}` : `Not answered — the answer is ${q.answer}`}</div>
     ${blocks ? `<div class="explain-body">${blocks}</div>` : ""}
+    ${typeof tutorAskFor === "function" ? `<div class="explain-ask">${tutorAskFor(q, picked)}</div>` : ""}
   </div>`;
 }
 

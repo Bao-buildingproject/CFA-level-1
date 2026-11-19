@@ -32,7 +32,10 @@ const ICON_PATHS = {
   layers: '<path d="m12 3 9 4.6-9 4.6-9-4.6z"/><path d="m3 12.2 9 4.6 9-4.6"/><path d="m3 16.6 9 4.6 9-4.6"/>',
   pulse: '<path d="M3 12h4l2.5-6.5 5 13 2.5-6.5h4"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
-  logout: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M9 8l-4 4 4 4M5 12h11"/>'
+  logout: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M9 8l-4 4 4 4M5 12h11"/>',
+  chat: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4V16h0A1.5 1.5 0 0 1 4 14.5z"/><path d="M8.5 9h7M8.5 12h4"/>',
+  send: '<path d="M4.5 12 19.5 4.5 15 19.5l-3.2-6.3z"/><path d="M11.8 13.2 19.5 4.5"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>'
 };
 
 function icon(name, size = 20) {

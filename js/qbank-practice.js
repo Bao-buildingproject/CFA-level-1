@@ -477,6 +477,8 @@ function qbDraw() {
               ${q.expl ? `<div class="explain-block"><h4>${ok ? `Why ${q.ans} is correct` : "Explanation"}</h4>${qbParas(q.expl)}</div>` : ""}
               ${q.remember ? `<div class="explain-block"><h4>Things to remember</h4><p>${esc(q.remember)}</p></div>` : ""}`}
             </div>
+            ${typeof tutorButtonHtml === "function" ? `<div class="explain-ask">${tutorButtonHtml({ label: `${r.info.topic.id} · ${r.info.title} · Q${q.n}`, topic: r.info.topic.name, where: `${r.info.title}, question ${q.n}`,
+              stem: q.q, choices: q.choices, answer: q.ans, picked: r.picked, expl: [q.expl, q.remember && `Things to remember: ${q.remember}`].filter(Boolean).join("\n\n") })}</div>` : ""}
           </div>
           <button class="btn btn-primary btn-lg btn-block" id="qb-next" style="margin-top:20px">${r.i + 1 < r.list.length ? "Next question" : "See results"} ${icon("next", 18)}</button>`
         : `<p class="text-3 small hide-mobile" style="margin-top:14px">Keyboard: <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span> or <span class="kbd">A</span> <span class="kbd">B</span> <span class="kbd">C</span> · <span class="kbd">Enter</span> next</p>`}
