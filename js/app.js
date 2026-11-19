@@ -405,7 +405,7 @@ function renderMore() {
   const items = [
     ["schweser", "book", "SchweserNotes", "4 books · reading checklist"],
     ["curriculum", "layers", "Curriculum", "102 learning modules · 10 volumes"],
-    ["qbank", "flag", "Question Bank", "Your PDF question sets · answer them here"],
+    ["qbank", "flag", "Question Bank", "Your question sets · answer them here"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],

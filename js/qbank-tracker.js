@@ -1,6 +1,5 @@
 // ============================================================
-// qbank-tracker.js — track your answers to the Question Bank PDFs
-// (questions stay in your Drive; this page stores only your marks)
+// qbank-tracker.js — the Question Bank page: sets, marks, redo lists and mocks
 // ============================================================
 
 const QB_MARKS = ["", "r", "w", "g"];               // none → right → wrong → guessed
@@ -75,7 +74,6 @@ function renderQBank(sub, fileId, mode) {
   view.innerHTML = `
     ${pageHeader("Question Bank", `Your question sets · sorted by 2027 exam weight · ${all.files} active sets`,
       `<label class="btn btn-primary">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>
-       ${isOwner() ? `<label class="btn btn-secondary">${icon("upload", 18)} Import Answers PDFs<input type="file" id="qb-bulk" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
        <label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
     <div id="qb-progress"></div>
     ${qbBulkReport ? qbReportHtml(qbBulkReport) : ""}
@@ -85,7 +83,7 @@ function renderQBank(sub, fileId, mode) {
       <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
       <div class="card stat"><span class="stat-label">Answer on this site</span><span class="stat-value">${qbiQuestionCount()}</span><span class="stat-hint">questions imported</span></div>
     </div>
-    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions with the full explanation, tables and figures. To add sets, press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once).${isOwner() ? " You can also import single <strong>Answers</strong> PDFs." : ""} Imported questions stay only in this browser — import them once on each device.</div></div>
+    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions with the full explanation, tables and figures. To add sets, press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). Imported questions stay only in this browser — import them once on each device.</div></div>
     ${qbMockCardHtml()}
     ${topics.map(t => {
       const files = (QBANK_FILES[t.id] || []).filter(f => qbShowSkipped || !qbSkipped(f[2]));
@@ -101,8 +99,7 @@ function renderQBank(sub, fileId, mode) {
         ${files.length ? `<div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div>`
           : `<p class="text-2 small">No question files found in this folder yet. Upload them to the Drive folder and tell Claude to refresh the list.</p>`}
       </div>`;
-    }).join("")}
-    <p class="text-3 small section">Only your marks are stored in this app. The PDFs stay in your Google Drive.</p>`;
+    }).join("")}`;
 
   bindQBank();
 }
@@ -120,16 +117,12 @@ function qbRowHtml(t, f) {
           <button class="qb-title" data-qbtoggle="${id}" aria-expanded="${open}">${n}. ${esc(title)}</button>
           <div class="list-meta">${skipped ? `<span class="badge">Skipped${QBANK_NOT_2027.has(id) ? " · not in 2027" : ""}</span> ` : ""}${s.count ? `${s.done}/${s.count} marked${s.pct !== null ? ` · ${s.pct}% right` : ""}${s.redo.length ? ` · <span style="color:var(--danger)">redo ${s.redo.length}</span>` : ""}` : "Not started"}</div>
         </div>
-        ${QBI[id] ? `<a class="btn btn-primary btn-sm" href="#/qbank/do/${id}">${icon("play", 14)} Do it</a>`
-          : isOwner() && !skipped ? `<a class="btn btn-secondary btn-sm" href="#/qbank/import/${id}">${icon("upload", 14)} Import</a>`
-          : `<a class="btn btn-secondary btn-sm" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${icon("external", 14)} PDF</a>`}
+        ${QBI[id] ? `<a class="btn btn-primary btn-sm" href="#/qbank/do/${id}">${icon("play", 14)} Do it</a>` : ""}
         <button class="icon-btn" data-qbtoggle="${id}" aria-label="Open tracker">${icon("chevron", 18)}</button>
       </div>
       ${open ? `<div class="qb-panel">
         <div class="row-gap" style="margin-bottom:12px">
-          <a class="btn btn-ghost btn-sm" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${icon("external", 14)} Questions PDF</a>
           ${QBI[id] && s.redo.length ? `<a class="btn btn-ghost btn-sm" href="#/qbank/do/${id}/redo">Redo ${s.redo.length} wrong</a>` : ""}
-          ${QBI[id] && isOwner() ? `<a class="btn btn-ghost btn-sm" href="#/qbank/import/${id}">Re-import</a>` : ""}
           <button class="btn btn-ghost btn-sm" data-qbskip="${id}">${skipped ? "Unskip set" : "Skip set"}</button>
         </div>
         ${st.count ? `

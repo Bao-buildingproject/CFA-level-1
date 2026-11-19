@@ -430,9 +430,9 @@ function renderQBDo(fileId, mode) {
   const rec = QBI[fileId];
   const info = qbFileInfo(fileId);
   if (!rec || !info) {
-    view.innerHTML = `${pageHeader("Question set")}<div class="card">${emptyState("flag", "Not imported yet",
-      isOwner() ? "Import this set once, then you can answer it here." : "Ask the owner to import this set.")}
-      <div class="form-actions" style="justify-content:center">${isOwner() && info ? `<a class="btn btn-primary" href="#/qbank/import/${fileId}">Import set</a>` : ""}<a class="btn btn-ghost" href="#/qbank">Back</a></div></div>`;
+    view.innerHTML = `${pageHeader("Question set")}<div class="card">${emptyState("flag", "Not on this device yet",
+      "Load the question sets on the Question Bank page first, then you can answer this set here.")}
+      <div class="form-actions" style="justify-content:center"><a class="btn btn-primary" href="#/qbank">Go to Question Bank</a></div></div>`;
     return;
   }
   let list = rec.questions;
@@ -470,7 +470,7 @@ function qbDraw() {
         ${choicesHtml(qq, r.picked, answered && !noKey)}
         ${answered ? `
           <div class="explain">
-            <div class="explain-head ${noKey ? "" : ok ? "ok" : "bad"}">${icon(noKey ? "alert" : ok ? "check" : "alert", 18)} ${noKey ? `You chose ${r.picked} · the source PDF has no answer key for this question` : ok ? `Correct — ${q.ans} is right` : `Incorrect — you chose ${r.picked}, the answer is ${q.ans}`}</div>
+            <div class="explain-head ${noKey ? "" : ok ? "ok" : "bad"}">${icon(noKey ? "alert" : ok ? "check" : "alert", 18)} ${noKey ? `You chose ${r.picked} · the source has no answer key for this question` : ok ? `Correct — ${q.ans} is right` : `Incorrect — you chose ${r.picked}, the answer is ${q.ans}`}</div>
             <div class="explain-body">
               ${q.rich ? (q.rich.expl.length ? `<div class="qb-rich-expl">${qbBlocksHtml(q.rich.expl, rec)}</div>` : `<p class="text-3">Explanation: not provided in the source.</p>`) : `
               ${why ? `<div class="explain-block"><h4>Why ${r.picked} is wrong</h4><p>${esc(why)}</p></div>` : ""}
