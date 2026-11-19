@@ -331,22 +331,24 @@ async function qbImportPackages(files, onStep) {
   for (let i = 0; i < list.length; i++) {
     const f = list[i];
     onStep && onStep(i + 1, list.length, f.name);
-    try {
-      const pkg = JSON.parse(await f.text());
-      if (!pkg || pkg.kind !== "qbank-package" || !Array.isArray(pkg.sets)) { report.failed.push(`${f.name} — not a question pack`); continue; }
-      for (const rec of pkg.sets) {
-        const info = qbFileInfo(rec.fileId);
-        if (!info || !Array.isArray(rec.questions)) { report.failed.push(`${f.name} — unknown set ${rec.title || ""}`); continue; }
-        await qbiPut({ ...rec, importedAt: todayStr() });
-        const st = qbState(rec.fileId);
-        if (st.count < rec.total) st.count = rec.total;
-        report.sets.push({ fileId: rec.fileId, title: `${info.topic.id} · ${info.n}. ${info.title}`, n: rec.questions.length, total: rec.total, missingAns: rec.questions.filter(q => !q.ans).length });
-      }
-    } catch (e) { report.failed.push(`${f.name} — ${e.message || "could not read"}`); }
+    try { await qbImportPackObject(JSON.parse(await f.text()), f.name, report); }
+    catch (e) { report.failed.push(`${f.name} — ${e.message || "could not read"}`); }
   }
   saveData();
   qbIndexReset();
   return report;
+}
+// One parsed pack (from a file or from the site's sealed packs) → this profile's Question Bank
+async function qbImportPackObject(pkg, name, report) {
+  if (!pkg || pkg.kind !== "qbank-package" || !Array.isArray(pkg.sets)) { report.failed.push(`${name} — not a question pack`); return; }
+  for (const rec of pkg.sets) {
+    const info = qbFileInfo(rec.fileId);
+    if (!info || !Array.isArray(rec.questions)) { report.failed.push(`${name} — unknown set ${rec.title || ""}`); continue; }
+    await qbiPut({ ...rec, importedAt: todayStr() });
+    const st = qbState(rec.fileId);
+    if (st.count < rec.total) st.count = rec.total;
+    report.sets.push({ fileId: rec.fileId, title: `${info.topic.id} · ${info.n}. ${info.title}`, n: rec.questions.length, total: rec.total, missingAns: rec.questions.filter(q => !q.ans).length });
+  }
 }
 
 // Formatted runs: bold, italic, sub- and superscripts

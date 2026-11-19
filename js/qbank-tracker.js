@@ -42,11 +42,10 @@ function weightShare(t) {
   return Math.round((mid(t) / total) * 100);
 }
 
-// Shown only while this device has no sets to answer
-function qbImportButtonHtml() {
-  return `<label class="btn btn-primary" style="margin-top:16px">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>`;
+function qbEmptyHint() {
+  return qbkGet() ? "The sets are on their way — they show up here with a <strong>Do it</strong> button as soon as they are downloaded."
+    : "Enter the access key above — the sets then download by themselves and show up here with a <strong>Do it</strong> button.";
 }
-const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). The sets then show up here with a <strong>Do it</strong> button. They stay in this browser, so import them once on each device.";
 let qbOpen = null;
 let qbBulkReport = null;
 
@@ -83,6 +82,10 @@ function renderQBank(sub, fileId, mode) {
     qbiLoad().then(() => { if (location.hash === h) renderQBank(sub, fileId, mode); });
     return;
   }
+  if (sub === "key") {                 // one-tap link: #/qbank/key/<access key>
+    qbkTakeLink();                     // picked up by qbkAuto() right after this page renders
+    sub = fileId = undefined;
+  }
   if (sub === "import" && fileId) return renderQBImport(fileId);
   if (sub === "do" && fileId) return renderQBDo(fileId, mode);
   qbRun = null;
@@ -102,11 +105,13 @@ function renderQBank(sub, fileId, mode) {
       <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${redo}</span></div>
       <div class="card stat"><span class="stat-label">Answer on this site</span><span class="stat-value">${qbiQuestionCount()}</span><span class="stat-hint">questions imported</span></div>
     </div>
+    <div id="qb-sync">${qbkStatusHtml()}</div>
     ${sets ? `
       <div class="section-title section">Topics</div>
       <div class="qbt-grid">${tiles.map(qbTileHtml).join("")}</div>`
-      : `<div class="card section">${emptyState("flag", "No question sets on this device yet", QB_EMPTY_HINT, qbImportButtonHtml())}</div>`}
-    ${qbMockCardHtml()}`;
+      : qbkGet() ? `<div class="card section">${emptyState("flag", "No question sets on this device yet", qbEmptyHint())}</div>` : ""}
+    ${qbMockCardHtml()}
+    <p class="text-3 small section">The question sets are published only in encrypted form and open with the access key. Once loaded they stay in this browser; your marks are saved with your account.</p>`;
 
   bindQBank();
 }
@@ -147,7 +152,7 @@ function renderQBTopic(topicId) {
       `<label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`,
       `Topic ${idx + 1} of ${TOPICS.length}`)}
     ${files.length ? `<div class="card"><div class="list">${files.map(f => qbRowHtml(t, f)).join("")}</div></div>`
-      : `<div class="card">${emptyState("flag", "No sets of this topic on this device", QB_EMPTY_HINT, qbImportButtonHtml())}</div>`}
+      : `<div class="card">${emptyState("flag", "No sets of this topic on this device", qbEmptyHint())}</div>`}
     <div class="qbt-pager section">
       ${prev ? `<a class="btn btn-ghost" href="#/qbank/topic/${prev.id}">${icon("prev", 16)} ${prev.name}</a>` : "<span></span>"}
       ${next ? `<a class="btn btn-ghost" href="#/qbank/topic/${next.id}">${next.name} ${icon("next", 16)}</a>` : "<span></span>"}
@@ -237,6 +242,8 @@ async function startQBMock(n) {
 }
 
 function bindQBank() {
+  const sync = document.getElementById("qb-sync");
+  if (sync) qbkBind(sync);
   const tsel = document.getElementById("qbm-topic");
   if (tsel) tsel.onchange = () => { qbMockTopic = tsel.value; qbRerender(); };
   view.querySelectorAll("[data-qbmock]").forEach(b => b.onclick = () => startQBMock(+b.dataset.qbmock));
