@@ -54,7 +54,7 @@ function currentRoute() {
 
 function refreshShell() {
   const [route] = currentRoute();
-  const active = route === "topic" || route === "module" || route === "dist" ? "study" : route;
+  const active = route === "topic" || route === "module" ? "study" : route;
   const { daysLeft, week, phase } = countdownInfo();
 
   document.getElementById("side-nav").innerHTML = navItems().map(n => {
