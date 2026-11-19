@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { route: "curriculum", label: "Curriculum", icon: "layers", group: "Learn" },
   { route: "cards", label: "Flashcards", icon: "cards", group: "Learn" },
   { route: "dist", label: "Distributions", icon: "curve", group: "Learn" },
+  { route: "trade", label: "Stock simulator", icon: "trend", group: "Learn" },
   { route: "practice", label: "Practice", icon: "check", group: "Test" },
   { route: "qbank", label: "Question Bank", icon: "flag", group: "Test" },
   { route: "mock", label: "Mock exams", icon: "clock", group: "Test" },
@@ -388,6 +389,7 @@ const ROUTES = {
   qbank: renderQBank,
   analysis: renderAnalysis,
   dist: renderDist,
+  trade: (sub, sym) => renderTrade(sub, sym),
   profiles: renderProfiles
 };
 
@@ -399,6 +401,7 @@ function renderMore() {
     ["qbank", "flag", "Question Bank", "Your question sets · answer them here"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
+    ["trade", "trend", "Stock simulator", "Virtual money · real Vietnamese stock prices"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "user", "Account", activeProfile().name],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],
@@ -416,6 +419,7 @@ function router() {
   if (isLocked()) { renderGate(); return; }
   document.body.classList.remove("gated");
   stopMockTimer();
+  if (typeof tradeStop === "function") tradeStop();   // price refresh of the stock simulator
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();
