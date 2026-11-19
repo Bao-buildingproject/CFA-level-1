@@ -14,7 +14,7 @@ A personal study app for the CFA Level I exam (May 2027). Plain HTML, CSS and Ja
 - **Practice** — A/B/C questions with instant feedback (why correct, why not, exam trap, BA II Plus steps), mistake log, flags, CSV import
 - **Mock exams** — timed mocks built from your question bank, weighted by exam topic weights: Mini (30 Q / 45 min), Session (90 Q / 2h15), Full (180 Q, 2 sessions), Custom. Resume after reload, auto-submit at time-up, results by topic and answer review
 - **CFA Tutor** — a private chatbot (Google Gemini). Each account pastes its own Gemini API key once; the key and the chat stay in that browser and messages go straight to Google. Explains concepts and calculations, and an **Ask the tutor** button under every explanation sends the question on screen. Off during a timed mock
-- **Stock simulator** (Learn) — paper trading with virtual money on real Vietnamese prices: VPS price board for quotes and the order book, VNDirect for charts and the VN-Index. HOSE rules: 100-share lots, tick sizes, ceiling/floor band, limit and market orders as day orders, T+2 settlement, 0.15% fee and 0.1% tax on sales. Portfolio P/L and performance against the VN-Index
+- **Stock simulator** (Learn) — paper trading with 1 billion ₫ of virtual money on real Vietnamese prices: VPS price board for quotes and the order book, VNDirect for charts and the VN-Index. HOSE rules: 100-share lots, tick sizes, ceiling/floor band, limit and market orders as day orders, T+2 settlement, 0.15% fee and 0.1% tax on sales. Portfolio P/L and performance against the VN-Index
 - **Backup** — export/import JSON; light/dark theme
 
 All data is stored in the browser (`localStorage`). Export a backup regularly.

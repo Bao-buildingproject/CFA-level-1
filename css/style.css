@@ -1341,11 +1341,15 @@ body.tutor-open .tutor-hint, body.tutor-off .tutor-hint, body.gated .tutor-hint 
 .tr-chart .tr-cross { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; }
 .tr-chart .tr-l-me { fill: none; stroke: var(--brass); stroke-width: 2.2; stroke-linejoin: round; }
 .tr-chart .tr-l-idx { fill: none; stroke: var(--text-3); stroke-width: 1.6; stroke-dasharray: 5 4; }
+.tr-chart .tr-l-idx2 { fill: none; stroke: var(--primary); stroke-width: 1.8; stroke-linejoin: round; }
+.tr-chart circle.tr-l-me { fill: var(--brass); stroke: none; }
+.tr-chart circle.tr-l-idx { fill: var(--text-3); stroke: none; }
 .tr-chart-empty { padding: 40px 0; text-align: center; color: var(--text-3); }
 .tr-readout { font-family: var(--mono); font-size: 0.76rem; }
 .tr-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 0.84rem; color: var(--text-2); }
 .tr-legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--brass); vertical-align: middle; margin-right: 6px; }
 .tr-legend i.tr-l-idx { border-top: 2px dashed var(--text-3); }
+.tr-legend i.tr-l-idx2 { border-top: 2px solid var(--primary); }
 .tr-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--border); }
 .tr-facts dt { font-size: 0.64rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 .tr-facts dd { margin: 4px 0 0; font-weight: 600; }

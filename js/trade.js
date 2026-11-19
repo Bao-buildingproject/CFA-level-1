@@ -11,7 +11,7 @@
 const TR_QUOTES = "https://bgapidatafeed.vps.com.vn/getliststockdata/";
 const TR_BARS = "https://dchart-api.vndirect.com.vn/dchart/history";
 const TR_FEE = 0.0015, TR_TAX = 0.001, TR_LOT = 100;
-const TR_START_CASH = 100000000;
+const TR_START_CASH = 1000000000;     // every account starts with 1 billion ₫ of virtual money
 const TR_WATCH = ["ACB", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG", "LPB", "MBB", "MSN", "MWG", "PLX", "POW",
   "SAB", "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"];
 const TR_MARKET = { STO: "HOSE", STX: "HNX", UPX: "UPCoM" };
@@ -21,7 +21,12 @@ const TRADE = { q: {}, at: 0, err: "", loading: false, timer: null, tab: "market
 function tradeData() {
   if (!DATA.trade) DATA.trade = { v: 1, initial: TR_START_CASH, start: trToday(), cash: TR_START_CASH, holdings: {}, orders: [], watch: TR_WATCH.slice(), nav: [], fees: 0 };
   const T = DATA.trade;
-  T.holdings = T.holdings || {}; T.orders = T.orders || []; T.watch = T.watch || TR_WATCH.slice(); T.nav = T.nav || [];
+  T.holdings = T.holdings || {}; T.orders = T.orders || []; T.watch = T.watch || TR_WATCH.slice(); T.nav = T.nav || []; T.navx = T.navx || [];
+  if (!(T.v >= 2)) {                 // accounts opened with 100 m ₫ are topped up to 1 billion; P/L stays the same
+    const add = Math.max(0, TR_START_CASH - (T.initial || 0));
+    if (add) { T.initial += add; T.cash += add; T.nav.forEach(p => { p.v += add; }); T.navx.forEach(p => { p.v += add; }); }
+    T.v = 2;
+  }
   return T;
 }
 // Vietnam time (UTC+7) — the exchange clock, whatever the device's time zone
@@ -64,6 +69,7 @@ function trNav() {
 const trP = p => (p || 0).toFixed(2);
 const trVND = n => `${Math.round(n || 0).toLocaleString("en-US")} ₫`;
 const trInt = n => Math.round(n || 0).toLocaleString("en-US");
+const trBig = n => `${(n / 1e6).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}<small class="tr-unit">m ₫</small>`;
 const trSigned = (n, f = trVND) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${f(Math.abs(n))}`;
 const trPct = n => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n || 0).toFixed(2)}%`;
 function trTone(q) {
@@ -184,7 +190,7 @@ function trPlace({ sym, side, type, qty, price }) {
   const o = { id: makeId("o"), sym, side, type, qty, price: type === "LO" ? price : at, status: "pending", d: trToday(), t: new Date().toISOString() };
   T.orders.unshift(o);
   if (T.orders.length > 500) T.orders.length = 500;
-  if (fillNow) trFill(o, at);
+  if (fillNow) { trFill(o, at); trSnapshot(trNav(), true); }
   saveData();
   return o;
 }
@@ -221,15 +227,20 @@ function trChartSvg(bars, w, opts = {}) {
   return `<svg class="tr-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" role="img" aria-label="Price chart">${axis}${ref}${marks}${vol}${labels}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${H - 18}" visibility="hidden"/></svg>`;
 }
 // Normalised lines (start = 100) for the performance chart
-function trLinesSvg(series, w, h = 200) {
-  const all = series.flatMap(s => s.pts.map(p => p[1]));
+// Lines over time: each series is [[time ms, value], …]
+function trLinesSvg(series, w, h = 200, opts = {}) {
+  series = series.filter(s => s.pts.length);
+  const all = series.flatMap(s => s.pts.map(p => p[1])), ts = series.flatMap(s => s.pts.map(p => p[0]));
   if (all.length < 2) return "";
   let lo = Math.min(...all), hi = Math.max(...all);
-  const pad = (hi - lo) * 0.1 || 1; lo -= pad; hi += pad;
-  const R = 46, n = Math.max(...series.map(s => s.pts.length));
-  const x = i => i / Math.max(1, n - 1) * (w - R), y = v => 8 + (hi - v) / (hi - lo) * (h - 26);
-  const grid = [lo + pad, (lo + hi) / 2, hi - pad].map(v => `<line class="tr-grid" x1="0" x2="${w - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${w - R + 6}" y="${(y(v) + 4).toFixed(1)}">${v.toFixed(1)}</text>`).join("");
-  return `<svg class="tr-chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Your account against the VN-Index">${grid}${series.map(s => `<polyline class="${s.cls}" points="${s.pts.map((p, i) => `${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ")}"/>`).join("")}</svg>`;
+  const pad = (hi - lo) * 0.1 || Math.abs(hi) * 0.002 || 1; lo -= pad; hi += pad;
+  const R = 52, t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const x = t => t1 > t0 ? (t - t0) / (t1 - t0) * (w - R) : (w - R) / 2, y = v => 8 + (hi - v) / (hi - lo) * (h - 30);
+  const grid = [lo + pad, (lo + hi) / 2, hi - pad].map(v => `<line class="tr-grid" x1="0" x2="${w - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${w - R + 6}" y="${(y(v) + 4).toFixed(1)}">${(opts.fmt || (q => q.toFixed(1)))(v)}</text>`).join("");
+  const lab = t => { const d = new Date(t + 7 * 3600 * 1000).toISOString(); return opts.intraday ? `${d.slice(8, 10)}/${d.slice(5, 7)} ${d.slice(11, 16)}` : `${d.slice(8, 10)}/${d.slice(5, 7)}`; };
+  const labels = t1 > t0 ? `<text class="tr-axis" x="0" y="${h - 4}">${lab(t0)}</text><text class="tr-axis" x="${w - R}" y="${h - 4}" text-anchor="end">${lab(t1)}</text>` : "";
+  return `<svg class="tr-chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(opts.label || "Your account against the VN-Index")}">${grid}${series.map(s =>
+    s.pts.length > 1 ? `<polyline class="${s.cls}" points="${s.pts.map(p => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ")}"/>` : `<circle class="${s.cls} tr-dot" cx="${x(s.pts[0][0]).toFixed(1)}" cy="${y(s.pts[0][1]).toFixed(1)}" r="3.5"/>`).join("")}${labels}</svg>`;
 }
 
 // ---------- Pages ----------
@@ -272,9 +283,9 @@ function renderTrade(sub, sym) {
       ${pageHeader("Stock simulator", "Virtual money · real prices from HOSE, HNX and UPCoM", trHeadActions(), "Paper trading")}
       ${TRADE.err ? `<div class="callout danger section">${icon("alert", 18)}<div style="flex:1">${esc(TRADE.err)}</div><button class="btn btn-secondary btn-sm" data-tr-retry>Try again</button></div>` : ""}
       <div class="grid grid-stats">
-        <div class="card stat"><span class="stat-label">Account value</span><span class="stat-value">${trInt(nav / 1e6)}<small class="tr-unit">m ₫</small></span><span class="stat-hint">${trVND(nav)}</span></div>
+        <div class="card stat"><span class="stat-label">Account value</span><span class="stat-value">${trBig(nav)}</span><span class="stat-hint">${trVND(nav)}</span></div>
         <div class="card stat"><span class="stat-label">Return since ${prettyDate(T.start)}</span><span class="stat-value ${trPlTone(ret)}">${trPct(ret)}</span><span class="stat-hint">${trSigned(nav - T.initial)}</span></div>
-        <div class="card stat"><span class="stat-label">Cash to trade</span><span class="stat-value">${trInt(trAvailableCash() / 1e6)}<small class="tr-unit">m ₫</small></span><span class="stat-hint">${trVND(trAvailableCash())}${trReservedCash() ? ` · ${trVND(trReservedCash())} held for orders` : ""}</span></div>
+        <div class="card stat"><span class="stat-label">Cash to trade</span><span class="stat-value">${trBig(trAvailableCash())}</span><span class="stat-hint">${trVND(trAvailableCash())}${trReservedCash() ? ` · ${trVND(trReservedCash())} held for orders` : ""}</span></div>
         <div class="card stat"><span class="stat-label">Unrealised P/L</span><span class="stat-value ${trPlTone(unreal)}">${trSigned(unreal / 1e6, v => v.toFixed(2))}<small class="tr-unit">m ₫</small></span><span class="stat-hint">${Object.keys(T.holdings).length} stock${Object.keys(T.holdings).length === 1 ? "" : "s"} held</span></div>
       </div>
       <div class="tr-tabs section">
@@ -347,33 +358,59 @@ function trPortfolioHtml() {
     <div class="row-gap" style="margin-top:16px"><button class="btn btn-soft-danger btn-sm" id="tr-reset">${icon("trash", 16)} Start over</button></div>
   </div>`;
 }
-function trSnapshot(nav) {
-  const T = tradeData(), d = trToday(), last = T.nav[T.nav.length - 1];
-  if (last && last.d === d) last.v = Math.round(nav); else T.nav.push({ d, v: Math.round(nav) });
+function trSnapshot(nav, force) {
+  const T = tradeData(), d = trToday(), last = T.nav[T.nav.length - 1], v = Math.round(nav);
+  if (last && last.d === d) last.v = v; else T.nav.push({ d, v });
   if (T.nav.length > 600) T.nav.splice(0, T.nav.length - 600);
+  const lx = T.navx[T.navx.length - 1], now = Date.now();
+  // a new point after a trade, or every 10 minutes while the value moves; the first point keeps the starting value
+  if (force || !lx || (now - lx.t > 10 * 60 * 1000 && lx.v !== v)) T.navx.push({ t: now, v });
+  else if (T.navx.length > 1) lx.v = v;
+  if (T.navx.length > 500) T.navx.splice(0, T.navx.length - 500);
   saveData();
+}
+async function trIndexBars(res, fromSec) {
+  const key = `${res}|${fromSec}`;
+  if (TRADE.vnindex && TRADE.vnindex.key === key && Date.now() - TRADE.vnindex.at < 300000) return TRADE.vnindex.bars;
+  const now = Math.floor(Date.now() / 1000);
+  const r = await fetch(`${TR_BARS}?resolution=${res}&symbol=VNINDEX&from=${fromSec}&to=${now}`, { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  const bars = j.s === "ok" ? j.t.map((t, i) => ({ t: t * 1000, c: j.c[i] })) : [];
+  TRADE.vnindex = { key, at: Date.now(), bars };
+  return bars;
 }
 async function trDrawPerformance() {
   const box = document.getElementById("tr-perf");
   if (!box) return;
-  const T = tradeData();
-  if (T.nav.length < 2) { box.innerHTML = `<p class="text-3 small">The chart starts once your account has values on two different days — come back after the next session.</p>`; return; }
+  const T = tradeData(), w = Math.max(280, box.clientWidth || 600), base = T.initial;
+  const daily = T.nav.length >= 2;
+  // your account: one point per day once there are two days, otherwise the points taken today
+  const mine = daily ? T.nav.map(p => [Date.parse(p.d + "T07:45:00Z"), p.v / base * 100]) : T.navx.map(p => [p.t, p.v / base * 100]);
+  let idx = [], note = "", idxErr = false;
   try {
-    if (!TRADE.vnindex || Date.now() - TRADE.vnindex.at > 300000) {
-      const now = Math.floor(Date.now() / 1000), from = Math.floor(new Date(T.nav[0].d + "T00:00:00Z").getTime() / 1000) - 7 * 86400;
-      const r = await fetch(`${TR_BARS}?resolution=D&symbol=VNINDEX&from=${from}&to=${now}`, { cache: "no-store" });
-      const j = await r.json();
-      TRADE.vnindex = { at: Date.now(), bars: j.s === "ok" ? j.t.map((t, i) => ({ d: new Date((t + 7 * 3600) * 1000).toISOString().slice(0, 10), c: j.c[i] })) : [] };
+    if (mine.length >= 2) {
+      const from = Math.floor(mine[0][0] / 1000) - (daily ? 7 * 86400 : 86400);
+      const bars = await trIndexBars(daily ? "D" : "5", from);
+      const at = t => { let c = null; bars.forEach(b => { if (b.t <= t) c = b.c; }); return c; };
+      const ib = at(mine[0][0]) || (bars[0] && bars[0].c);
+      if (ib) idx = mine.map(p => [p[0], (at(p[0]) || ib) / ib * 100]);
+    } else {
+      // first visit: show the market for context until your own line has two points
+      const bars = await trIndexBars("D", Math.floor(Date.now() / 1000) - 92 * 86400);
+      if (bars.length >= 2) {
+        box.innerHTML = `${trLinesSvg([{ cls: "tr-l-idx2", pts: bars.map(b => [b.t, b.c]) }], w, 200, { fmt: v => trInt(v), label: "VN-Index, last three months" })}
+          <div class="tr-legend"><span><i class="tr-l-idx2"></i>VN-Index · last 3 months · ${trInt(bars[bars.length - 1].c)} (${trPct((bars[bars.length - 1].c / bars[0].c - 1) * 100)})</span></div>
+          <p class="text-3 small" style="margin-top:6px">Your account's line is drawn next to the VN-Index after your first trade.</p>`;
+        return;
+      }
     }
-    const vi = TRADE.vnindex.bars, at = d => { let c = null; vi.forEach(b => { if (b.d <= d) c = b.c; }); return c; };
-    const base = T.initial, ib = at(T.nav[0].d) || (vi[0] && vi[0].c);
-    const mine = T.nav.map(p => [p.d, p.v / base * 100]);
-    const idx = ib ? T.nav.map(p => [p.d, (at(p.d) || ib) / ib * 100]) : [];
-    const w = Math.max(280, box.clientWidth || 600);
-    const r1 = mine[mine.length - 1][1] - 100, r2 = idx.length ? idx[idx.length - 1][1] - 100 : null;
-    box.innerHTML = `${trLinesSvg([{ cls: "tr-l-me", pts: mine }, ...(idx.length ? [{ cls: "tr-l-idx", pts: idx }] : [])], w)}
-      <div class="tr-legend"><span><i class="tr-l-me"></i>Your account ${trPct(r1)}</span>${r2 !== null ? `<span><i class="tr-l-idx"></i>VN-Index ${trPct(r2)}</span><span>Excess return <strong class="${trPlTone(r1 - r2)}">${trPct(r1 - r2)}</strong></span>` : ""}</div>`;
-  } catch (e) { box.innerHTML = `<p class="text-3 small">Could not load the VN-Index right now.</p>`; }
+  } catch (e) { idxErr = true; }
+  if (mine.length < 2) { box.innerHTML = `<p class="text-3 small">${idxErr ? "Could not load the VN-Index right now. " : ""}Your account's line starts after your first trade.</p>`; return; }
+  const r1 = mine[mine.length - 1][1] - 100, r2 = idx.length ? idx[idx.length - 1][1] - 100 : null;
+  if (idxErr) note = `<p class="text-3 small" style="margin-top:6px">Could not load the VN-Index right now — showing your account only.</p>`;
+  box.innerHTML = `${trLinesSvg([{ cls: "tr-l-me", pts: mine }, { cls: "tr-l-idx", pts: idx }], w, 200, { intraday: !daily })}
+    <div class="tr-legend"><span><i class="tr-l-me"></i>Your account ${trPct(r1)}</span>${r2 !== null ? `<span><i class="tr-l-idx"></i>VN-Index ${trPct(r2)}</span><span>Excess return <strong class="${trPlTone(r1 - r2)}">${trPct(r1 - r2)}</strong></span>` : ""}</div>${note}`;
 }
 
 function trOrdersHtml() {
@@ -427,7 +464,7 @@ function trBindMain(draw, syms) {
   };
   const rs = document.getElementById("tr-reset");
   if (rs) rs.onclick = async () => {
-    const v = await promptDialog({ title: "Start over?", message: "All holdings, orders and history in the simulator are cleared, and you start again with fresh virtual cash.", label: "Starting cash (million ₫)", type: "number", inputmode: "numeric", value: String(Math.round(tradeData().initial / 1e6)), confirmText: "Start over", validate: x => (+x >= 1 && +x <= 100000) ? "" : "Enter 1 to 100,000 (million ₫)" });
+    const v = await promptDialog({ title: "Start over?", message: "All holdings, orders and history in the simulator are cleared, and you start again with fresh virtual cash.", label: "Starting cash (million ₫)", type: "number", inputmode: "numeric", value: String(Math.round(tradeData().initial / 1e6)), confirmText: "Start over", validate: x => (+x >= 1 && +x <= 1000000) ? "" : "Enter 1 to 1,000,000 (million ₫)" });
     if (v === null) return;
     const watch = tradeData().watch;
     DATA.trade = null;
@@ -530,7 +567,11 @@ async function trDrawChart(sym) {
       });
       svg.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); show(bars.length - 1); });
     }
-  } catch (e) { box.innerHTML = `<p class="text-3 small">Could not load the chart right now.</p>`; }
+  } catch (e) {
+    box.innerHTML = `<div class="tr-chart-empty">Could not load the chart from VNDirect right now. Prices and trading still work.<br><button class="btn btn-secondary btn-sm" style="margin-top:10px" id="tr-chart-retry">Try again</button></div>`;
+    const rb = document.getElementById("tr-chart-retry");
+    if (rb) rb.onclick = () => { delete TRADE.bars[`${sym}|${range}`]; box.innerHTML = `<p class="text-3 small">Loading chart…</p>`; trDrawChart(sym); };
+  }
 }
 function trBindStock(sym, draw) {
   const T = tradeData(), q = TRADE.q[sym];
