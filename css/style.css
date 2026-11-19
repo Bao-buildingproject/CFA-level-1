@@ -818,3 +818,17 @@ body.gated .main { padding: 0; max-width: none; }
 
 .account-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 20px; max-width: 460px; margin: 0 auto; }
 .account-name { font-size: 1.4rem; font-weight: 700; }
+
+/* Dashboard topic tracker cards */
+.topic-card .tc-pct { font-size: 1.15rem; font-weight: 800; color: var(--primary); }
+.tc-bar { height: 8px; border-radius: 99px; background: var(--surface-2, var(--border)); overflow: hidden; }
+.tc-bar span { display: block; height: 100%; background: var(--primary); border-radius: 99px; }
+.tc-strip { display: flex; gap: 3px; margin: 10px 0 12px; }
+.tc-seg { flex: 1; height: 10px; border-radius: 3px; background: var(--border-strong); }
+.tc-seg.tc-learning { background: var(--warning); }
+.tc-seg.tc-done { background: var(--success); }
+.tc-seg.tc-reviewed { background: var(--accent); }
+.tc-rows .row-between { margin-top: 5px; }
+.tc-acc { padding: 1px 8px; border-radius: 99px; font-weight: 700; font-size: 0.74rem; background: transparent; }
+.tc-acc.wk-weak { background: var(--danger); color: #fff; } .tc-acc.wk-fair { background: var(--warning-soft); }
+.tc-acc.wk-strong { background: var(--success-soft); } .tc-acc.wk-few { background: var(--border); color: var(--text-2); }

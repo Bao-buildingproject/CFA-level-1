@@ -91,17 +91,28 @@ function renderDashboard() {
   const lastMock = DATA.mocks[DATA.mocks.length - 1];
   const backupAgo = DATA.settings.lastBackup ? daysBetween(DATA.settings.lastBackup, todayStr()) : null;
 
+  const WK = weakStats();
   const topicCards = TOPICS.map(t => {
     const tp = topicModuleProgress(t.id);
-    const ts = quizStats(DATA.questions.filter(q => q.topic === t.id));
+    const mods = modulesOf(t.id);
+    const ws = WK.topic[t.id];
+    const reads = mods.filter(m => { const r = DATA.reading[m.id] || {}; return r.schweser || r.curriculum; }).length;
+    const strip = mods.map(m => {
+      const st = (chapterOf(m.id) || {}).status || "not_started";
+      return `<i class="tc-seg tc-${st}" title="${esc(m.id + " · " + m.title + " — " + STATUS_LABEL[st])}"></i>`;
+    }).join("");
+    const acc = ws.pct === null ? `<span class="text-3">No answers yet</span>` : `<span class="tc-acc wk-badge wk-${ws.status}">${ws.pct}% accuracy</span>`;
     return `
       <a class="card card-link topic-card" href="#/topic/${t.id}">
-        <div class="topic-code">${t.id} · ${t.weight}</div>
+        <div class="row-between"><div class="topic-code">${t.id} · ${t.weight}</div><div class="tc-pct">${tp.pct}%</div></div>
         <h3>${t.name}</h3>
-        ${bellCurve(tp.pct, { width: 280, height: 60, compact: true, tip: `${t.name}\nAverage module completion: ${tp.pct}%\n${tp.done}/${tp.modules} modules done` })}
-        <div class="row-between small">
-          <span class="text-2">${tp.done}/${tp.modules} modules</span>
-          <span class="text-3">${ts.pct === null ? `${ts.total} Q` : `${ts.pct}% acc.`}</span>
+        <div class="tc-bar" role="img" aria-label="${tp.pct}% complete"><span style="width:${tp.pct}%"></span></div>
+        <div class="tc-strip" aria-label="Module status">${strip}</div>
+        <div class="tc-rows small">
+          <div class="row-between"><span class="text-2">Modules done</span><strong>${tp.done}/${tp.modules}</strong></div>
+          <div class="row-between"><span class="text-2">Modules started reading</span><strong>${reads}/${tp.modules}</strong></div>
+          <div class="row-between"><span class="text-2">Questions answered</span><strong>${ws.answered}/${ws.available}</strong></div>
+          <div class="row-between"><span class="text-2">Accuracy</span>${acc}</div>
         </div>
       </a>`;
   }).join("");
