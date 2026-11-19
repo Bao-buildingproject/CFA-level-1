@@ -330,6 +330,8 @@ function router() {
   (ROUTES[route] || renderDashboard)(a, b, c);
   refreshShell();
   window.scrollTo(0, 0);
+  const mainEl = document.getElementById("main");
+  if (mainEl) { mainEl.classList.remove("enter"); void mainEl.offsetWidth; mainEl.classList.add("enter"); }
 }
 
 
