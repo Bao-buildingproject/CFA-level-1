@@ -291,17 +291,158 @@ const TUTOR_SUGGEST = [
   "Cho mình 3 câu hỏi ôn Standard III (Duties to Clients)",
   "Cách tính NPV và IRR trên BA II Plus"
 ];
+// ---------- The owl: an original mascot drawn in the site's ink and brass ----------
+function tutorOwlSvg(cls = "") {
+  return `<svg class="owl ${cls}" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g class="owl-bob">
+    <path class="owl-wing owl-wing-l" d="M15.5 33.5c-4.6 2.6-6.2 9-3.6 14 2.6-.7 5.1-3.2 6-7.2z"/>
+    <path class="owl-wing owl-wing-r" d="M48.5 33.5c4.6 2.6 6.2 9 3.6 14-2.6-.7-5.1-3.2-6-7.2z"/>
+    <path class="owl-body" d="M32 15.5c11 0 18.5 8.2 18.5 19.6v9.4c0 7.3-7.4 12.5-18.5 12.5s-18.5-5.2-18.5-12.5v-9.4C13.5 23.7 21 15.5 32 15.5z"/>
+    <ellipse class="owl-belly" cx="32" cy="46" rx="10.2" ry="8.4"/>
+    <path class="owl-feather" d="M26.2 43.4l1.9 1.5 1.9-1.5M30.1 43.4l1.9 1.5 1.9-1.5M34 43.4l1.9 1.5 1.9-1.5M28.2 47.6l1.9 1.5 1.9-1.5M32.1 47.6l1.9 1.5 1.9-1.5"/>
+    <g class="owl-eyes">
+      <circle class="owl-eye" cx="24.6" cy="31.6" r="6.6"/><circle class="owl-eye" cx="39.4" cy="31.6" r="6.6"/>
+      <g class="owl-pupils"><circle class="owl-pupil" cx="24.6" cy="31.6" r="3.1"/><circle class="owl-pupil" cx="39.4" cy="31.6" r="3.1"/>
+        <circle class="owl-glint" cx="25.7" cy="30.4" r="1"/><circle class="owl-glint" cx="40.5" cy="30.4" r="1"/></g>
+    </g>
+    <path class="owl-beak" d="M30 37.2h4l-2 3.3z"/>
+    <path class="owl-feet" d="M27 56.6v2.2M29 56.8v2M35 56.8v2M37 56.6v2.2"/>
+    <path class="owl-cap-base" d="M22.5 17.6h19v4.3c-2.8 1.5-6 2.2-9.5 2.2s-6.7-.7-9.5-2.2z"/>
+    <path class="owl-cap" d="M32 8.6l18.5 6.6L32 21.8 13.5 15.2z"/>
+    <g class="owl-tassel"><path class="owl-cord" d="M32 15.2l11.6 3.9v7.6"/><path class="owl-tassel-end" d="M42.1 26.4h3l.9 4.4h-4.8z"/></g>
+    <circle class="owl-knot" cx="32" cy="15.2" r="1.4"/>
+  </g></svg>`;
+}
+
+// Where the owl sits (this device): { side: "left" | "right", y: share of the window height }
+const TUTOR_SPOT = "cfaStudy_tutor_spot";
+const TUTOR_PANEL = "cfaStudy_tutor_panel";    // where the chat window was dragged to (desktop)
+const tutorClamp = (v, a, b) => Math.min(Math.max(v, a), Math.max(a, b));
+function tutorGet(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+function tutorPut(k, v) { try { v ? localStorage.setItem(k, JSON.stringify(v)) : localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+const tutorMobile = () => window.innerWidth < 768;
+
+function tutorPlaceFab() {
+  const fab = document.getElementById("tutor-fab");
+  if (!fab) return;
+  const s = tutorGet(TUTOR_SPOT);
+  if (!s) { fab.style.left = fab.style.top = fab.style.right = fab.style.bottom = ""; fab.dataset.side = "right"; return; }
+  const w = fab.offsetWidth || 64, h = fab.offsetHeight || 64, m = tutorMobile() ? 8 : 18;
+  const top = tutorMobile() ? 64 : 12, bottom = window.innerHeight - (tutorMobile() ? 84 : 12) - h;
+  fab.style.top = tutorClamp(s.y * window.innerHeight, top, bottom) + "px";
+  fab.style.left = (s.side === "left" ? m : window.innerWidth - w - m) + "px";
+  fab.style.right = fab.style.bottom = "auto";
+  fab.dataset.side = s.side;
+}
+function tutorPlacePanel() {
+  const p = document.getElementById("tutor");
+  if (!p) return;
+  p.style.left = p.style.top = p.style.right = p.style.bottom = "";
+  if (tutorMobile()) return;
+  const s = tutorGet(TUTOR_PANEL);
+  if (s) {
+    const r = p.getBoundingClientRect();
+    p.style.left = tutorClamp(s.x, 8, window.innerWidth - r.width - 8) + "px";
+    p.style.top = tutorClamp(s.y, 8, window.innerHeight - r.height - 8) + "px";
+    p.style.right = p.style.bottom = "auto";
+  } else if ((tutorGet(TUTOR_SPOT) || {}).side === "left") { p.style.left = "24px"; p.style.right = "auto"; }
+}
+
+// Drag the owl anywhere; it lands on the nearest side. A tap or click opens the chat.
+function tutorDragFab(fab) {
+  let st = null;
+  fab.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const r = fab.getBoundingClientRect();
+    st = { x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId, moved: false, lastX: e.clientX };
+    try { fab.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }   // keep the owl even on a fast flick
+  });
+  fab.addEventListener("pointermove", e => {
+    if (!st || e.pointerId !== st.id) return;
+    if (!st.moved) {
+      if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 6) return;
+      st.moved = true;
+      fab.classList.add("dragging");
+      tutorHint(false);
+    }
+    const w = fab.offsetWidth, h = fab.offsetHeight;
+    fab.style.left = tutorClamp(e.clientX - st.dx, 4, window.innerWidth - w - 4) + "px";
+    fab.style.top = tutorClamp(e.clientY - st.dy, 4, window.innerHeight - h - 4) + "px";
+    fab.style.right = fab.style.bottom = "auto";
+    fab.style.setProperty("--tilt", tutorClamp((e.clientX - st.lastX) * 2, -16, 16).toFixed(1) + "deg");
+    st.lastX = e.clientX;
+  });
+  const end = () => {
+    if (!st) return;
+    if (st.moved) {
+      fab.classList.remove("dragging");
+      fab.style.setProperty("--tilt", "0deg");
+      fab._dragEnd = Date.now();
+      const r = fab.getBoundingClientRect();
+      tutorPut(TUTOR_SPOT, { side: r.left + r.width / 2 < window.innerWidth / 2 ? "left" : "right", y: +(r.top / window.innerHeight).toFixed(4) });
+      fab.classList.add("settling");
+      tutorPlaceFab();
+      setTimeout(() => fab.classList.remove("settling"), 450);
+    }
+    st = null;
+  };
+  fab.addEventListener("pointerup", end);
+  fab.addEventListener("pointercancel", end);
+  fab.addEventListener("click", e => {
+    if (fab._dragEnd && Date.now() - fab._dragEnd < 500) { e.preventDefault(); return; }
+    tutorOpen();
+  });
+}
+
+// The owl's eyes follow the pointer
+let tutorLookAt = null, tutorLookQueued = false;
+function tutorLook(e) {
+  tutorLookAt = [e.clientX, e.clientY];
+  if (tutorLookQueued) return;
+  tutorLookQueued = true;
+  requestAnimationFrame(() => {
+    tutorLookQueued = false;
+    const fab = document.getElementById("tutor-fab");
+    if (!fab || !fab.offsetWidth) return;
+    const pup = fab.querySelector(".owl-pupils"), r = fab.getBoundingClientRect();
+    const dx = tutorLookAt[0] - (r.left + r.width / 2), dy = tutorLookAt[1] - (r.top + r.height * 0.5);
+    const d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 240) * 2.2;
+    pup.style.transform = `translate(${(dx / d * k).toFixed(2)}px, ${(dy / d * k).toFixed(2)}px)`;
+  });
+}
+
+// A short hello bubble next to the owl, once per visit
+function tutorHint(show) {
+  const h = document.getElementById("tutor-hint"), fab = document.getElementById("tutor-fab");
+  if (!h || !fab) return;
+  if (!show) { h.classList.remove("show"); return; }
+  const r = fab.getBoundingClientRect(), left = fab.dataset.side === "left";
+  h.classList.toggle("from-left", left);
+  h.style.top = Math.max(8, r.top + 6) + "px";
+  if (left) { h.style.left = (r.right + 8) + "px"; h.style.right = "auto"; }
+  else { h.style.right = (window.innerWidth - r.left + 8) + "px"; h.style.left = "auto"; }
+  h.classList.add("show");
+  clearTimeout(tutorHint.t);
+  tutorHint.t = setTimeout(() => h.classList.remove("show"), 6000);
+}
+
 function tutorMount() {
   if (document.getElementById("tutor-fab")) return;
   const fab = document.createElement("button");
   fab.id = "tutor-fab"; fab.className = "tutor-fab"; fab.type = "button";
-  fab.setAttribute("aria-label", "Open CFA Tutor"); fab.title = "CFA Tutor";
-  fab.innerHTML = icon("chat", 24);
-  fab.onclick = () => tutorOpen();
+  fab.setAttribute("aria-label", "Open CFA Tutor (drag to move)"); fab.title = "CFA Tutor — drag to move";
+  fab.innerHTML = `<span class="owl-shadow" aria-hidden="true"></span>${tutorOwlSvg()}`;
+  const hint = document.createElement("div");
+  hint.id = "tutor-hint"; hint.className = "tutor-hint"; hint.setAttribute("aria-hidden", "true");
+  hint.textContent = "Hỏi mình về CFA nhé!";
+  hint.onclick = () => { tutorHint(false); tutorOpen(); };
   const panel = document.createElement("aside");
   panel.id = "tutor"; panel.className = "tutor"; panel.hidden = true;
   panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "CFA Tutor");
-  document.body.append(fab, panel);
+  document.body.append(fab, hint, panel);
+  tutorDragFab(fab);
+  tutorPlaceFab();
+  window.addEventListener("resize", () => { tutorPlaceFab(); if (TUTOR.open) tutorPlacePanel(); });
+  document.addEventListener("pointermove", tutorLook, { passive: true });
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-tutor-ask]");
     if (b) { e.preventDefault(); tutorAsk(b.dataset.tutorAsk); }
@@ -310,11 +451,13 @@ function tutorMount() {
 }
 function tutorOpen() {
   tutorMount();
+  tutorHint(false);
   TUTOR.open = true;
   if (!tutorCfg().key) TUTOR.view = "setup";
   else if (TUTOR.view === "setup") TUTOR.view = "chat";
   document.body.classList.add("tutor-open");
   tutorRender();
+  tutorPlacePanel();
   const box = document.getElementById("tt-input") || document.getElementById("tt-key");
   if (box) box.focus();
 }
@@ -324,7 +467,7 @@ function tutorClose() {
   const p = document.getElementById("tutor");
   if (p) p.hidden = true;
   const fab = document.getElementById("tutor-fab");
-  if (fab) fab.focus();
+  if (fab) { tutorPlaceFab(); fab.focus(); }
 }
 // Called on every page change: the tutor is off while a timed mock is running
 function tutorRoute() {
@@ -334,6 +477,9 @@ function tutorRoute() {
   document.body.classList.toggle("tutor-off", hide);
   if (hide && TUTOR.open) tutorClose();
   if (TUTOR.profile && TUTOR.profile !== PROFILES.active) { TUTOR.msgs = null; TUTOR.ctx = null; if (TUTOR.open) tutorRender(); }
+  let seen = true;
+  try { seen = sessionStorage.getItem("cfaStudy_tutor_hi") === "1"; if (!seen) sessionStorage.setItem("cfaStudy_tutor_hi", "1"); } catch (e) { /* ignore */ }
+  if (!seen && !hide) setTimeout(() => { if (!TUTOR.open && !document.body.classList.contains("tutor-off")) tutorHint(true); }, 1400);
 }
 
 function tutorMsgHtml(m, i) {
@@ -344,7 +490,7 @@ function tutorMsgHtml(m, i) {
 function tutorHeadHtml(sub) {
   const cfg = tutorCfg();
   return `<header class="tt-head">
-    <div class="tt-title"><span class="tt-mark">${icon("chat", 18)}</span><div><strong>CFA Tutor</strong><span>${sub || (cfg.model ? esc(cfg.model) : "Gemini")}</span></div></div>
+    <div class="tt-title"><span class="tt-mark">${tutorOwlSvg("owl-mini")}</span><div><strong>CFA Tutor</strong><span>${sub || (cfg.model ? esc(cfg.model) : "Gemini")}</span></div></div>
     <div class="tt-tools">
       ${TUTOR.view === "chat" && cfg.key ? `<button class="icon-btn" data-tt="new" title="New chat" aria-label="New chat">${icon("plus", 18)}</button>` : ""}
       ${cfg.key ? `<button class="icon-btn" data-tt="${TUTOR.view === "settings" ? "chat" : "settings"}" title="Settings" aria-label="Settings">${icon(TUTOR.view === "settings" ? "back" : "settings", 18)}</button>` : ""}
@@ -357,6 +503,7 @@ function tutorRender() {
   const p = document.getElementById("tutor");
   if (!p) return;
   p.hidden = false;
+  p.classList.toggle("busy", TUTOR.busy);
   const cfg = tutorCfg();
   if (TUTOR.view === "setup" || !cfg.key) {
     p.innerHTML = `${tutorHeadHtml("Set up · one time")}
@@ -398,7 +545,7 @@ function tutorRender() {
     <div class="tt-body" id="tt-log" aria-live="polite">
       ${msgs.length ? msgs.map(tutorMsgHtml).join("") : `
         <div class="tt-hello">
-          <div class="tt-hello-mark">${icon("chat", 26)}</div>
+          <div class="tt-hello-mark">${tutorOwlSvg("owl-hello")}</div>
           <h3>Chào ${esc(callName())}, mình là CFA Tutor</h3>
           <p>Hỏi mình về CFA Level I và tài chính — khái niệm, công thức, cách bấm máy, hay một câu hỏi bạn đang làm.</p>
           <div class="tt-suggest">${TUTOR_SUGGEST.map(s => `<button class="tt-chip" data-tt-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>
@@ -435,6 +582,27 @@ function tutorPaintLast() {
   });
 }
 function tutorBind(p) {
+  const head = p.querySelector(".tt-head");
+  if (head) {
+    head.onpointerdown = e => {
+      if (e.button !== 0 || e.target.closest("button") || tutorMobile()) return;
+      const r = p.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+      try { head.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      p.classList.add("moving");
+      head.onpointermove = ev => {
+        p.style.left = tutorClamp(ev.clientX - dx, 8, window.innerWidth - r.width - 8) + "px";
+        p.style.top = tutorClamp(ev.clientY - dy, 8, window.innerHeight - r.height - 8) + "px";
+        p.style.right = p.style.bottom = "auto";
+      };
+      head.onpointerup = head.onpointercancel = () => {
+        head.onpointermove = null;
+        p.classList.remove("moving");
+        const rr = p.getBoundingClientRect();
+        tutorPut(TUTOR_PANEL, { x: Math.round(rr.left), y: Math.round(rr.top) });
+      };
+    };
+    head.ondblclick = e => { if (e.target.closest("button") || tutorMobile()) return; tutorPut(TUTOR_PANEL, null); tutorPlacePanel(); };
+  }
   p.querySelectorAll("[data-tt]").forEach(b => b.onclick = async () => {
     const act = b.dataset.tt;
     if (act === "close") tutorClose();
