@@ -398,6 +398,7 @@ a.sr-only:focus { position: fixed; left: 12px; top: 12px; z-index: 300; width: a
 .callout.danger { background: var(--danger-soft); border-left-color: var(--danger); }
 .callout.danger .icon { color: var(--danger); }
 .callout a { font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+.qbk-act { margin-top: 12px; }
 
 /* Ruled lists */
 .list { display: flex; flex-direction: column; }

@@ -432,6 +432,7 @@ function router() {
   try { (ROUTES[route] || renderDashboard)(a, b, c); } finally { ROUTE_ENTER = false; }
   refreshShell();
   if (typeof tutorRoute === "function") tutorRoute();   // CFA Tutor button (off during a timed mock)
+  if (typeof qbkAuto === "function") qbkAuto();   // keep the Question Bank sets on this device current
   window.scrollTo(0, 0);
   const mainEl = document.getElementById("main");
   if (mainEl) { mainEl.classList.remove("enter"); void mainEl.offsetWidth; mainEl.classList.add("enter"); }
