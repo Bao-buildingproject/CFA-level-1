@@ -52,7 +52,7 @@ function qbReportHtml(r) {
     <div class="card-head"><div><h2>Import finished</h2><p class="text-2 small">${r.sets.length} sets · ${q} questions ready to answer</p></div>
       <button class="btn btn-ghost btn-sm" id="qb-report-close">Close</button></div>
     ${r.sets.length ? `<div class="list">${r.sets.map(x => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(x.title)}</div>
-      <div class="list-meta">${x.n}/${x.total} questions${x.missingAns ? ` · <span style="color:var(--warning)">${x.missingAns} without an answer mark — left out</span>` : ""}</div></div>
+      <div class="list-meta">${x.n}/${x.total} questions${x.missingAns ? ` · <span style="color:var(--warning)">${x.missingAns} ${r.pack ? "without an answer key in the source (shown, not scored)" : "without an answer mark — left out"}</span>` : ""}</div></div>
       <a class="btn btn-primary btn-sm" href="#/qbank/do/${x.fileId}">${icon("play", 14)} Do it</a></div>`).join("")}</div>` : ""}
     ${r.failed.length ? `<div class="callout danger" style="margin-top:12px">${icon("alert", 18)}<div><strong>Not imported:</strong><br>${r.failed.map(esc).join("<br>")}</div></div>` : ""}
     ${r.skipped.length ? `<p class="text-3 small" style="margin-top:10px">Skipped: ${r.skipped.map(esc).join(", ")}</p>` : ""}
@@ -73,8 +73,9 @@ function renderQBank(sub, fileId, mode) {
   const all = topics.reduce((a, t) => { const s = qbTopicStats(t.id); a.done += s.done; a.right += s.right; a.files += s.files; return a; }, { done: 0, right: 0, files: 0 });
 
   view.innerHTML = `
-    ${pageHeader("Question Bank", `Your PDF question sets · sorted by 2027 exam weight · ${all.files} active sets`,
-      `${isOwner() ? `<label class="btn btn-primary">${icon("upload", 18)} Import Answers PDFs<input type="file" id="qb-bulk" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
+    ${pageHeader("Question Bank", `Your question sets · sorted by 2027 exam weight · ${all.files} active sets`,
+      `<label class="btn btn-primary">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>
+       ${isOwner() ? `<label class="btn btn-secondary">${icon("upload", 18)} Import Answers PDFs<input type="file" id="qb-bulk" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
        <label class="check-chip"><input type="checkbox" id="qb-show-skipped" ${qbShowSkipped ? "checked" : ""}> Show skipped</label>`)}
     <div id="qb-progress"></div>
     ${qbBulkReport ? qbReportHtml(qbBulkReport) : ""}
@@ -84,7 +85,8 @@ function renderQBank(sub, fileId, mode) {
       <div class="card stat"><span class="stat-label">To redo</span><span class="stat-value">${topics.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0)}</span></div>
       <div class="card stat"><span class="stat-label">Answer on this site</span><span class="stat-value">${qbiQuestionCount()}</span><span class="stat-hint">questions imported</span></div>
     </div>
-    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions — pick A/B/C and see why it is right or wrong.${isOwner() ? " To add sets, download the <strong>Answers</strong> PDFs from Drive and press <strong>Import Answers PDFs</strong> — you can select many files at once." : ""} Imported questions stay only in this browser.</div></div>
+    <div class="callout info section">${icon("play", 18)}<div><strong>Answer directly here:</strong> sets with a <strong>Do it</strong> button open as interactive questions with the full explanation, tables and figures. To add sets, press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once).${isOwner() ? " You can also import single <strong>Answers</strong> PDFs." : ""} Imported questions stay only in this browser — import them once on each device.</div></div>
+    ${qbMockCardHtml()}
     ${topics.map(t => {
       const files = (QBANK_FILES[t.id] || []).filter(f => qbShowSkipped || !qbSkipped(f[2]));
       const ts = qbTopicStats(t.id);
@@ -148,7 +150,62 @@ function qbRowHtml(t, f) {
     </div>`;
 }
 
+// ---------- Mock test built only from your Question Bank ----------
+let qbMockTopic = "";
+function qbMockCardHtml() {
+  const pool = typeof qbMockPool === "function" ? qbMockPool() : [];
+  if (!pool.length) return "";
+  const active = DATA.activeMock;
+  const nTopic = t => pool.filter(q => q.topic === t).length;
+  const avail = qbMockTopic ? nTopic(qbMockTopic) : pool.length;
+  const sizes = qbMockTopic ? [[15, "15 questions"], [30, "30 questions"], [0, `All ${avail}`]] : [[30, "Mini · 30"], [90, "Session · 90"], [180, "Full exam · 180"]];
+  return `
+    <div class="card section">
+      <div class="card-head" style="flex-wrap:wrap"><div><h2>Mock test from your Question Bank</h2>
+        <p class="text-2 small">${pool.length} questions with answers · timed at ${SECONDS_PER_QUESTION}s per question like the real exam · scored only when you submit · weighted by 2027 exam weights</p></div></div>
+      ${active ? `<div class="callout warning">${icon("clock", 18)}<div style="flex:1"><strong>${esc(active.name)}</strong> is in progress.</div><a class="btn btn-primary btn-sm" href="#/mock/run">Resume</a></div>` : `
+      <div class="form-grid">
+        <label class="field"><span class="field-label">Topics</span><select class="select" id="qbm-topic">
+          <option value="">All topics (${pool.length})</option>${TOPICS.map(t => `<option value="${t.id}" ${qbMockTopic === t.id ? "selected" : ""} ${nTopic(t.id) ? "" : "disabled"}>${t.name} (${nTopic(t.id)})</option>`).join("")}</select></label>
+        <div class="field"><span class="field-label">Length</span><div class="row-gap">${sizes.map(([n, l]) => {
+          const k = n || avail, min = Math.ceil(k * SECONDS_PER_QUESTION / 60);
+          return `<button class="btn btn-secondary" data-qbmock="${n}" ${k <= avail && k > 0 ? "" : "disabled"}>${icon("play", 16)} ${l}<span class="text-3 small" style="font-weight:500">&nbsp;· ${formatMinutes(min)}</span></button>`;
+        }).join("")}</div></div>
+      </div>`}
+    </div>`;
+}
+async function startQBMock(n) {
+  const pool = qbMockPool();
+  if (qbMockTopic) {
+    const t = topicById(qbMockTopic);
+    const ids = pickTopicQuestions(qbMockTopic, n, "qbank");
+    const min = Math.ceil(ids.length * SECONDS_PER_QUESTION / 60);
+    if (!await confirmDialog({ title: `Start ${t.name} mock?`, message: `${ids.length} Question Bank questions · ${formatMinutes(min)}. The timer starts right away; answers are shown after you submit.`, confirmText: "Start now" })) return;
+    return startMock("topic", { name: `${t.name} · Question Bank mock`, topic: t.id, ids, source: "qbank", sessions: [{ count: ids.length, minutes: min }] });
+  }
+  const sessions = n === 180 ? MOCK_TYPES.full.sessions : n === 90 ? MOCK_TYPES.session.sessions : MOCK_TYPES.mini.sessions;
+  const name = n === 180 ? "Full mock · Question Bank" : n === 90 ? "Session mock · Question Bank" : "Mini mock · Question Bank";
+  if (pool.length < n) { toast(`Not enough questions — need ${n}`, "error"); return; }
+  if (!await confirmDialog({ title: `Start ${name}?`, message: `${n} questions · ${formatMinutes(sessions.reduce((s, x) => s + x.minutes, 0))}${sessions.length > 1 ? " in 2 sessions" : ""}. The timer starts right away; answers are shown after you submit.`, confirmText: "Start now" })) return;
+  startMock(n === 180 ? "full" : n === 90 ? "session" : "mini", { name, sessions, source: "qbank" });
+}
+
 function bindQBank() {
+  const tsel = document.getElementById("qbm-topic");
+  if (tsel) tsel.onchange = () => { qbMockTopic = tsel.value; renderQBank(); };
+  view.querySelectorAll("[data-qbmock]").forEach(b => b.onclick = () => startQBMock(+b.dataset.qbmock));
+  const pack = document.getElementById("qb-pack");
+  if (pack) pack.onchange = async () => {
+    const files = [...pack.files]; pack.value = "";
+    if (!files.length) return;
+    const box = document.getElementById("qb-progress");
+    const report = await qbImportPackages(files, (i, n, name) => {
+      box.innerHTML = `<div class="callout info section">${icon("upload", 18)}<div>Importing ${i} of ${n}: <strong>${esc(name)}</strong>…<div style="margin-top:8px">${progressBar(pct(i - 1, n))}</div></div></div>`;
+    });
+    qbBulkReport = report;
+    toast(`Imported ${report.sets.length} set${report.sets.length === 1 ? "" : "s"}`, report.sets.length ? "success" : "error");
+    renderQBank();
+  };
   const bulk = document.getElementById("qb-bulk");
   if (bulk) bulk.onchange = async () => {
     const files = [...bulk.files]; bulk.value = "";

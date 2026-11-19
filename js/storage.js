@@ -185,7 +185,8 @@ function exportData() {
   DATA.settings.lastBackup = todayStr();
   saveData();
   const backup = { app: "cfa-study", profile: activeProfile().name, exportedAt: new Date().toISOString(), data: DATA };
-  if (typeof QBI !== "undefined" && Object.keys(QBI).length) backup.qbImport = Object.values(QBI);
+  // Question packs are not copied into the backup (they are large and can be imported again)
+  if (typeof QBI !== "undefined") { const own = Object.values(QBI).filter(r => r.source !== "package"); if (own.length) backup.qbImport = own; }
   const safeName = activeProfile().name.replace(/[^\w-]+/g, "_").slice(0, 20);
   downloadFile(`cfa-backup-${safeName}-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
 }

@@ -28,13 +28,22 @@ function formatMinutes(min) {
   return h ? `${h}h${m ? ` ${m}m` : ""}` : `${m} min`;
 }
 
+// ---------- Where mock questions come from ----------
+// "both" = built-in bank + your imported Question Bank sets, "builtin", or "qbank"
+const MOCK_SOURCES = [["both", "Both"], ["builtin", "Built-in bank"], ["qbank", "Question Bank"]];
+function mockSource() { return DATA.settings.mockSource || "both"; }
+function mockPool(source = mockSource()) {
+  const qb = typeof qbMockPool === "function" ? qbMockPool() : [];
+  return source === "builtin" ? DATA.questions : source === "qbank" ? qb : DATA.questions.concat(qb);
+}
+
 // ---------- Pick questions, weighted by exam topic weights ----------
 // Prefers questions you've tried least; never repeats a question in one mock.
-function pickMockQuestions(count, topicIds, moduleIds, levels) {
+function pickMockQuestions(count, topicIds, moduleIds, levels, source) {
   const topics = TOPICS.filter(t => !topicIds || topicIds.includes(t.id));
-  const pools = {};
+  const pools = {}, all = mockPool(source);
   topics.forEach(t => {
-    pools[t.id] = shuffle(DATA.questions.filter(q => q.topic === t.id && (!moduleIds || moduleIds.includes(q.chapter)) && (!levels || levels.includes(q.level))))
+    pools[t.id] = shuffle(all.filter(q => q.topic === t.id && (!moduleIds || moduleIds.includes(q.chapter)) && (!levels || levels.includes(q.level))))
       .sort((a, b) => (levels ? (b.level === "challenge") - (a.level === "challenge") : 0) || a.attempts.length - b.attempts.length);
   });
   const available = topics.reduce((s, t) => s + pools[t.id].length, 0);
@@ -63,17 +72,21 @@ function pickMockQuestions(count, topicIds, moduleIds, levels) {
   return shuffle(topics.flatMap(t => pools[t.id].slice(0, alloc[t.id]))).map(q => q.id);
 }
 
-function questionById(id) { return DATA.questions.find(q => q.id === id); }
+function questionById(id) {
+  if (typeof id === "string" && id.startsWith("qb|")) return typeof qbIndex === "function" ? qbIndex().get(id) : null;
+  return DATA.questions.find(q => q.id === id);
+}
 
 // ---------- Topic mocks (one subject at a time) ----------
 const TOPIC_MOCK_SIZES = [15, 30, 0];   // 0 = every question in the topic
 
 // Spread questions evenly across the topic's modules (round robin),
 // preferring the questions you have tried least.
-function pickTopicQuestions(topicId, count) {
+function pickTopicQuestions(topicId, count, source) {
+  const all = mockPool(source);
   const pools = modulesOf(topicId).map(m =>
-    shuffle(DATA.questions.filter(q => q.chapter === m.id)).sort((a, b) => a.attempts.length - b.attempts.length));
-  const own = shuffle(DATA.questions.filter(q => q.topic === topicId && !MODULES.some(m => m.id === q.chapter)));
+    shuffle(all.filter(q => q.chapter === m.id)).sort((a, b) => a.attempts.length - b.attempts.length));
+  const own = shuffle(all.filter(q => q.topic === topicId && !MODULES.some(m => m.id === q.chapter)));
   if (own.length) pools.push(own);
   const total = pools.reduce((s, p) => s + p.length, 0);
   count = count ? Math.min(count, total) : total;
@@ -91,12 +104,12 @@ function pickTopicQuestions(topicId, count) {
   return shuffle(picked);
 }
 
-function startTopicMock(topicId, size) {
+function startTopicMock(topicId, size, source) {
   const t = topicById(topicId);
-  const ids = pickTopicQuestions(topicId, size);
+  const ids = pickTopicQuestions(topicId, size, source);
   if (!ids.length) { toast("No questions in this topic yet", "error"); return; }
   const minutes = Math.ceil((ids.length * SECONDS_PER_QUESTION) / 60);
-  startMock("topic", { name: `${t.name} mock`, topic: topicId, ids, sessions: [{ count: ids.length, minutes }] });
+  startMock("topic", { name: `${t.name} mock${source === "qbank" ? " · Question Bank" : ""}`, topic: topicId, ids, source, sessions: [{ count: ids.length, minutes }] });
 }
 
 function topicMockHistory(topicId) {
@@ -105,12 +118,12 @@ function topicMockHistory(topicId) {
   return { count: list.length, last: scores.length ? scores.at(-1) : null, best: scores.length ? Math.max(...scores) : null };
 }
 
-async function confirmTopicMock(topicId, size) {
+async function confirmTopicMock(topicId, size, source) {
   const t = topicById(topicId);
-  const n = pickTopicQuestions(topicId, size).length;
+  const n = pickTopicQuestions(topicId, size, source).length;
   const min = Math.ceil((n * SECONDS_PER_QUESTION) / 60);
   if (await confirmDialog({ title: `Start ${t.name} mock?`, message: `${n} questions across all ${modulesOf(topicId).length} modules · ${formatMinutes(min)}. The timer starts right away; answers are shown after you submit.`, confirmText: "Start now" }))
-    startTopicMock(topicId, size);
+    startTopicMock(topicId, size, source);
 }
 
 let topicMockSize = 30;
@@ -123,7 +136,7 @@ function topicMocksHtml() {
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Topic</th><th class="num hide-mobile">Weight</th><th class="num">Questions</th><th class="num hide-mobile">Time</th><th class="num">Last</th><th class="num">Best</th><th></th></tr></thead>
         <tbody>${TOPICS.map(t => {
-          const avail = DATA.questions.filter(q => q.topic === t.id).length;
+          const avail = mockPool().filter(q => q.topic === t.id).length;
           const n = topicMockSize ? Math.min(topicMockSize, avail) : avail;
           const h = topicMockHistory(t.id);
           const badge = v => v === null ? '<span class="text-3">–</span>' : `<span class="badge ${v >= 70 ? "badge-success" : v >= 60 ? "badge-warning" : "badge-danger"}">${v}%</span>`;
@@ -149,11 +162,12 @@ function bindTopicMocks(rerender) {
 function startMock(typeKey, custom) {
   const def = custom || MOCK_TYPES[typeKey];
   const need = def.sessions.reduce((s, x) => s + x.count, 0);
-  const ids = custom && custom.ids ? custom.ids : pickMockQuestions(need, custom && custom.topics, custom && custom.modules, def.levels);
+  const source = (custom && custom.source) || mockSource();
+  const ids = custom && custom.ids ? custom.ids : pickMockQuestions(need, custom && custom.topics, custom && custom.modules, def.levels, source);
   if (ids.length < need) { toast(`Not enough questions — need ${need}, you have ${ids.length}`, "error"); return; }
   let offset = 0;
   DATA.activeMock = {
-    id: makeId("mock"), type: typeKey, name: def.name, topic: (custom && custom.topic) || null, startedDate: todayStr(),
+    id: makeId("mock"), type: typeKey, name: def.name, topic: (custom && custom.topic) || null, startedDate: todayStr(), source,
     sessionIdx: 0, phase: "running", i: 0,
     sessions: def.sessions.map(s => {
       const qids = ids.slice(offset, offset + s.count);
@@ -231,7 +245,7 @@ function finishMock() {
     });
   });
   const result = {
-    id: m.id, date: todayStr(), type: m.type, name: m.name, topic: m.topic || null, byModule,
+    id: m.id, date: todayStr(), type: m.type, name: m.name, topic: m.topic || null, byModule, source: m.source || "builtin",
     total: items.length, correct, answered: items.filter(x => x.picked).length,
     timeUsed: Math.round(timeUsed), timeAllowed, byTopic, items
   };
@@ -243,14 +257,17 @@ function finishMock() {
 
 // ================= MOCK HOME (#/mock) =================
 function renderMock() {
-  const total = DATA.questions.length;
+  if (typeof qbiReady === "function" && !qbiReady()) { view.innerHTML = `${pageHeader("Mock exams")}<p class="text-2">Loading…</p>`; qbiLoad().then(() => { if (currentRoute()[0] === "mock") renderMock(); }); return; }
+  const pool = mockPool();
+  const total = pool.length;
+  const qbN = typeof qbMockPool === "function" ? qbMockPool().length : 0;
   const active = DATA.activeMock;
   const history = DATA.mocks.slice().reverse();
 
   const typeCard = (key, def) => {
     const need = def.sessions.reduce((s, x) => s + x.count, 0);
     const minutes = def.sessions.reduce((s, x) => s + x.minutes, 0);
-    const avail = def.levels ? DATA.questions.filter(q => def.levels.includes(q.level)).length : total;
+    const avail = def.levels ? pool.filter(q => def.levels.includes(q.level)).length : total;
     const ok = avail >= need;
     return `
       <div class="card mock-type">
@@ -266,7 +283,14 @@ function renderMock() {
   };
 
   view.innerHTML = `
-    ${pageHeader("Mock exams", "Timed, exam-style tests from your question bank · results only after you submit")}
+    ${pageHeader("Mock exams", "Timed, exam-style tests · results only after you submit")}
+
+    <div class="card">
+      <div class="row-between" style="flex-wrap:wrap;gap:12px">
+        <div><h2>Questions from</h2><p class="text-2 small">Built-in bank: ${DATA.questions.length} · Question Bank (your imported sets): ${qbN}${qbN ? "" : ` — <a href="#/qbank">import a question pack</a> to add them`}</p></div>
+        <div class="segmented" id="mock-src">${MOCK_SOURCES.map(([k, v]) => `<button data-src="${k}" class="${mockSource() === k ? "active" : ""}">${v}</button>`).join("")}</div>
+      </div>
+    </div>
 
     ${active ? `<div class="callout warning">${icon("clock", 18)}<div style="flex:1"><strong>${esc(active.name)} in progress</strong> — session ${active.sessionIdx + 1} of ${active.sessions.length}.</div>
       <a class="btn btn-primary btn-sm" href="#/mock/run">Resume</a><button class="btn btn-ghost btn-sm" id="btn-abandon">Discard</button></div>` : ""}
@@ -283,7 +307,7 @@ function renderMock() {
       <div class="card-head"><div><h2>Custom mock</h2><p class="text-2 small">Pick topics and length · ${SECONDS_PER_QUESTION}s per question, the real exam pace</p></div></div>
       <div class="field"><span class="field-label">Topics</span>
         <div class="row-gap" id="cm-topics">${TOPICS.map(t => {
-          const n = DATA.questions.filter(q => q.topic === t.id).length;
+          const n = pool.filter(q => q.topic === t.id).length;
           return `<button class="btn btn-sm btn-secondary cm-topic" data-topic="${t.id}" aria-pressed="true" ${n ? "" : "disabled"} title="${t.name}">${t.id} <span class="text-3">${n}</span></button>`;
         }).join("")}</div></div>
       <div class="form-grid" style="margin-top:12px">
@@ -313,6 +337,7 @@ function renderMock() {
     <p class="text-3 small section">Practice benchmark: many candidates aim for 70%+ on mocks. CFA Institute does not publish the actual passing score.</p>`;
 
   bindTopicMocks(renderMock);
+  view.querySelectorAll("[data-src]").forEach(b => b.onclick = () => { DATA.settings.mockSource = b.dataset.src; saveData(); renderMock(); });
   view.querySelectorAll("[data-start]").forEach(b => b.onclick = async () => {
     const def = MOCK_TYPES[b.dataset.start];
     const n = def.sessions.reduce((s, x) => s + x.count, 0);
@@ -326,10 +351,10 @@ function renderMock() {
   };
 
   // custom mock
-  const selected = new Set(TOPICS.filter(t => DATA.questions.some(q => q.topic === t.id)).map(t => t.id));
+  const selected = new Set(TOPICS.filter(t => pool.some(q => q.topic === t.id)).map(t => t.id));
   const countEl = document.getElementById("cm-count");
   const updateCustom = () => {
-    const avail = DATA.questions.filter(q => selected.has(q.topic)).length;
+    const avail = pool.filter(q => selected.has(q.topic)).length;
     const n = parseInt(countEl.value, 10) || 0;
     document.getElementById("cm-time").textContent = n > 0 ? formatMinutes(Math.ceil((n * SECONDS_PER_QUESTION) / 60)) : "–";
     document.getElementById("cm-avail").textContent = `${avail} question(s) available in the selected topics`;
@@ -361,6 +386,7 @@ function renderMock() {
 function renderMockRun() {
   const m = DATA.activeMock;
   stopMockTimer();
+  if (m && typeof qbiReady === "function" && !qbiReady()) { qbiLoad().then(() => { if (currentRoute()[0] === "mock") renderMockRun(); }); return; }
   if (!m) { location.hash = "#/mock"; return; }
   const s = m.sessions[m.sessionIdx];
 
@@ -409,8 +435,7 @@ function renderMockRun() {
               <span class="text-2 small" style="font-weight:600">Question ${m.i + 1} of ${s.qids.length}</span>
               <button class="btn btn-ghost btn-sm" id="btn-mflag" aria-pressed="${flagged}" style="${flagged ? "color:var(--warning)" : ""}">${icon("flag", 16)} ${flagged ? "Flagged" : "Flag for review"}</button>
             </div>
-            <div class="q-text">${esc(q.question)}</div>
-            ${exhibitHtml(q)}
+            ${questionBodyHtml(q)}
             ${choicesHtml(q, s.answers[q.id] || null, false)}`
           : `<p class="text-2">This question was deleted from your bank. It will count as unanswered.</p>`}
           <div class="mock-nav">
@@ -478,6 +503,7 @@ document.addEventListener("keydown", e => {
 let reviewFilter = "wrong";
 
 function renderMockResult(id) {
+  if (typeof qbiReady === "function" && !qbiReady()) { qbiLoad().then(() => { if (currentRoute()[0] === "mock") renderMockResult(id); }); return; }
   const r = DATA.mocks.find(x => x.id === id);
   if (!r) { location.hash = "#/mock"; return; }
   const p = pct(r.correct, r.total);
@@ -549,7 +575,7 @@ function renderMockResult(id) {
         return `<details class="disclosure">
           <summary>${icon("chevron", 16)} <span style="color:var(--${ok ? "success" : "danger"})">Q${n}</span>
             <span class="text-2" style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(q.question)}</span></summary>
-          <div>${questionMetaHtml(q)}<div class="q-text">${esc(q.question)}</div>${exhibitHtml(q)}${choicesHtml(q, it.picked, true)}${explanationHtml(q, it.picked)}</div>
+          <div>${questionMetaHtml(q)}${questionBodyHtml(q)}${choicesHtml(q, it.picked, true)}${explanationHtml(q, it.picked)}</div>
         </details>`;
       }).join("") : `<p class="text-2 small">Nothing here.</p>`}
     </div>`;

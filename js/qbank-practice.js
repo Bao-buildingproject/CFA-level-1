@@ -42,14 +42,17 @@ async function qbiLoad() {
     (all || []).forEach(r => { QBI[r.fileId] = r; });
   } catch (e) { if (QBI_PROFILE !== pid) QBI = {}; }
   QBI_PROFILE = pid;
+  qbIndexReset();
 }
 async function qbiPut(rec) {
   rec.profile = PROFILES.active; rec.key = `${rec.profile}|${rec.fileId}`;
   QBI[rec.fileId] = rec;
+  qbIndexReset();
   try { await qbiTx("readwrite", st => st.put(rec)); return true; } catch (e) { return false; }
 }
 async function qbiDelete(fileId) {
   delete QBI[fileId];
+  qbIndexReset();
   try { await qbiTx("readwrite", st => st.delete(`${PROFILES.active}|${fileId}`)); } catch (e) { /* ignore */ }
 }
 async function qbiClearProfile(pid) {
@@ -57,7 +60,7 @@ async function qbiClearProfile(pid) {
     const keys = await qbiTx("readonly", st => st.index("profile").getAllKeys(pid));
     await qbiTx("readwrite", st => (keys || []).forEach(k => st.delete(k)));
   } catch (e) { /* ignore */ }
-  if (pid === PROFILES.active) QBI = {};
+  if (pid === PROFILES.active) { QBI = {}; qbIndexReset(); }
 }
 async function qbiReplaceAll(list) {
   await qbiClearProfile(PROFILES.active);
@@ -318,6 +321,110 @@ function renderQBImport(fileId) {
   };
 }
 
+
+// ---------- Question packs (.cfaqb.json): whole topics with the full explanations ----------
+// A pack holds sets in the same shape as above plus "rich" content (formatted text, tables,
+// pictures). It is imported into this browser only — nothing is uploaded.
+async function qbImportPackages(files, onStep) {
+  const report = { sets: [], skipped: [], failed: [], pack: true };
+  const list = [...files];
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    onStep && onStep(i + 1, list.length, f.name);
+    try {
+      const pkg = JSON.parse(await f.text());
+      if (!pkg || pkg.kind !== "qbank-package" || !Array.isArray(pkg.sets)) { report.failed.push(`${f.name} — not a question pack`); continue; }
+      for (const rec of pkg.sets) {
+        const info = qbFileInfo(rec.fileId);
+        if (!info || !Array.isArray(rec.questions)) { report.failed.push(`${f.name} — unknown set ${rec.title || ""}`); continue; }
+        await qbiPut({ ...rec, importedAt: todayStr() });
+        const st = qbState(rec.fileId);
+        if (st.count < rec.total) st.count = rec.total;
+        report.sets.push({ fileId: rec.fileId, title: `${info.topic.id} · ${info.n}. ${info.title}`, n: rec.questions.length, total: rec.total, missingAns: rec.questions.filter(q => !q.ans).length });
+      }
+    } catch (e) { report.failed.push(`${f.name} — ${e.message || "could not read"}`); }
+  }
+  saveData();
+  qbIndexReset();
+  return report;
+}
+
+// Formatted runs: bold, italic, sub- and superscripts
+function qbRuns(rs) {
+  return (rs || []).map(r => {
+    let h = esc(r.t);
+    if (r.sup) h = `<sup>${h}</sup>`; else if (r.sub) h = `<sub>${h}</sub>`;
+    if (r.i) h = `<em>${h}</em>`;
+    if (r.b) h = `<strong>${h}</strong>`;
+    return h;
+  }).join("");
+}
+function qbTableHtml(b) {
+  const rows = [];
+  for (let r = 0; r < b.rows; r++) {
+    const cells = b.cells.filter(c => c.r === r);
+    if (!cells.length) continue;
+    rows.push(`<tr>${cells.map(c => {
+      let inner = "", ul = [];
+      const flush = () => { if (ul.length) { inner += `<ul>${ul.join("")}</ul>`; ul = []; } };
+      (c.p || []).forEach(p => { if (p.bullet) ul.push(`<li>${qbRuns(p.runs)}</li>`); else { flush(); inner += `<div>${qbRuns(p.runs)}</div>`; } });
+      flush();
+      return `<td${c.cs > 1 ? ` colspan="${c.cs}"` : ""}${c.rs > 1 ? ` rowspan="${c.rs}"` : ""}>${inner}</td>`;
+    }).join("")}</tr>`);
+  }
+  return `<div class="table-wrap"><table class="qb-table">${rows.join("")}</table></div>`;
+}
+function qbBlocksHtml(blocks, rec) {
+  let html = "", ul = [];
+  const flush = () => { if (ul.length) { html += `<ul class="qb-ul">${ul.join("")}</ul>`; ul = []; } };
+  for (const b of blocks || []) {
+    if (b.k === "bullet") { ul.push(`<li>${qbRuns(b.runs)}</li>`); continue; }
+    flush();
+    if (b.k === "img") {
+      const src = rec && rec.images && rec.images[b.id];
+      html += src ? `<img class="qb-img" src="${src}" alt="" loading="lazy" style="width:${Math.round(b.w * 1.333)}px">` : "";
+    } else if (b.k === "table") html += qbTableHtml(b);
+    else if (b.k === "h") html += `<h4 class="qb-h">${qbRuns(b.runs)}</h4>`;
+    else html += `<p>${qbRuns(b.runs)}</p>`;
+  }
+  flush();
+  return html;
+}
+
+// ---------- Question Bank questions inside mock exams ----------
+// Each answered question of an imported set becomes a mock question with the id "qb|<fileId>|<n>".
+let QB_INDEX = null;
+function qbIndexReset() { QB_INDEX = null; }
+function qbIndex() {
+  if (QB_INDEX) return QB_INDEX;
+  QB_INDEX = new Map();
+  Object.values(QBI).forEach(rec => {
+    const info = qbFileInfo(rec.fileId);
+    if (!info) return;
+    const mod = typeof qbSetModule === "function" ? qbSetModule(rec.fileId) : null;
+    rec.questions.forEach(q => {
+      if (!q.ans) return;
+      const id = `qb|${rec.fileId}|${q.n}`;
+      QB_INDEX.set(id, { id, qb: true, fileId: rec.fileId, n: q.n, topic: info.topic.id, chapter: mod, level: "exam",
+        setTitle: info.title, setN: info.n, question: q.q, choices: q.choices, answer: q.ans, rich: q.rich || null, src: q,
+        get attempts() { const st = (DATA.qbt || {})[rec.fileId]; return st && st.marks[q.n] ? [1] : []; } });
+    });
+  });
+  return QB_INDEX;
+}
+// Questions from sets you have not skipped
+function qbMockPool() { return [...qbIndex().values()].filter(q => !qbSkipped(q.fileId)); }
+function qbRecordAnswer(q, picked) {
+  const correct = picked === q.answer;
+  const st = qbState(q.fileId);
+  if (st.count < q.n) st.count = Math.max(q.n, (QBI[q.fileId] || {}).total || 0);
+  st.marks[q.n] = correct ? "r" : "w";
+  const log = DATA.dailyLog[todayStr()] || (DATA.dailyLog[todayStr()] = {});
+  log.questionsDone = (log.questionsDone || 0) + 1;
+  log.questionsRight = (log.questionsRight || 0) + (correct ? 1 : 0);
+  return correct;
+}
+
 // ---------- Practice run (#/qbank/do/<fileId>[/redo]) ----------
 function renderQBDo(fileId, mode) {
   const rec = QBI[fileId];
@@ -345,8 +452,10 @@ function qbDraw() {
   const q = r.list[r.i];
   const answered = r.picked !== null;
   const ok = r.picked === q.ans;
-  const why = answered && !ok ? qbWhyNot(q, r.picked) : "";
-  const qq = { answer: q.ans, choices: q.choices };
+  const rec = QBI[r.fileId];
+  const why = answered && !ok && !q.rich ? qbWhyNot(q, r.picked) : "";
+  const qq = { answer: q.ans, choices: q.choices, qb: !!q.rich, rich: q.rich };
+  const noKey = !q.ans;
 
   view.innerHTML = `
     <div style="max-width:760px;margin:0 auto">
@@ -357,15 +466,16 @@ function qbDraw() {
       </div>
       <div class="card">
         <div class="q-meta"><span class="badge">${r.info.topic.id}</span><span class="text-3 small">${esc(r.info.title)} · Question ${q.n} of ${QBI[r.fileId].total}${r.mode === "redo" ? " · redo" : ""}</span></div>
-        <div class="q-text">${esc(q.q)}</div>
-        ${choicesHtml(qq, r.picked, answered)}
+        ${q.rich ? `<div class="q-rich">${qbBlocksHtml(q.rich.stem, rec)}</div>` : `<div class="q-text">${esc(q.q)}</div>`}
+        ${choicesHtml(qq, r.picked, answered && !noKey)}
         ${answered ? `
           <div class="explain">
-            <div class="explain-head ${ok ? "ok" : "bad"}">${icon(ok ? "check" : "alert", 18)} ${ok ? `Correct — ${q.ans} is right` : `Incorrect — you chose ${r.picked}, the answer is ${q.ans}`}</div>
+            <div class="explain-head ${noKey ? "" : ok ? "ok" : "bad"}">${icon(noKey ? "alert" : ok ? "check" : "alert", 18)} ${noKey ? `You chose ${r.picked} · the source PDF has no answer key for this question` : ok ? `Correct — ${q.ans} is right` : `Incorrect — you chose ${r.picked}, the answer is ${q.ans}`}</div>
             <div class="explain-body">
+              ${q.rich ? (q.rich.expl.length ? `<div class="qb-rich-expl">${qbBlocksHtml(q.rich.expl, rec)}</div>` : `<p class="text-3">Explanation: not provided in the source.</p>`) : `
               ${why ? `<div class="explain-block"><h4>Why ${r.picked} is wrong</h4><p>${esc(why)}</p></div>` : ""}
               ${q.expl ? `<div class="explain-block"><h4>${ok ? `Why ${q.ans} is correct` : "Explanation"}</h4>${qbParas(q.expl)}</div>` : ""}
-              ${q.remember ? `<div class="explain-block"><h4>Things to remember</h4><p>${esc(q.remember)}</p></div>` : ""}
+              ${q.remember ? `<div class="explain-block"><h4>Things to remember</h4><p>${esc(q.remember)}</p></div>` : ""}`}
             </div>
           </div>
           <button class="btn btn-primary btn-lg btn-block" id="qb-next" style="margin-top:20px">${r.i + 1 < r.list.length ? "Next question" : "See results"} ${icon("next", 18)}</button>`
@@ -387,6 +497,7 @@ function qbPick(L) {
   if (!r || r.picked !== null) return;
   const q = r.list[r.i];
   r.picked = L;
+  if (!q.ans) { qbDraw(); return; }
   const correct = L === q.ans;
   r.results.push({ n: q.n, picked: L, correct });
   const st = qbState(r.fileId);
@@ -407,7 +518,7 @@ function qbDrawResult() {
   view.innerHTML = `
     <div style="max-width:640px;margin:0 auto">
       <div class="card" style="text-align:center">
-        <h1 style="margin-bottom:6px">${pct(right, r.results.length)}%</h1>
+        <h1 style="margin-bottom:6px">${r.results.length ? pct(right, r.results.length) : 0}%</h1>
         <p class="text-2">${right} of ${r.results.length} correct · ${esc(r.info.title)}</p>
         ${wrong.length ? `<div class="callout warning" style="margin-top:16px;text-align:left">${icon("alert", 18)}<div>Wrong: <strong>${wrong.map(x => x.n).join(", ")}</strong> — saved to the redo list.</div></div>` : `<div class="callout success" style="margin-top:16px;text-align:left">${icon("check", 18)}<div>All correct!</div></div>`}
         <div class="row-gap" style="justify-content:center;margin-top:20px">

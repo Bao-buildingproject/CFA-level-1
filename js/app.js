@@ -428,7 +428,8 @@ function router() {
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();
-  if (testsHidden() && TEST_ROUTES.includes(route)) { location.hash = "#/dashboard"; return; }
+  // Practice and the Mock exams page can be hidden; a mock started from the Question Bank still runs
+  if (testsHidden() && TEST_ROUTES.includes(route) && !(route === "mock" && (a === "run" || a === "result"))) { location.hash = "#/dashboard"; return; }
   ROUTE_ENTER = true;
   try { (ROUTES[route] || renderDashboard)(a, b, c); } finally { ROUTE_ENTER = false; }
   refreshShell();

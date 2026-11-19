@@ -23,6 +23,7 @@ function quizStats(list) {
 
 // ---------- Record an answer (used by practice AND mock exams) ----------
 function recordAnswer(q, picked) {
+  if (q.qb) return qbRecordAnswer(q, picked);
   const correct = picked === q.answer;
   const today = todayStr();
   q.attempts.push({ date: today, picked, correct });
@@ -125,12 +126,25 @@ function choicesHtml(q, picked, reveal) {
       else cls += " dim";
     } else if (L === picked) cls += " selected";
     return `<button class="${cls}" data-pick="${L}" role="radio" aria-checked="${L === picked}" ${reveal ? "disabled" : ""}>
-      <span class="letter">${L}</span><span class="choice-text">${esc(q.choices[L])}</span></button>`;
+      <span class="letter">${L}</span><span class="choice-text">${q.qb && q.rich ? qbRuns((q.rich.opts[L] || []).map(r => ({ ...r, b: 0 }))) : esc(q.choices[L])}</span></button>`;
   }).join("")}</div>`;
+}
+
+// Stem of any question: built-in (text + exhibit table) or Question Bank (formatted blocks)
+function questionBodyHtml(q) {
+  if (q.qb && q.rich) return `<div class="q-rich">${qbBlocksHtml(q.rich.stem, QBI[q.fileId])}</div>`;
+  return `<div class="q-text">${esc(q.question)}</div>${exhibitHtml(q)}`;
 }
 
 function explanationHtml(q, picked) {
   const ok = picked === q.answer;
+  if (q.qb) {
+    const body = q.rich ? qbBlocksHtml(q.rich.expl, QBI[q.fileId]) : qbParas(q.src.expl || "");
+    return `<div class="explain">
+      <div class="explain-head ${ok ? "ok" : "bad"}">${icon(ok ? "check" : "alert", 18)} ${ok ? "Correct" : picked ? `Incorrect — the answer is ${q.answer}` : `Not answered — the answer is ${q.answer}`}</div>
+      ${body ? `<div class="explain-body"><div class="qb-rich-expl">${body}</div></div>` : ""}
+    </div>`;
+  }
   const blocks = [
     q.explanation && `<div class="explain-block"><h4>Why ${q.answer} is correct</h4><p>${esc(q.explanation)}</p></div>`,
     q.whyNot && `<div class="explain-block"><h4>Why not the others</h4><p>${esc(q.whyNot)}</p></div>`,
@@ -146,6 +160,7 @@ function explanationHtml(q, picked) {
 
 function questionMetaHtml(q) {
   const t = topicById(q.topic);
+  if (q.qb) return `<div class="q-meta"><span class="badge">${t ? t.id : q.topic}</span><span class="badge badge-application">Question Bank</span><span class="text-3 small">${q.setN}. ${esc(q.setTitle)} · Q${q.n}</span></div>`;
   return `<div class="q-meta">
     <span class="badge">${t ? t.id : q.topic}</span>${levelBadge(q.level)}
     ${q.los ? `<span class="text-3 small">${esc(q.los)}</span>` : ""}
