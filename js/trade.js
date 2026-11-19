@@ -23,9 +23,10 @@ const TR_GROUPS = [
   ["watch", "Theo dõi"], ["VN30", "VN30"], ["HNX30", "HNX30"],
   ["bank", "Ngân hàng", ["ACB", "BID", "CTG", "EIB", "HDB", "LPB", "MBB", "MSB", "NAB", "OCB", "SHB", "SSB", "STB", "TCB", "TPB", "VCB", "VIB", "VPB"]],
   ["sec", "Chứng khoán", ["SSI", "VND", "HCM", "VCI", "SHS", "MBS", "FTS", "BSI", "CTS", "VIX", "VDS", "AGR", "ORS"]],
-  ["re", "Bất động sản", ["VHM", "VIC", "VRE", "NVL", "PDR", "DXG", "KDH", "NLG", "DIG", "CEO", "KBC", "IDC", "HDG", "DXS"]],
-  ["hold", "Đang nắm giữ"]
+  ["re", "BĐS", ["VHM", "VIC", "VRE", "NVL", "PDR", "DXG", "KDH", "NLG", "DIG", "CEO", "KBC", "IDC", "HDG", "DXS"]],
+  ["hold", "Nắm giữ"]
 ];
+const TR_GROUP_TIPS = { watch: "Danh sách theo dõi của bạn", bank: "Cổ phiếu ngân hàng", sec: "Cổ phiếu chứng khoán", re: "Cổ phiếu bất động sản", hold: "Cổ phiếu bạn đang nắm giữ" };
 const TRADE = { q: {}, at: 0, err: "", loading: false, timer: null, tab: "board", group: "VN30", lists: {}, idx: null, prev: {}, bars: {}, range: "3M", side: "B", type: "LO", vnindex: null };
 
 // ---------- Account ----------
@@ -324,6 +325,20 @@ function renderTrade(sub, sym) {
   const draw = () => {
     if (currentRoute()[0] !== "trade" || currentRoute()[1]) return;
     if (document.activeElement && document.activeElement.id === "tr-add" && document.activeElement.value) return;   // don't wipe a ticker being typed
+    const fs = document.fullscreenElement;
+    if (fs && fs.id === "vb-card" && TRADE.tab === "board") {          // full screen: refresh only the board's rows
+      trProcessPending();
+      const tmp = document.createElement("div");
+      tmp.innerHTML = trBoardHtml(list);
+      const fresh = tmp.querySelector("#vb-card");
+      if (fresh) {
+        const ticket = document.getElementById("tr-qo");
+        fs.dataset.board = fresh.dataset.board; fs.replaceChildren(...fresh.childNodes);
+        if (ticket) fs.appendChild(ticket);
+        trBindMain(draw, reload);
+      }
+      return;
+    }
     trProcessPending();
     const nav = trNav(), ret = T.initial ? (nav - T.initial) / T.initial * 100 : 0;
     if (TRADE.at) trSnapshot(nav);
@@ -359,69 +374,116 @@ function renderTrade(sub, sym) {
   trAutoRefresh(() => reload(true));
 }
 
-// The price board (standard Vietnamese layout)
+// ---------- Price board (bảng điện) ----------
+// View (full 25 columns / compact 6 columns) and light/dark board are remembered on this device
+const TR_BOARD_VIEW = "cfaStudy_board_view", TR_BOARD_THEME = "cfaStudy_board_theme";
+function trPref(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function trSetPref(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+function trBoardView() { const v = trPref(TR_BOARD_VIEW); return v === "full" || v === "compact" ? v : window.innerWidth < 768 ? "compact" : "full"; }
+function trBoardTheme() {
+  const v = trPref(TR_BOARD_THEME);
+  if (v === "dark" || v === "light") return v;
+  const a = document.documentElement.getAttribute("data-theme");
+  return a === "dark" ? "dark" : a === "light" ? "light" : (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+const trV10 = v => v ? trInt(v / 10) : "";          // board volumes in units of 10 shares, as on Vietnamese boards
+const trShort = v => !v ? "" : v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e4 ? `${(v / 1e3).toFixed(1)}K` : trInt(v);
+
+// Market strip: the four indices with their breadth (advancers / unchanged / decliners)
+function trMarketStrip() {
+  if (!TRADE.idx || !TRADE.idx.length) return "";
+  return `<div class="mk section" data-board="${trBoardTheme()}">${TRADE.idx.map(x => {
+    const t = trPlTone(x.chg);
+    return `<div class="mk-i">
+      <div class="mk-top"><span class="mk-name">${x.name}</span><span class="mk-pill ${t}">${trPct(x.pct)}</span></div>
+      <div class="mk-v">${x.v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      <div class="mk-c ${t}">${trSigned(x.chg, v => v.toFixed(2))} điểm</div>
+      <div class="mk-br" role="img" aria-label="${x.up} mã tăng, ${x.same} đứng giá, ${x.down} mã giảm"><i class="b-up" style="flex:${x.up || 0}"></i><i class="b-ref" style="flex:${x.same || 0}"></i><i class="b-down" style="flex:${x.down || 0}"></i></div>
+      <div class="mk-meta"><span><b class="px-up">▲ ${x.up}</b><b class="px-ref">■ ${x.same}</b><b class="px-down">▼ ${x.down}</b></span><span>${trInt(x.value / 1000)} tỷ</span></div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
 function trBoardHtml(list) {
-  const T = tradeData();
-  const ix = (TRADE.idx || []).map(x => `<div class="vb-ix">
-      <span class="vb-ix-name">${x.name}</span>
-      <span class="vb-ix-v ${trPlTone(x.chg)}">${x.v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-      <span class="vb-ix-c ${trPlTone(x.chg)}">${trSigned(x.chg, v => v.toFixed(2))} (${trPct(x.pct)})</span>
-      <span class="vb-ix-m">${trInt(x.vol)} CP · ${trInt(x.value / 1000)} tỷ</span>
-      <span class="vb-ix-b"><b class="px-up">▲${x.up}</b> <b class="px-ref">■${x.same}</b> <b class="px-down">▼${x.down}</b></span>
-    </div>`).join("");
-  const prevKey = TRADE.prev;
-  const cell = (sym, k, txt, cls, qo) => {
-    const key = sym + "|" + k, old = prevKey[key];
-    prevKey[key] = txt;
-    const flash = old !== undefined && old !== txt && txt !== "" ? " vb-flash" : "";
-    return `<td class="${cls || ""}${flash}${qo ? " vb-click" : ""}"${qo ? ` data-qo="${qo}" title="Bấm để đặt lệnh"` : ""}>${txt}</td>`;
+  const T = tradeData(), view = trBoardView(), theme = trBoardTheme(), prev = TRADE.prev, full = view === "full";
+  const num = s => parseFloat(String(s).replace(/,/g, ""));
+  // one cell; flashes green/red when a price ticks up/down, gold when a volume changes
+  const td = (sym, k, txt, o = {}) => {
+    const key = `${view}|${sym}|${k}`, old = prev[key];
+    prev[key] = txt;
+    let fl = "";
+    if (old !== undefined && old !== txt && txt !== "") {
+      const a = num(old), b = num(txt);
+      fl = o.price && isFinite(a) && isFinite(b) ? (b > a ? "fl-up" : "fl-dn") : "fl";
+    }
+    const cls = [o.cls, fl, o.qo ? "vb-click" : ""].filter(Boolean).join(" ");
+    const act = o.qo ? (o.qo.split("|")[1] === "B" ? "Mua" : "Bán") : "";
+    return `<td${cls ? ` class="${cls}"` : ""}${o.qo ? ` data-qo="${o.qo}" data-act="${act}" title="Bấm để ${act.toLowerCase()} giá này"` : ""}>${o.html || txt}</td>`;
   };
-  // a bid price opens a SELL at that price (you hit the bid); an offer opens a BUY (you lift the offer)
-  const lvl = (sym, q, side, i) => {
-    const [p, v, raw] = q[side][i], cls = raw ? "px-ref" : trPxClass(q, p);
+  // an order-book level: a bid opens a SELL at that price (you hit the bid), an offer opens a BUY (you lift the offer)
+  const lvl = (sym, q, side, i, start) => {
+    const [p, v, raw] = q[side][i], tone = raw ? "px-ref" : trPxClass(q, p);
     const qo = p && !raw ? `${sym}|${side === "bid" ? "S" : "B"}|${p}` : "";
-    return cell(sym, side + "p" + i, raw || (p ? trP(p) : ""), "vb-p " + cls, qo) + cell(sym, side + "v" + i, v ? trInt(v) : "", "vb-v " + cls, qo);
+    const band = side === "bid" ? "bd-bid" : "bd-ask";
+    return td(sym, `${side}p${i}`, raw || (p ? trP(p) : ""), { cls: `p ${tone} ${band}${start ? " gs" : ""}`, qo, price: true })
+      + td(sym, `${side}v${i}`, trV10(v), { cls: `v ${tone} ${band}`, qo });
   };
+  const pctPill = q => `<span class="vb-pct">${trPct(q.pct)}</span>`;
   const rows = list.map(sym => {
     const q = TRADE.q[sym];
-    if (!q) return `<tr><th class="vb-sym" scope="row">${sym}</th><td colspan="24" class="vb-wait">${TRADE.loading ? "đang tải…" : "không có dữ liệu"}</td></tr>`;
+    if (!q) return `<tr><th class="vb-sym" scope="row"><span>${sym}</span></th><td colspan="${full ? 24 : 4}" class="vb-wait">${TRADE.loading ? "đang tải…" : "không có dữ liệu"}</td></tr>`;
     const t = trTone(q), mine = T.holdings[sym] ? " vb-mine" : "";
-    return `<tr class="vb-row${mine}" data-tr-open="${sym}" tabindex="0">
-      <th class="vb-sym ${t}" scope="row">${sym}</th>
-      <td class="vb-ceil px-ceil">${trP(q.ceil)}</td><td class="vb-floor px-floor">${trP(q.floor)}</td><td class="vb-ref px-ref">${trP(q.ref)}</td>
-      ${lvl(sym, q, "bid", 2)}${lvl(sym, q, "bid", 1)}${lvl(sym, q, "bid", 0)}
-      ${cell(sym, "last", trP(q.last), "vb-m vb-p " + t, `${sym}|B|${q.last}`)}${cell(sym, "lv", q.lastVol ? trInt(q.lastVol) : "", "vb-m vb-v " + t)}${cell(sym, "chg", trSigned(q.chg, trP), "vb-m " + t)}${cell(sym, "pct", trPct(q.pct), "vb-m " + t)}
-      ${lvl(sym, q, "ask", 0)}${lvl(sym, q, "ask", 1)}${lvl(sym, q, "ask", 2)}
-      ${cell(sym, "vol", trInt(q.vol), "vb-tot")}
-      ${cell(sym, "hi", q.high ? trP(q.high) : "", trPxClass(q, q.high))}${cell(sym, "lo", q.low ? trP(q.low) : "", trPxClass(q, q.low))}
-      ${cell(sym, "fb", q.fBuy ? trInt(q.fBuy) : "", "vb-f")}${cell(sym, "fs", q.fSell ? trInt(q.fSell) : "", "vb-f")}
+    const sym1 = `<th class="vb-sym ${t}" scope="row"><span>${sym}</span>${full ? "" : `<small>${TR_MARKET[q.market] || ""}</small>`}</th>`;
+    if (!full) {
+      const [bp, bv, br] = q.bid[0], [ap, av, ar] = q.ask[0];
+      const bt = br ? "px-ref" : trPxClass(q, bp), at = ar ? "px-ref" : trPxClass(q, ap);
+      return `<tr class="vb-row${mine}" data-tr-open="${sym}" tabindex="0">${sym1}
+        ${td(sym, "bidp0", br || (bp ? trP(bp) : "–"), { cls: `c2 bd-bid ${bt}`, qo: bp && !br ? `${sym}|S|${bp}` : "", price: true, html: `<b>${br || (bp ? trP(bp) : "–")}</b><small>${trV10(bv)}</small>` })}
+        ${td(sym, "last", trP(q.last), { cls: `c2 m mp ${t}`, qo: `${sym}|B|${q.last}`, price: true, html: `<b>${trP(q.last)}</b>${pctPill(q)}` })}
+        ${td(sym, "askp0", ar || (ap ? trP(ap) : "–"), { cls: `c2 bd-ask ${at}`, qo: ap && !ar ? `${sym}|B|${ap}` : "", price: true, html: `<b>${ar || (ap ? trP(ap) : "–")}</b><small>${trV10(av)}</small>` })}
+        ${td(sym, "vol", trShort(q.vol / 10), { cls: "tot" })}
+      </tr>`;
+    }
+    return `<tr class="vb-row${mine}" data-tr-open="${sym}" tabindex="0">${sym1}
+      <td class="r px-ceil gs">${trP(q.ceil)}</td><td class="r px-floor">${trP(q.floor)}</td><td class="r px-ref">${trP(q.ref)}</td>
+      ${lvl(sym, q, "bid", 2, true)}${lvl(sym, q, "bid", 1)}${lvl(sym, q, "bid", 0)}
+      ${td(sym, "last", trP(q.last), { cls: `m mp gs ${t}`, qo: `${sym}|B|${q.last}`, price: true })}${td(sym, "lv", trV10(q.lastVol), { cls: `m v ${t}` })}${td(sym, "chg", trSigned(q.chg, trP), { cls: `m ${t}` })}${td(sym, "pct", trPct(q.pct), { cls: `m ${t}`, html: pctPill(q) })}
+      ${lvl(sym, q, "ask", 0, true)}${lvl(sym, q, "ask", 1)}${lvl(sym, q, "ask", 2)}
+      ${td(sym, "vol", trV10(q.vol), { cls: "tot gs" })}${td(sym, "hi", q.high ? trP(q.high) : "", { cls: `r ${trPxClass(q, q.high)}` })}${td(sym, "lo", q.low ? trP(q.low) : "", { cls: `r ${trPxClass(q, q.low)}` })}
+      ${td(sym, "fb", trV10(q.fBuy), { cls: "nn gs" })}${td(sym, "fs", trV10(q.fSell), { cls: "nn" })}
     </tr>`;
   }).join("");
-  return `
-    ${ix ? `<div class="vb-ixs section">${ix}</div>` : ""}
-    <div class="vb-tools section">
-      <div class="vb-groups" role="tablist">${TR_GROUPS.map(([k, l]) => `<button class="tt-chip${TRADE.group === k ? " active" : ""}" data-tr-group="${k}" role="tab" aria-selected="${TRADE.group === k}">${l}${k === "watch" ? ` (${T.watch.length})` : k === "hold" ? ` (${Object.keys(T.holdings).length})` : ""}</button>`).join("")}</div>
-      <form class="tr-add" id="tr-add-form" autocomplete="off">
-        <input class="input" id="tr-add" placeholder="Thêm mã vào Theo dõi, ví dụ VNM" maxlength="10" spellcheck="false" aria-label="Mã cổ phiếu">
-        <button class="btn btn-secondary" type="submit">${icon("plus", 16)} Thêm</button>
-        <button class="btn btn-primary" type="button" id="tr-qo-open">${icon("trend", 16)} Đặt lệnh</button>
-        ${document.fullscreenEnabled ? `<button class="btn btn-ghost hide-mobile" id="vb-full" type="button" title="Xem bảng giá toàn màn hình">${icon("grid", 16)} Toàn màn hình</button>` : ""}
-      </form>
-    </div>
-    <div class="vb-wrap" id="vb-wrap">
-      <table class="vb">
-        <thead>
-          <tr><th rowspan="2" class="vb-sym">Mã CK</th><th rowspan="2">Trần</th><th rowspan="2">Sàn</th><th rowspan="2">TC</th>
-            <th colspan="6" class="vb-g">Bên mua</th><th colspan="4" class="vb-g vb-mh">Khớp lệnh</th><th colspan="6" class="vb-g">Bên bán</th>
-            <th rowspan="2">Tổng KL</th><th rowspan="2">Cao</th><th rowspan="2">Thấp</th><th colspan="2" class="vb-g">ĐTNN</th></tr>
-          <tr><th>Giá 3</th><th>KL 3</th><th>Giá 2</th><th>KL 2</th><th>Giá 1</th><th>KL 1</th>
-            <th class="vb-mh">Giá</th><th class="vb-mh">KL</th><th class="vb-mh">+/−</th><th class="vb-mh">%</th>
-            <th>Giá 1</th><th>KL 1</th><th>Giá 2</th><th>KL 2</th><th>Giá 3</th><th>KL 3</th><th>Mua</th><th>Bán</th></tr>
-        </thead>
-        <tbody>${rows || `<tr><td colspan="25" class="vb-wait">${TRADE.group === "hold" ? "Bạn chưa nắm giữ mã nào." : TRADE.group === "watch" ? "Danh sách Theo dõi đang trống — thêm mã ở ô bên trên." : "Đang tải danh sách…"}</td></tr>`}</tbody>
-      </table>
-    </div>
-    <p class="text-3 small vb-note">Giá: nghìn đồng (51.10 = 51.100 ₫) · KL: cổ phiếu · ĐTNN: khối lượng nhà đầu tư nước ngoài mua/bán. Màu: <span class="px-up">tăng</span>, <span class="px-down">giảm</span>, <span class="px-ref">tham chiếu</span>, <span class="px-ceil">trần</span>, <span class="px-floor">sàn</span>. <strong>Bấm vào giá bên Bán để mua, giá bên Mua để bán</strong>; bấm vào mã để xem biểu đồ${TRADE.group === "watch" ? "; nhấn giữ hoặc chuột phải vào mã để bỏ khỏi Theo dõi" : ""}.</p>`;
+  const head = full ? `<thead>
+      <tr><th rowspan="2" class="vb-sym">Mã CK</th><th rowspan="2" class="gs">Trần</th><th rowspan="2">Sàn</th><th rowspan="2">TC</th>
+        <th colspan="6" class="g h-bid gs">Bên mua</th><th colspan="4" class="g h-mid gs">Khớp lệnh</th><th colspan="6" class="g h-ask gs">Bên bán</th>
+        <th rowspan="2" class="gs">Tổng KL</th><th rowspan="2">Cao</th><th rowspan="2">Thấp</th><th colspan="2" class="g gs">ĐTNN</th></tr>
+      <tr><th class="h-bid gs">Giá 3</th><th class="h-bid">KL 3</th><th class="h-bid">Giá 2</th><th class="h-bid">KL 2</th><th class="h-bid">Giá 1</th><th class="h-bid">KL 1</th>
+        <th class="h-mid gs">Giá</th><th class="h-mid">KL</th><th class="h-mid">+/−</th><th class="h-mid">%</th>
+        <th class="h-ask gs">Giá 1</th><th class="h-ask">KL 1</th><th class="h-ask">Giá 2</th><th class="h-ask">KL 2</th><th class="h-ask">Giá 3</th><th class="h-ask">KL 3</th>
+        <th class="gs">Mua</th><th>Bán</th></tr></thead>`
+    : `<thead><tr><th class="vb-sym">Mã CK</th><th class="h-bid">Giá mua</th><th class="h-mid">Khớp</th><th class="h-ask">Giá bán</th><th>Tổng KL</th></tr></thead>`;
+  const empty = TRADE.group === "hold" ? "Bạn chưa nắm giữ mã nào." : TRADE.group === "watch" ? "Danh sách Theo dõi đang trống — gõ mã vào ô tìm kiếm rồi nhấn Enter." : "Đang tải danh sách…";
+  return `${trMarketStrip()}
+    <div class="vb-card section" id="vb-card" data-board="${theme}">
+      <div class="vb-bar">
+        <div class="vb-tabs" role="tablist" aria-label="Nhóm cổ phiếu">${TR_GROUPS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${TRADE.group === k}" class="${TRADE.group === k ? "active" : ""}" data-tr-group="${k}"${TR_GROUP_TIPS[k] ? ` title="${TR_GROUP_TIPS[k]}"` : ""}>${l}${k === "watch" ? `<span class="n">${T.watch.length}</span>` : k === "hold" ? `<span class="n">${Object.keys(T.holdings).length}</span>` : ""}</button>`).join("")}</div>
+        <div class="vb-actions">
+          <form class="vb-search" id="tr-add-form" autocomplete="off" role="search">${icon("search", 15)}<input id="tr-add" placeholder="Thêm mã vào Theo dõi…" maxlength="10" spellcheck="false" enterkeyhint="go" aria-label="Thêm mã cổ phiếu vào Theo dõi"></form>
+          <button type="button" class="vb-icon" id="vb-view" title="${full ? "Chế độ gọn" : "Chế độ đầy đủ"}" aria-label="${full ? "Chuyển sang chế độ gọn" : "Chuyển sang chế độ đầy đủ"}">${icon(full ? "rows" : "columns", 16)}</button>
+          <button type="button" class="vb-icon" id="vb-theme" title="${theme === "dark" ? "Nền sáng" : "Nền tối"}" aria-label="${theme === "dark" ? "Chuyển bảng sang nền sáng" : "Chuyển bảng sang nền tối"}">${icon(theme === "dark" ? "sun" : "moon", 16)}</button>
+          ${document.fullscreenEnabled ? `<button type="button" class="vb-icon hide-mobile" id="vb-full" title="Toàn màn hình" aria-label="Xem bảng giá toàn màn hình">${icon("expand", 16)}</button>` : ""}
+          <button type="button" class="btn btn-primary btn-sm vb-order" id="tr-qo-open">${icon("plus", 15)} Đặt lệnh</button>
+        </div>
+      </div>
+      <div class="vb-wrap" id="vb-wrap">
+        <table class="vb ${full ? "vb-wide" : "vb-compact"}">${head}<tbody>${rows || `<tr><td colspan="${full ? 25 : 5}" class="vb-wait">${empty}</td></tr>`}</tbody></table>
+      </div>
+      <div class="vb-foot">
+        <span>Giá: nghìn ₫ · KL: 10 cổ phiếu</span>
+        <span class="vb-legend"><span><i class="d-up"></i>Tăng</span><span><i class="d-down"></i>Giảm</span><span><i class="d-ref"></i>Tham chiếu</span><span><i class="d-ceil"></i>Trần</span><span><i class="d-floor"></i>Sàn</span></span>
+        <span>Bấm giá <b>bên bán</b> để mua, giá <b>bên mua</b> để bán${TRADE.group === "watch" ? " · nhấn giữ mã để bỏ khỏi Theo dõi" : ""}</span>
+      </div>
+    </div>`;
 }
 
 function trPortfolioHtml() {
@@ -521,7 +583,15 @@ function trBindMain(draw, reload) {
   view.querySelectorAll("[data-tr-retry]").forEach(b => b.onclick = () => reload(false));
   view.querySelectorAll("[data-tr-tab]").forEach(b => b.onclick = () => { TRADE.tab = b.dataset.trTab; draw(); });
   view.querySelectorAll("[data-tr-group]").forEach(b => b.onclick = async () => { TRADE.group = b.dataset.trGroup; TRADE.prev = {}; draw(); await reload(true); });
-  view.querySelectorAll("[data-tr-open]").forEach(r => {
+  trBindRows(view, reload);
+  view.querySelectorAll("[data-tr-cancel]").forEach(b => b.onclick = () => {
+    const o = tradeData().orders.find(x => x.id === b.dataset.trCancel);
+    if (o && o.status === "pending") { o.status = "cancelled"; saveData(); toast("Đã hủy lệnh"); draw(); }
+  });
+  trBindRest(draw, reload);
+}
+function trBindRows(root, reload) {
+  root.querySelectorAll("[data-tr-open]").forEach(r => {
     r.onclick = e => {
       if (e.target.closest("button")) return;
       const qo = e.target.closest("[data-qo]");
@@ -536,14 +606,16 @@ function trBindMain(draw, reload) {
       const T = tradeData(); T.watch = T.watch.filter(s => s !== sym); saveData(); reload(true);
     };
   });
-  view.querySelectorAll("[data-tr-cancel]").forEach(b => b.onclick = () => {
-    const o = tradeData().orders.find(x => x.id === b.dataset.trCancel);
-    if (o && o.status === "pending") { o.status = "cancelled"; saveData(); toast("Đã hủy lệnh"); draw(); }
-  });
+}
+function trBindRest(draw, reload) {
   const qob = document.getElementById("tr-qo-open");
   if (qob) qob.onclick = () => trQuickOpen({});
   const full = document.getElementById("vb-full");
-  if (full) full.onclick = () => { const w = document.getElementById("vb-wrap"); if (document.fullscreenElement) document.exitFullscreen(); else if (w.requestFullscreen) w.requestFullscreen().catch(() => {}); };
+  if (full) full.onclick = () => { const c = document.getElementById("vb-card"); if (document.fullscreenElement) document.exitFullscreen(); else if (c.requestFullscreen) c.requestFullscreen().catch(() => {}); };
+  const vw = document.getElementById("vb-view");
+  if (vw) vw.onclick = () => { trSetPref(TR_BOARD_VIEW, trBoardView() === "full" ? "compact" : "full"); TRADE.prev = {}; draw(); };
+  const th = document.getElementById("vb-theme");
+  if (th) th.onclick = () => { trSetPref(TR_BOARD_THEME, trBoardTheme() === "dark" ? "light" : "dark"); draw(); };
   const form = document.getElementById("tr-add-form");
   if (form) form.onsubmit = async e => {
     e.preventDefault();
@@ -728,7 +800,16 @@ async function trQuickOpen(o) {
   const T = tradeData(), prev = TRADE.qo || {};
   TRADE.qo = { sym: o.sym || prev.sym || Object.keys(T.holdings)[0] || T.watch[0] || "", side: o.side || prev.side || "B", type: o.type || (o.price ? "LO" : prev.type || "LO"), price: o.price || null, qty: prev.qty || TR_LOT };
   let el = document.getElementById("tr-qo");
-  if (!el) { el = document.createElement("div"); el.id = "tr-qo"; el.className = "qo"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Đặt lệnh"); document.body.appendChild(el); }
+  const host = document.fullscreenElement || document.body;        // in full screen the ticket must live inside the board
+  if (!el) { el = document.createElement("div"); el.id = "tr-qo"; el.className = "qo"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Đặt lệnh"); }
+  if (el.parentNode !== host) host.appendChild(el);
+  if (!trQuickOpen.watching) {
+    trQuickOpen.watching = true;
+    document.addEventListener("fullscreenchange", () => {
+      const t = document.getElementById("tr-qo");
+      if (t && !document.fullscreenElement && t.parentNode !== document.body) document.body.appendChild(t);
+    });
+  }
   document.body.classList.add("qo-open");
   if (TRADE.qo.sym && !TRADE.q[TRADE.qo.sym]) { try { await trFetchQuotes([TRADE.qo.sym]); } catch (e) { /* shown below */ } }
   trQuickDraw();
@@ -749,7 +830,7 @@ function trQuickDraw() {
     <div class="qo-f qo-price"><span>Giá</span><div class="tr-stepper"><button type="button" class="btn btn-secondary" data-qo-step="-1" aria-label="Giảm giá" ${s.type === "MP" ? "disabled" : ""}>−</button><input class="input mono" id="qo-price" inputmode="decimal" value="${s.type === "MP" ? "MP" : s.price ? trP(s.price) : ""}" ${s.type === "MP" ? "disabled" : ""} aria-label="Giá"><button type="button" class="btn btn-secondary" data-qo-step="1" aria-label="Tăng giá" ${s.type === "MP" ? "disabled" : ""}>+</button></div></div>
     <div class="qo-f qo-qty"><span>Khối lượng</span><div class="tr-stepper"><button type="button" class="btn btn-secondary" data-qo-qty="-1" aria-label="Giảm khối lượng">−</button><input class="input mono" id="qo-qty" inputmode="numeric" value="${s.qty}" aria-label="Khối lượng"><button type="button" class="btn btn-secondary" data-qo-qty="1" aria-label="Tăng khối lượng">+</button></div></div>
     <div class="qo-info" id="qo-info"></div>
-    <button type="button" class="btn btn-lg qo-go ${buy ? "tr-buy" : "tr-sell"}" id="qo-go">${buy ? "Mua" : "Bán"}</button>
+    <button type="button" class="btn btn-lg qo-go ${buy ? "tr-buy" : "tr-sell"}" id="qo-go">${buy ? "Mua" : "Bán"} ${esc(s.sym)}</button>
     <button type="button" class="icon-btn qo-x" id="qo-x" aria-label="Đóng">${icon("x", 18)}</button>`;
   const info = () => {
     const q2 = TRADE.q[s.sym], box = document.getElementById("qo-info");
