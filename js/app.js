@@ -5,17 +5,17 @@
 const view = document.getElementById("view");
 
 const NAV_ITEMS = [
-  { route: "dashboard", label: "Dashboard", icon: "home" },
-  { route: "study", label: "Study plan", icon: "target" },
-  { route: "schweser", label: "SchweserNotes", icon: "book" },
-  { route: "curriculum", label: "Curriculum", icon: "grid" },
-  { route: "cards", label: "Flashcards", icon: "cards" },
-  { route: "practice", label: "Practice", icon: "check" },
-  { route: "qbank", label: "Question Bank", icon: "flag" },
-  { route: "analysis", label: "Weak spots", icon: "alert" },
-  { route: "dist", label: "Distributions", icon: "target" },
-  { route: "mock", label: "Mock exams", icon: "clock" },
-  { route: "settings", label: "Settings", icon: "settings" }
+  { route: "dashboard", label: "Dashboard", icon: "home", group: "Plan" },
+  { route: "study", label: "Study plan", icon: "calendar", group: "Plan" },
+  { route: "analysis", label: "Weak spots", icon: "pulse", group: "Plan" },
+  { route: "schweser", label: "SchweserNotes", icon: "book", group: "Learn" },
+  { route: "curriculum", label: "Curriculum", icon: "layers", group: "Learn" },
+  { route: "cards", label: "Flashcards", icon: "cards", group: "Learn" },
+  { route: "dist", label: "Distributions", icon: "curve", group: "Learn" },
+  { route: "practice", label: "Practice", icon: "check", group: "Test" },
+  { route: "qbank", label: "Question Bank", icon: "flag", group: "Test" },
+  { route: "mock", label: "Mock exams", icon: "clock", group: "Test" },
+  { route: "settings", label: "Settings", icon: "settings", group: "" }
 ];
 const MOBILE_NAV = ["dashboard", "study", "practice", "mock", "more"];
 const MOBILE_LABEL = { dashboard: "Home", study: "Study", practice: "Practice", mock: "Mock", more: "More", qbank: "Bank", cards: "Cards" };
@@ -57,10 +57,12 @@ function refreshShell() {
   const active = route === "topic" || route === "module" ? "study" : route;
   const { daysLeft, week, phase } = countdownInfo();
 
+  let group = null;
   document.getElementById("side-nav").innerHTML = navItems().map(n => {
     const b = navBadge(n.route);
-    return `<a class="nav-link ${active === n.route ? "active" : ""}" href="#/${n.route}" ${active === n.route ? 'aria-current="page"' : ""}>
-      ${icon(n.icon, 20)}<span>${n.label}</span>${b ? `<span class="nav-badge">${b}</span><i class="dot"></i>` : ""}</a>`;
+    const head = n.group !== group ? (group = n.group, n.group ? `<div class="nav-label">${n.group}</div>` : `<div class="nav-sep"></div>`) : "";
+    return `${head}<a class="nav-link ${active === n.route ? "active" : ""}" href="#/${n.route}" ${active === n.route ? 'aria-current="page"' : ""}>
+      ${icon(n.icon, 19)}<span>${n.label}</span>${b ? `<span class="nav-badge">${b}</span><i class="dot"></i>` : ""}</a>`;
   }).join("");
 
   const moreActive = !mobileNav().includes(active) && !["dashboard", "study", "practice", "mock"].includes(active) || active === "more";
@@ -73,14 +75,85 @@ function refreshShell() {
 
   document.getElementById("mobile-settings").innerHTML = icon("settings", 20);
   const prof = activeProfile();
-  document.getElementById("profile-chip").innerHTML = `${avatarHtml(prof, 30)}<span class="pc-text"><span class="pc-name">${esc(prof.name)}</span><br><span class="pc-sub">${PROFILES.list.length > 1 ? "Switch profile" : "Profile"}</span></span>`;
+  document.getElementById("profile-chip").innerHTML = `${avatarHtml(prof, 32)}<span class="pc-text"><span class="pc-name">${esc(prof.name)}</span><span class="pc-sub">${PROFILES.list.length > 1 && isOwner() ? "Switch profile" : "Account"}</span></span>`;
   document.getElementById("mobile-profile").innerHTML = avatarHtml(prof, 30);
-  document.getElementById("side-days").textContent = daysLeft >= 0 ? `${daysLeft} days` : "Done";
-  document.getElementById("side-week").textContent = week >= 1 ? `Week ${Math.min(week, 25)} · ${phase}` : phase;
-  document.getElementById("mobile-days").textContent = daysLeft >= 0 ? `${daysLeft} days left` : "";
+  document.getElementById("side-days").innerHTML = daysLeft >= 0 ? `${daysLeft}<small>days</small>` : "Exam day";
+  document.getElementById("side-week").textContent = week >= 1 ? `Week ${Math.min(week, 25)} of 25 · ${phase.replace(/^Phase \d · /, "")}` : phase;
+  document.getElementById("mobile-days").textContent = daysLeft >= 0 ? `${daysLeft} days` : "";
+  // Brand logo and the engraved ribbon behind the countdown are drawn once
+  document.querySelectorAll(".brand-mark:empty").forEach((el, i) => { el.innerHTML = gateLogoSvg(40, "bl" + i); });
+  const foot = document.querySelector(".sidebar-foot");
+  if (foot && !foot.querySelector(".wave-band")) foot.insertAdjacentHTML("afterbegin", waveBand({ width: 240, height: 70, lines: 9, waves: 3, stroke: 0.7 }));
 }
 
 // ================= DASHBOARD =================
+function greeting() {
+  const h = new Date().getHours();
+  return h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+// Vietnamese full names end with the given name: "Nguyễn Ngô Gia Bảo" → "Bảo"
+function callName() {
+  const n = (activeProfile().name || "").trim();
+  return !n || n === "Me" ? "" : n.split(/\s+/).pop();
+}
+// First module of the current topic that is not done yet
+function nextModuleInfo() {
+  const t = currentTopic();
+  if (!t) return null;
+  const m = modulesOf(t.id).find(x => !["done", "reviewed"].includes((chapterOf(x.id) || {}).status));
+  return m ? { m, t } : null;
+}
+// Average module completion over the whole syllabus, and the same weighted by 2027 exam weight
+function syllabusCompletion() {
+  const byTopic = TOPICS.map(t => ({ t, tp: topicModuleProgress(t.id), share: weightShare(t) }));
+  const plain = Math.round(byTopic.reduce((s, x) => s + x.tp.pct * x.tp.modules, 0) / Math.max(1, MODULES.length));
+  const wsum = byTopic.reduce((s, x) => s + x.share, 0);
+  const weighted = Math.round(byTopic.reduce((s, x) => s + x.tp.pct * x.share, 0) / Math.max(1, wsum));
+  return { plain, weighted, byTopic };
+}
+function qbRedoTotal() {
+  return TOPICS.reduce((s, t) => s + (QBANK_FILES[t.id] || []).filter(f => !qbSkipped(f[2])).reduce((x, f) => x + qbStats(f[2]).redo.length, 0), 0);
+}
+
+// Exam-weight allocation: width = weight, fill = completion
+function allocationHtml(byTopic) {
+  return `<div class="alloc" role="img" aria-label="Exam weight of each topic, filled by how much of it you have completed">${byTopic.map(({ t, tp, share }) => `
+    <a class="alloc-seg" href="#/topic/${t.id}" style="flex:${share}" data-tip="${esc(`${t.name}\nExam weight ${t.weight}\n${tp.pct}% complete`)}">
+      <span class="alloc-bar"><span class="alloc-fill" style="height:${tp.pct}%"></span></span><span class="alloc-code">${t.id}</span></a>`).join("")}</div>`;
+}
+
+// The ten topics as a ledger: code · topic · module strip · weight · accuracy · completion
+function topicLedgerHtml(opts = {}) {
+  const WK = weakStats(), exp = expectedTopic();
+  let weekEnd = 0;
+  const chev = icon("chevron", 16).replace('class="icon"', 'class="icon chev"');
+  const rows = TOPICS.map((t, i) => {
+    const tp = topicModuleProgress(t.id), ws = WK.topic[t.id];
+    const mods = modulesOf(t.id);
+    const reads = mods.filter(m => { const r = DATA.reading[m.id] || {}; return r.schweser || r.curriculum; }).length;
+    const from = weekEnd + 1; weekEnd += t.plannedWeeks;
+    const now = exp && exp.id === t.id;
+    const acc = ws.pct === null ? `<span class="acc acc-none">—</span>` : `<span class="acc acc-${ws.status}">${ws.pct}%</span>`;
+    const wa = Math.ceil(from), wb = Math.ceil(weekEnd);
+    const sub = [`${tp.done}/${tp.modules} done`, `${reads}/${tp.modules} read`, opts.weeks ? (wa === wb ? `week ${wa}` : `weeks ${wa}–${wb}`) : ""].filter(Boolean).join(" · ");
+    return `<a class="lg-row${now ? " now" : ""}" href="#/topic/${t.id}" style="--i:${i}">
+      <span class="lg-code">${t.id}</span>
+      <span class="lg-main"><span class="lg-name">${t.name}${now ? ` <span class="badge badge-application">This week</span>` : ""}</span><span class="lg-sub">${sub}</span></span>
+      ${statusStrip(t.id)}
+      <span class="lg-weight r">${t.weight}</span>
+      <span class="lg-acc r">${acc}</span>
+      <span class="lg-pct r">${tp.pct}%</span>
+      <span class="lg-sub-m"><span>Weight ${t.weight}</span><span>${ws.pct === null ? "No answers yet" : `${acc} accuracy`}</span></span>
+      ${chev}
+    </a>`;
+  }).join("");
+  return `<div class="ledger">
+    <div class="lg-head"><span>Code</span><span>Topic</span><span>Modules</span><span class="r">Weight</span><span class="r">Accuracy</span><span class="r">Complete</span><span></span></div>
+    ${rows}</div>`;
+}
+
+let ROUTE_ENTER = false;   // true while the router draws a page it has just navigated to
+
 function renderDashboard() {
   const { daysLeft, week, phase } = countdownInfo();
   const all = overallProgress();
@@ -90,97 +163,126 @@ function renderDashboard() {
   const log = DATA.dailyLog[todayStr()] || {};
   const lastMock = DATA.mocks[DATA.mocks.length - 1];
   const backupAgo = DATA.settings.lastBackup ? daysBetween(DATA.settings.lastBackup, todayStr()) : null;
-
+  const tests = !testsHidden();
   const WK = weakStats();
-  const topicCards = TOPICS.map(t => {
-    const tp = topicModuleProgress(t.id);
-    const mods = modulesOf(t.id);
-    const ws = WK.topic[t.id];
-    const reads = mods.filter(m => { const r = DATA.reading[m.id] || {}; return r.schweser || r.curriculum; }).length;
-    const strip = mods.map(m => {
-      const st = (chapterOf(m.id) || {}).status || "not_started";
-      return `<i class="tc-seg tc-${st}" title="${esc(m.id + " · " + m.title + " — " + STATUS_LABEL[st])}"></i>`;
-    }).join("");
-    const acc = ws.pct === null ? `<span class="text-3">No answers yet</span>` : `<span class="tc-acc wk-badge wk-${ws.status}">${ws.pct}% accuracy</span>`;
-    return `
-      <a class="card card-link topic-card" href="#/topic/${t.id}">
-        <div class="row-between"><div class="topic-code">${t.id} · ${t.weight}</div><div class="tc-pct">${tp.pct}%</div></div>
-        <h3>${t.name}</h3>
-        <div class="tc-bar" role="img" aria-label="${tp.pct}% complete"><span style="width:${tp.pct}%"></span></div>
-        <div class="tc-strip" aria-label="Module status">${strip}</div>
-        <div class="tc-rows small">
-          <div class="row-between"><span class="text-2">Modules done</span><strong>${tp.done}/${tp.modules}</strong></div>
-          <div class="row-between"><span class="text-2">Modules started reading</span><strong>${reads}/${tp.modules}</strong></div>
-          <div class="row-between"><span class="text-2">Questions answered</span><strong>${ws.answered}/${ws.available}</strong></div>
-          <div class="row-between"><span class="text-2">Accuracy</span>${acc}</div>
-        </div>
-      </a>`;
-  }).join("");
+  const tot = Object.values(WK.topic).reduce((a, x) => ({ answered: a.answered + x.answered, right: a.right + x.right }), { answered: 0, right: 0 });
+  const redo = qbRedoTotal();
+  const syl = syllabusCompletion();
+  const nx = nextModuleInfo();
+  const name = callName();
+  const days = Math.max(daysLeft, 0);
+  const wk = Math.min(Math.max(week, 0), 25);
+  const now = new Date();
+
+  const agenda = [
+    { ic: "cards", href: "#/cards", label: "Flashcards due", sub: `${log.cardsReviewed || 0} reviewed today`, val: queue, hot: queue > 0 },
+    tests && { ic: "alert", href: "#/practice", label: "Mistakes to redo", sub: `${log.questionsDone || 0} questions answered today`, val: qs.mistakes, hot: qs.mistakes > 0 },
+    { ic: "flag", href: "#/qbank", label: "Question Bank to redo", sub: "Wrong or guessed answers", val: redo, hot: redo > 0 },
+    { ic: "pulse", href: "#/analysis", label: "Overall accuracy", sub: `${tot.answered} answers so far`, val: tot.answered ? pct(tot.right, tot.answered) + "%" : "—" },
+    tests && { ic: "clock", href: lastMock ? `#/mock/result/${lastMock.id}` : "#/mock", label: "Last mock exam", sub: lastMock ? prettyDate(lastMock.date) : "No mock yet", val: lastMock ? pct(lastMock.correct, lastMock.total) + "%" : "—" }
+  ].filter(Boolean);
+
+  const mp = nx ? moduleProgress(nx.m.id) : null;
+  const nextUp = nx ? `
+      <div class="kicker">Next module</div>
+      <div class="nu-code">${nx.m.id} · ${moduleLabel(nx.m)}</div>
+      <h2 class="nu-title">${esc(nx.m.title)}</h2>
+      <p class="nu-meta">${nx.t.name} · module ${nx.m.n} of ${modulesOf(nx.t.id).length}</p>
+      <div class="nu-meter">
+        <div class="nu-meter-head"><span>Module completion</span><strong>${mp.pct}%</strong></div>
+        ${meterHtml(mp, { labels: true, tip: moduleTip(nx.m, mp) })}
+      </div>
+      <div class="pace ${pace.tone}"><div>${pace.text}</div></div>
+      <div class="nu-actions">
+        <a class="btn btn-primary" href="#/module/${nx.m.id}">Open module ${icon("next", 16).replace('class="icon"', 'class="icon icon-next"')}</a>
+        <a class="btn btn-secondary" href="#/topic/${nx.t.id}">All ${nx.t.id} modules</a>
+      </div>`
+    : `
+      <div class="kicker">Up next</div>
+      <h2 class="nu-title">Every module is marked done.</h2>
+      <p class="nu-meta">Now review each topic and sit full mock exams.</p>
+      <div class="pace ${pace.tone}"><div>${pace.text}</div></div>
+      <div class="nu-actions"><a class="btn btn-primary" href="#/analysis">Open weak spots ${icon("next", 16).replace('class="icon"', 'class="icon icon-next"')}</a></div>`;
 
   view.innerHTML = `
-    ${pageHeader("Dashboard", new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }))}
+    <header class="greet">
+      <div class="kicker">${now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
+      <h1>${greeting()}${name ? `, <em>${esc(name)}.</em>` : "."}</h1>
+    </header>
 
-    <div class="card hero">
+    <section class="cert" aria-label="Exam countdown">
+      ${waveBand({ width: 900, height: 40, lines: 9, waves: 9 })}
+      <div class="kicker cert-kick">CFA Level I · exam ${prettyDate(DATA.settings.examDate)}</div>
+      <div class="cert-main">
+        <div class="cert-days"><span class="cert-num" id="cert-num">${days}</span><span class="cert-unit">days <br>to the exam</span></div>
+      </div>
+      <div class="cert-meta">
+        <span>${wk >= 1 ? `<strong>Week ${wk}</strong> of 25` : `Starts <strong>${prettyDate(DATA.settings.startDate)}</strong>`}</span>
+        <span>${phase}</span>
+        <span><strong>${all.done}</strong> of ${all.total} modules done</span>
+      </div>
+      <div class="cert-seal">${rosette(syl.plain, { label: `${syl.plain}% of the syllabus complete` })}
+        <div class="cert-seal-label"><strong>${syl.plain}%</strong><span>Syllabus</span></div></div>
+      <div class="cert-time">${phaseTimeline(wk)}</div>
+    </section>
+
+    ${DATA.activeMock && tests ? `<div class="callout warning section">${icon("clock", 18)}<div style="flex:1"><strong>${esc(DATA.activeMock.name)}</strong> is in progress.</div><a class="btn btn-primary btn-sm" href="#/mock/run">Resume</a></div>` : ""}
+
+    <div class="today">
+      <article class="card next-up">${nextUp}</article>
+      <section class="card agenda" aria-label="Today">
+        <div class="agenda-head"><h2>Today</h2><span class="kicker">${now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span></div>
+        ${agenda.map(r => `
+          <a class="ag-row" href="${r.href}">
+            <span class="ag-ico${r.hot ? " hot" : ""}">${icon(r.ic, 16)}</span>
+            <span><span class="ag-label">${r.label}</span><br><span class="ag-sub">${r.sub}</span></span>
+            <span class="ag-val${r.val === 0 || r.val === "—" ? " muted" : ""}">${r.val}</span>
+          </a>`).join("")}
+      </section>
+    </div>
+
+    <div class="syl-head">
       <div>
-        <div class="text-2 small" style="font-weight:600">CFA Level I exam · ${prettyDate(DATA.settings.examDate)}</div>
-        <div class="hero-days" style="margin-top:6px">${Math.max(daysLeft, 0)}<span>days left</span></div>
-        <div class="hero-meta">
-          <span class="badge badge-application">${week >= 1 ? `Week ${Math.min(week, 25)} of 25` : `Starts ${prettyDate(DATA.settings.startDate)}`}</span>
-          <span class="badge">${phase}</span>
-        </div>
+        <div class="kicker">The syllabus</div>
+        <h2>Ten topics, weighted for 2027</h2>
+        <p>Each block is as wide as the topic's exam weight and fills up as you complete it. Tap a topic to open its modules.</p>
       </div>
-      ${progressRing(all.pct, 112, 10, "syllabus")}
+      <div class="syl-weighted"><strong>${syl.weighted}%</strong><span>Weighted by exam weight</span></div>
     </div>
+    ${allocationHtml(syl.byTopic)}
+    ${topicLedgerHtml()}
+    <div class="ledger-foot">${STRIP_LEGEND}<a href="#/study" class="small" style="font-weight:600">Open the study plan →</a></div>
 
-    <div class="callout ${pace.tone} section">${icon(pace.tone === "warning" ? "alert" : "target", 18)}<div>${pace.text}</div></div>
-
-    <div class="section-title section">Today</div>
-    <div class="grid grid-stats">
-      <a class="card card-link stat" href="#/cards">
-        <div class="stat-icon">${icon("cards", 18)}</div>
-        <span class="stat-label">Cards to review</span><span class="stat-value">${queue}</span>
-        <span class="stat-hint">${log.cardsReviewed || 0} reviewed today</span>
-      </a>
-      ${testsHidden() ? "" : `<a class="card card-link stat" href="#/practice">
-        <div class="stat-icon danger">${icon("alert", 18)}</div>
-        <span class="stat-label">Mistakes to redo</span><span class="stat-value">${qs.mistakes}</span>
-        <span class="stat-hint">${log.questionsDone || 0} questions today</span>
-      </a>
-      <a class="card card-link stat" href="#/practice">
-        <div class="stat-icon accent">${icon("target", 18)}</div>
-        <span class="stat-label">Question accuracy</span><span class="stat-value">${qs.pct === null ? "–" : qs.pct + "%"}</span>
-        <span class="stat-hint">${qs.total} in your bank</span>
-      </a>
-      <a class="card card-link stat" href="${lastMock ? `#/mock/result/${lastMock.id}` : "#/mock"}">
-        <div class="stat-icon warning">${icon("clock", 18)}</div>
-        <span class="stat-label">Last mock</span><span class="stat-value">${lastMock ? pct(lastMock.correct, lastMock.total) + "%" : "–"}</span>
-        <span class="stat-hint">${lastMock ? prettyDate(lastMock.date) : "No mock yet"}</span>
-      </a>`}
-    </div>
-
-    ${DATA.activeMock && !testsHidden() ? `<div class="callout warning section">${icon("clock", 18)}<div style="flex:1"><strong>${esc(DATA.activeMock.name)}</strong> is in progress.</div><a class="btn btn-primary btn-sm" href="#/mock/run">Resume</a></div>` : ""}
-
-    <div class="row-between section">
-      <div class="section-title" style="margin:0">Topics</div>
-      <a href="#/study" class="small" style="font-weight:600">View study plan →</a>
-    </div>
-    <div class="grid grid-3" style="margin-top:12px">${topicCards}</div>
-
-    <div class="grid grid-2 section">
-      <div class="card">
-        <div class="card-head"><h2>CFA Learning Ecosystem</h2></div>
-        <p class="text-2 small">Official practice questions. Log scores and missed questions on each topic page.</p>
-        <a class="btn btn-secondary" style="margin-top:14px" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} Open CFA Practice</a>
+    <div class="slips">
+      <div class="card slip">
+        <div class="slip-ico">${icon("external", 19)}</div>
+        <div><h2>CFA Learning Ecosystem</h2>
+          <p class="text-2 small">Official practice questions. Log your scores and missed questions on each topic page.</p>
+          <a class="btn btn-secondary btn-sm" href="${LES_URL}" target="_blank" rel="noopener">Open CFA Practice</a></div>
       </div>
-      <div class="card">
-        <div class="card-head"><h2>Backup</h2>
+      <div class="card slip">
+        <div class="slip-ico">${icon("download", 19)}</div>
+        <div style="flex:1;min-width:0"><div class="row-between"><h2>Backup</h2>
           <span class="badge ${backupAgo === null || backupAgo >= 3 ? "badge-warning" : "badge-success"}">${backupAgo === null ? "Never" : backupAgo === 0 ? "Today" : `${backupAgo}d ago`}</span></div>
-        <p class="text-2 small">Your data lives in this browser. Export a backup to Google Drive regularly.</p>
-        <button class="btn btn-secondary" style="margin-top:14px" id="dash-export">${icon("download", 18)} Export backup</button>
+          <p class="text-2 small">Your data lives in this browser. Export a backup to Google Drive regularly.</p>
+          <button class="btn btn-secondary btn-sm" id="dash-export">Export backup</button></div>
       </div>
     </div>`;
 
   document.getElementById("dash-export").onclick = () => { exportData(); toast("Backup downloaded — upload it to Google Drive"); renderDashboard(); };
+  if (ROUTE_ENTER) countDown(document.getElementById("cert-num"), days);
+}
+
+// The day count rolls down to today's value — a countdown that visibly ticks
+function countDown(el, to) {
+  if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const from = to + Math.min(60, Math.max(12, Math.round(to * 0.25))), t0 = performance.now(), dur = 1100;
+  const step = t => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(from - (from - to) * e);
+    if (k < 1 && el.isConnected) requestAnimationFrame(step);
+  };
+  el.textContent = from; requestAnimationFrame(step);
 }
 
 // ================= SETTINGS =================
@@ -302,20 +404,20 @@ const ROUTES = {
 function renderMore() {
   const items = [
     ["schweser", "book", "SchweserNotes", "4 books · reading checklist"],
-    ["curriculum", "grid", "Curriculum", "93 learning modules"],
+    ["curriculum", "layers", "Curriculum", "102 learning modules · 10 volumes"],
     ["qbank", "flag", "Question Bank", "Your PDF question sets · answer them here"],
-    ["analysis", "alert", "Weak spots", "Accuracy by topic and module"],
-    ["dist", "target", "Distributions (Quant)", "Normal, t, chi-square, lognormal · z-table"],
+    ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
+    ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
-    ["profiles", "home", "Profiles", `${PROFILES.list.length} profile(s) · switch user`],
+    ["profiles", "user", "Account", activeProfile().name],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],
-    ["signout", "back", "Log out", "Sign out of this device"]
+    ["signout", "logout", "Log out", "Sign out of this device"]
   ];
-  view.innerHTML = `${pageHeader("More")}
-    <div class="card"><div class="list">${items.map(([r, ic, label, sub]) => `
-      <a class="list-item" href="#/${r}"><div class="stat-icon" style="margin:0">${icon(ic, 18)}</div>
-        <div class="list-main"><div class="list-title">${label}</div><div class="list-meta">${sub}</div></div>${icon("chevron", 18)}</a>`).join("")}</div></div>
-    <p class="text-3 small section">Site version <strong>${APP_VERSION}</strong> · <button class="btn btn-ghost btn-sm" id="btn-update">Check for updates</button></p>`;
+  view.innerHTML = `${pageHeader("More", "Everything else in your study kit")}
+    <div class="card"><div class="list more-list">${items.map(([r, ic, label, sub]) => `
+      <a class="list-item" href="#/${r}"><span class="more-ico">${icon(ic, 18)}</span>
+        <div class="list-main"><div class="list-title">${label}</div><div class="list-meta">${esc(sub)}</div></div>${icon("chevron", 18)}</a>`).join("")}</div></div>
+    <p class="text-3 small section">Site version <span class="mono">${APP_VERSION}</span> · <button class="btn btn-ghost btn-sm" id="btn-update">Check for updates</button></p>`;
   document.getElementById("btn-update").onclick = () => checkForUpdate(true);
 }
 
@@ -327,7 +429,8 @@ function router() {
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();
   if (testsHidden() && TEST_ROUTES.includes(route)) { location.hash = "#/dashboard"; return; }
-  (ROUTES[route] || renderDashboard)(a, b, c);
+  ROUTE_ENTER = true;
+  try { (ROUTES[route] || renderDashboard)(a, b, c); } finally { ROUTE_ENTER = false; }
   refreshShell();
   window.scrollTo(0, 0);
   const mainEl = document.getElementById("main");
@@ -396,12 +499,17 @@ function profileSummary(id) {
 
 function renderProfiles() {
   const cur = activeProfile(), owner = isOwner();
+  const syl = syllabusCompletion();
   const account = `
-    <div class="card account-card">
-      ${avatarHtml(cur, 64)}
-      <div class="account-name">${esc(cur.name)}</div>
-      <p class="text-2 small">You are logged in on this device.</p>
-      <button class="btn btn-primary btn-lg" id="btn-signout">Log out</button>
+    <div class="member">
+      ${rosette(syl.plain, { decorative: true, micro: "CFA STUDY · LEVEL I · " })}
+      <div class="kicker">CFA Study · Level I candidate</div>
+      <div class="member-name">${esc(cur.name)}</div>
+      <div class="member-sub">Logged in on this device · ${syl.plain}% of the syllabus complete</div>
+      <div class="member-row">
+        <dl><div><dt>Member since</dt><dd>${cur.createdAt ? prettyDate(cur.createdAt) : "—"}</dd></div><div><dt>Exam</dt><dd>${prettyDate(DATA.settings.examDate)}</dd></div></dl>
+        <button class="btn btn-primary" id="btn-signout">${icon("logout", 16)} Log out</button>
+      </div>
     </div>`;
   // Managing other profiles (switch, add, delete, password) is for the owner only
   const manage = !owner ? "" : `
@@ -439,7 +547,7 @@ function renderProfiles() {
     </div>
 
     <div class="callout info section">${icon("alert", 18)}<div>Profiles live in this browser only. To use a profile on another device, export a backup in Settings and import it there into a profile. Online accounts with automatic sync need the Firebase setup.</div></div>`;
-  view.innerHTML = `${pageHeader("Account", owner ? "Owner tools are shown below" : "")}${account}${manage}`;
+  view.innerHTML = `${pageHeader("Account", owner ? "Owner tools are shown below" : "Your sign-in on this device", "", "Profile")}${account}${manage}`;
 
   document.getElementById("btn-signout").onclick = signOut;
   if (!owner) return;

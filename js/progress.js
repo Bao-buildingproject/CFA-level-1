@@ -37,6 +37,17 @@ function cycleStatus(chapterId) {
   saveData();
 }
 
+// Set a module's status directly (the module page stepper)
+function setStatus(chapterId, next) {
+  const ch = DATA.chapters.find(c => c.id === chapterId);
+  if (!ch || !STATUS_ORDER.includes(next) || ch.status === next) return;
+  ch.status = next;
+  if (next !== "not_started" && !ch.startedAt) ch.startedAt = todayStr();
+  if (next === "done" || (next === "reviewed" && !ch.doneAt)) ch.doneAt = todayStr();
+  if (next === "not_started") { ch.startedAt = null; ch.doneAt = null; }
+  saveData();
+}
+
 function topicProgress(topicId) {
   const chs = DATA.chapters.filter(c => c.topic === topicId);
   const done = chs.filter(c => c.status === "done" || c.status === "reviewed").length;
@@ -94,51 +105,30 @@ function practiceSummary(topicId) {
 function renderStudy() {
   const all = overallProgress();
   const pace = paceStatus();
-  const exp = expectedTopic();
-  let weekStart = 0;
-
-  const rows = TOPICS.map(t => {
-    const p = topicModuleProgress(t.id);
-    const from = weekStart + 1;
-    weekStart += t.plannedWeeks;
-    const isNow = exp && exp.id === t.id;
-    return `
-      <a class="list-item" href="#/topic/${t.id}">
-        <div class="list-main">
-          <div class="row-gap">
-            <span class="list-title">${t.order}. ${t.name}</span>
-            ${isNow ? `<span class="badge badge-application">This week</span>` : ""}
-          </div>
-          <div class="list-meta">Weeks ${Math.ceil(from)}–${Math.ceil(weekStart)} · ${p.modules} modules · exam weight ${t.weight}</div>
-          <div style="margin-top:8px">${progressBar(p.pct, p.pct === 100 ? "success" : "")}</div>
-        </div>
-        <div class="text-2 small mono" style="text-align:right;min-width:64px">${p.done}/${p.modules}<br>${p.pct}%</div>
-        <span class="text-3">${icon("chevron", 18)}</span>
-      </a>`;
-  }).join("");
+  const ci = countdownInfo();
+  const syl = syllabusCompletion();
+  const wk = Math.min(Math.max(ci.week, 0), 25);
 
   view.innerHTML = `
-    ${pageHeader("Study plan", "10 topics · 15 weeks of new material, then review and mock exams")}
+    ${pageHeader("Study plan", "Ten topics in fifteen weeks, then five weeks of review and five of mock exams.", "", "The 25-week plan")}
     <div class="callout ${pace.tone}">${icon(pace.tone === "warning" ? "alert" : "target", 18)}<div>${pace.text}</div></div>
 
-    <div class="grid grid-3 section">
-      <div class="card stat"><span class="stat-label">Modules done</span><span class="stat-value">${all.done}<span class="text-3" style="font-size:1rem"> / ${all.total}</span></span>${progressBar(all.pct)}</div>
-      <div class="card stat"><span class="stat-label">Current week</span><span class="stat-value">${Math.min(Math.max(countdownInfo().week, 1), 25)}<span class="text-3" style="font-size:1rem"> / 25</span></span><span class="stat-hint">${countdownInfo().phase}</span></div>
-      <div class="card stat"><span class="stat-label">Days to exam</span><span class="stat-value">${Math.max(countdownInfo().daysLeft, 0)}</span><span class="stat-hint">${prettyDate(DATA.settings.examDate)}</span></div>
+    <div class="grid grid-stats section">
+      <div class="card stat"><span class="stat-label">Modules done</span><span class="stat-value">${all.done}<span class="text-3"> / ${all.total}</span></span>${progressBar(all.pct)}</div>
+      <div class="card stat"><span class="stat-label">Syllabus complete</span><span class="stat-value">${syl.plain}%</span><span class="stat-hint">${syl.weighted}% weighted by exam weight</span></div>
+      <div class="card stat"><span class="stat-label">Current week</span><span class="stat-value">${Math.max(wk, 1)}<span class="text-3"> / 25</span></span><span class="stat-hint">${ci.phase}</span></div>
+      <div class="card stat"><span class="stat-label">Days to exam</span><span class="stat-value">${Math.max(ci.daysLeft, 0)}</span><span class="stat-hint">${prettyDate(DATA.settings.examDate)}</span></div>
     </div>
 
     <div class="card section">
-      <div class="card-head"><div><h2>Topics</h2><p class="text-2 small">Tap a topic to add chapters and update status.</p></div></div>
-      <div class="list">${rows}</div>
+      <div class="card-head"><div><h2>Roadmap</h2><p class="text-2 small">Where you are in the 25 weeks</p></div></div>
+      ${phaseTimeline(wk, { detail: true })}
     </div>
 
-    <div class="card section">
-      <div class="card-head"><h2>25-week roadmap</h2></div>
-      <div class="list">
-        <div class="list-item"><span class="badge badge-application">Weeks 1–15</span><div class="list-main">Learn new material, topic by topic</div></div>
-        <div class="list-item"><span class="badge badge-foundation">Weeks 16–20</span><div class="list-main">Review everything · topic question practice</div></div>
-        <div class="list-item"><span class="badge badge-exam">Weeks 21–25</span><div class="list-main">Full mock exams · fix weak areas</div></div>
-      </div>
+    <div class="section">
+      <div class="section-title">Topics in study order</div>
+      ${topicLedgerHtml({ weeks: true })}
+      <div class="ledger-foot">${STRIP_LEGEND}<span class="text-3 small">Tap a topic to update its modules</span></div>
     </div>`;
 }
 
@@ -155,12 +145,12 @@ function renderTopic(topicId) {
   const openLes = DATA.lesMistakes.filter(m => m.topic === t.id && !m.resolved).length;
 
   view.innerHTML = `
-    <a href="#/study" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Study plan</a>
-    ${pageHeader(`${t.order}. ${t.name}`, `Exam weight ${t.weight} · planned ${t.plannedWeeks} weeks`,
+    <a href="#/study" class="back-link">${icon("back", 16)} Study plan</a>
+    ${pageHeader(t.name, `Exam weight ${t.weight} · planned ${t.plannedWeeks} weeks · ${modulesOf(t.id).length} learning modules`,
       `${testsHidden() ? "" : `<button class="btn btn-primary" id="btn-topic-mock" ${DATA.questions.some(q => q.topic === t.id) && !DATA.activeMock ? "" : "disabled"}>${icon("clock", 18)} ${t.id} mock test</button>`}
-       ${t.id === "QM" ? `<a class="btn btn-secondary" href="#/dist">${icon("target", 18)} Distributions</a>` : ""}
-       <a class="btn btn-secondary" href="#/analysis/${t.id}">${icon("alert", 18)} Weak spots</a>
-       <a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`)}
+       ${t.id === "QM" ? `<a class="btn btn-secondary" href="#/dist">${icon("curve", 18)} Distributions</a>` : ""}
+       <a class="btn btn-secondary" href="#/analysis/${t.id}">${icon("pulse", 18)} Weak spots</a>
+       <a class="btn btn-secondary" href="${LES_URL}" target="_blank" rel="noopener">${icon("external", 18)} CFA Practice</a>`, `Topic ${t.order} of ${TOPICS.length} · ${t.id}`)}
 
     <div class="grid grid-stats">
       <div class="card stat"><span class="stat-label">Modules done</span><span class="stat-value">${p.done}/${p.total}</span>${progressBar(p.pct, "success")}</div>
@@ -187,7 +177,7 @@ function drawChaptersTab(t) {
   const box = document.getElementById("topic-tab");
   const mods = modulesOf(t.id);
   box.innerHTML = `
-    <p class="text-2 small" style="margin-bottom:14px">Shaded area under each curve = how much of the module you've completed (status, practice questions and reading). Tap a module for details and its module test.</p>
+    <div class="row-between" style="flex-wrap:wrap;margin-bottom:16px"><p class="text-2 small">Each bar adds up the module score: study status, questions mastered and reading. Tap the status to change it.</p>${METER_LEGEND.replace('mt-legend', 'mt-legend" style="margin:0')}</div>
     <div class="module-grid">${mods.map(m => moduleCardHtml(m)).join("")}</div>`;
   bindModuleCards(box, () => renderTopic(t.id));
 }
@@ -299,19 +289,21 @@ function moduleCardHtml(m) {
   return `
     <div class="card module-card">
       <div class="mc-top">
-        <a href="#/module/${m.id}" style="color:inherit"><div class="mc-num">MODULE ${m.n} · VOL ${m.vol}</div><h3>${esc(m.title)}</h3></a>
+        <a href="#/module/${m.id}"><div class="mc-num">${m.id} · VOL ${m.vol}</div><h3>${esc(m.title)}</h3></a>
+        <span class="mc-pct">${mp.pct}<span class="text-3" style="font-size:.6em">%</span></span>
       </div>
-      ${bellCurve(mp.pct, { width: 280, height: 74, compact: true, tip: moduleTip(m, mp) })}
+      ${meterHtml(mp, { tip: moduleTip(m, mp) })}
       <div class="mc-foot">
-        <button class="status-pill ${mp.status}" data-cycle="${m.id}" title="Change status">${STATUS_LABEL[mp.status]}</button>
-        <span>${mp.mastered}/${mp.questions} Q</span>
-        <a class="btn btn-ghost btn-sm" href="#/module/${m.id}">Open ${icon("chevron", 14)}</a>
+        <button class="status-pill ${mp.status}" data-cycle="${m.id}" title="Tap to change status">${STATUS_LABEL[mp.status]}</button>
+        <span class="mc-reads" title="Questions mastered · SchweserNotes · Curriculum"><span>${mp.mastered}/${mp.questions} Q</span><span class="${mp.schweser ? "on" : ""}">S${mp.schweser ? "✓" : ""}</span><span class="${mp.curriculum ? "on" : ""}">C${mp.curriculum ? "✓" : ""}</span></span>
+        <a class="btn btn-ghost btn-sm" href="#/module/${m.id}" aria-label="Open ${esc(m.title)}">Open ${icon("chevron", 14)}</a>
       </div>
     </div>`;
 }
 
 function bindModuleCards(root, rerender) {
   root.querySelectorAll("[data-cycle]").forEach(b => b.onclick = () => { cycleStatus(b.dataset.cycle); rerender(); refreshShell(); });
+  root.querySelectorAll("[data-setstatus]").forEach(b => b.onclick = () => { const [id, st] = b.dataset.setstatus.split("|"); setStatus(id, st); rerender(); refreshShell(); });
   root.querySelectorAll("[data-read]").forEach(cb => cb.onchange = () => {
     const [id, kind] = cb.dataset.read.split("|");
     readingOf(id)[kind] = cb.checked; saveData();
@@ -337,15 +329,21 @@ function renderModule(moduleId) {
   const testMinutes = Math.max(1, Math.ceil(qs.length * 1.5));
 
   view.innerHTML = `
-    <a href="#/topic/${m.topic}" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} ${t.name}</a>
-    ${pageHeader(esc(m.title), `${t.name} · Learning Module ${m.n} of ${mods.length} · Curriculum Vol ${m.vol} · SchweserNotes Book ${m.book}`,
-      ["QM-05", "QM-06", "QM-07", "QM-09"].includes(m.id) ? `<a class="btn btn-primary" href="#/dist">${icon("target", 18)} Distributions lab</a>` : "")}
+    <a href="#/topic/${m.topic}" class="back-link">${icon("back", 16)} ${t.name}</a>
+    ${pageHeader(esc(m.title), `${t.name} · Curriculum Vol ${m.vol} · SchweserNotes Book ${m.book}`,
+      ["QM-05", "QM-06", "QM-07", "QM-09"].includes(m.id) ? `<a class="btn btn-primary" href="#/dist">${icon("curve", 18)} Distributions lab</a>` : "", `${m.id} · Learning module ${m.n} of ${mods.length}`)}
 
     <div class="grid grid-2">
       <div class="card">
-        <div class="card-head"><h2>Completion</h2><button class="status-pill ${mp.status}" data-cycle="${m.id}">${STATUS_LABEL[mp.status]}</button></div>
-        ${bellCurve(mp.pct, { width: 420, height: 150, tip: moduleTip(m, mp) })}
-        <p class="text-3 small" style="margin-top:6px">Shaded area under the normal curve = share of the module completed.</p>
+        <div class="card-head"><h2>Completion</h2><span class="text-3 small">${STATUS_LABEL[mp.status]}</span></div>
+        <div class="mod-hero-wrap"><div class="mod-hero">
+          <div class="mod-pct">${mp.pct}<small>%</small></div>
+          <div>${meterHtml(mp, { big: true, labels: true, tip: moduleTip(m, mp) })}</div>
+        </div></div>
+        <div class="field-label" style="margin:22px 0 10px">Study status</div>
+        <div class="steps" role="group" aria-label="Study status"><span class="steps-fill" style="width:${(STATUS_ORDER.indexOf(mp.status) / 3) * 75}%"></span>${STATUS_ORDER.map((st, i) => `
+          <button class="step${STATUS_ORDER.indexOf(mp.status) >= i ? " reached" : ""}${mp.status === st ? " on" : ""}" data-setstatus="${m.id}|${st}" aria-pressed="${mp.status === st}">
+            <i></i><span>${STATUS_LABEL[st]}</span></button>`).join("")}</div>
       </div>
       <div class="card">
         <div class="card-head"><h2>What counts</h2><span class="text-3 small">${mp.pct}% total</span></div>
@@ -379,7 +377,7 @@ function renderModule(moduleId) {
         <div class="row-gap"><div class="book-n">${book.n}</div><div><div class="stat-label">SchweserNotes Book ${book.n}</div><h3>${esc(book.title)}</h3><p class="text-3 small">Opens in Google Drive</p></div></div>
       </a>
       <a class="card card-link" href="${(CURRICULUM_VOLUMES.find(v => v.vol === m.vol) || {}).url || LES_URL}" target="_blank" rel="noopener">
-        <div class="row-gap"><div class="book-n" style="background:var(--accent-soft);color:var(--accent)">V${m.vol}</div><div><div class="stat-label">CFA Institute curriculum</div><h3>Curriculum 2027 · Vol ${m.vol}, LM ${m.n}</h3><p class="text-3 small">Opens the volume PDF in Google Drive</p></div></div>
+        <div class="row-gap"><div class="book-n vol">V${m.vol}</div><div><div class="stat-label">CFA Institute curriculum</div><h3>Curriculum 2027 · Vol ${m.vol}, LM ${m.n}</h3><p class="text-3 small">Opens the volume PDF in Google Drive</p></div></div>
       </a>
     </div>
 
@@ -416,7 +414,8 @@ function moduleChecklistHtml(mods, kind) {
         <div class="list-title">${m.n}. ${esc(m.title)}</div>
         <div class="list-meta">${moduleLabel(m)} · ${mp.pct}% complete</div>
       </a>
-      <div style="width:90px" class="hide-mobile">${bellCurve(mp.pct, { width: 90, height: 34, compact: true, showLabel: false, tip: moduleTip(m, mp) })}</div>
+      <div style="width:110px" class="hide-mobile">${meterHtml(mp, { tip: moduleTip(m, mp) })}</div>
+      <span class="mono small text-2" style="width:38px;text-align:right">${mp.pct}%</span>
     </div>`;
   }).join("")}</div>`;
 }
@@ -458,7 +457,7 @@ function renderCurriculum() {
     <div class="grid grid-3" style="margin-bottom:16px">${CURRICULUM_VOLUMES.map(v => {
       const mods = modulesOf(v.topic); const rd = mods.filter(m => (DATA.reading[m.id] || {}).curriculum).length;
       return `<a class="card card-link" href="${v.url}" target="_blank" rel="noopener">
-        <div class="row-gap" style="flex-wrap:nowrap;align-items:flex-start"><div class="book-n" style="background:var(--accent-soft);color:var(--accent)">V${v.vol}</div>
+        <div class="row-gap" style="flex-wrap:nowrap;align-items:flex-start"><div class="book-n vol">V${v.vol}</div>
           <div style="flex:1;min-width:0"><div class="stat-label">Volume ${v.vol} · ${mods.length} modules</div><h3 style="margin:2px 0 8px">${esc(v.title)}</h3>
             ${progressBar(pct(rd, mods.length), "success")}<div class="text-3 small" style="margin-top:4px">${rd}/${mods.length} read · opens PDF</div></div></div></a>`;
     }).join("")}</div>

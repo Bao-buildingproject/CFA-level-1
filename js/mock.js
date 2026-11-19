@@ -497,7 +497,7 @@ function renderMockResult(id) {
   const list = filters[reviewFilter] || filters.wrong;
 
   view.innerHTML = `
-    <a href="#/mock" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Mock exams</a>
+    <a href="#/mock" class="back-link">${icon("back", 16)} Mock exams</a>
     ${pageHeader(esc(r.name), `${prettyDate(r.date)} · ${r.total} questions`)}
 
     <div class="grid grid-3">

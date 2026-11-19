@@ -8,10 +8,9 @@
   <title>CFA Level I Study</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261119c">
-  <link rel="stylesheet" href="css/responsive.css?v=20261119c">
-  <link rel="stylesheet" href="css/theme.css?v=20261119c">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=20261119d">
+  <link rel="stylesheet" href="css/responsive.css?v=20261119d">
 </head>
 <body>
   <a href="#main" class="sr-only">Skip to content</a>
@@ -19,19 +18,19 @@
 
     <!-- Sidebar: desktop & tablet -->
     <aside class="sidebar" aria-label="Main navigation">
-      <div class="brand">
-        <div class="brand-mark">L1</div>
-        <div class="brand-text">
-          <div class="brand-name">CFA Study</div>
-          <div class="brand-sub">Level I · May 2027</div>
-        </div>
-      </div>
+      <a class="brand" href="#/dashboard" aria-label="CFA Study — dashboard">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">
+          <span class="brand-name">CFA Study</span>
+          <span class="brand-sub">Level I · May 2027</span>
+        </span>
+      </a>
       <a class="profile-chip" id="profile-chip" href="#/profiles" aria-label="Switch profile"></a>
       <nav class="nav" id="side-nav"></nav>
       <div class="sidebar-foot">
-        <div class="text-3 small">Exam countdown</div>
+        <div class="sf-label">Exam countdown</div>
         <strong id="side-days">–</strong>
-        <div class="text-2 small" id="side-week"></div>
+        <div class="sf-week" id="side-week"></div>
         <button class="update-link" id="side-version" title="Check for updates"></button>
       </div>
     </aside>
@@ -39,10 +38,10 @@
     <div class="main-wrap">
       <!-- Header: mobile only -->
       <header class="mobile-header">
-        <div class="brand">
-          <div class="brand-mark">L1</div>
-          <div class="brand-name">CFA Study</div>
-        </div>
+        <a class="brand" href="#/dashboard" aria-label="CFA Study — dashboard">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">CFA Study</span>
+        </a>
         <div class="row-gap">
           <span class="days-chip" id="mobile-days"></span>
           <a href="#/profiles" aria-label="Profiles" id="mobile-profile"></a>
@@ -60,37 +59,37 @@
   </div>
 
   <!-- Order matters: data & helpers first, app.js last -->
-  <script src="js/syllabus.js?v=20261119c"></script>
-  <script src="js/modules.js?v=20261119c"></script>
-  <script src="js/data/qbank.js?v=20261119c"></script>
-  <script src="js/data/q-eth.js?v=20261119c"></script>
-  <script src="js/data/q-eth2.js?v=20261119c"></script>
-  <script src="js/data/q-qm.js?v=20261119c"></script>
-  <script src="js/data/q-eco.js?v=20261119c"></script>
-  <script src="js/data/q-ci.js?v=20261119c"></script>
-  <script src="js/data/q-fsa.js?v=20261119c"></script>
-  <script src="js/data/q-eq.js?v=20261119c"></script>
-  <script src="js/data/q-fi.js?v=20261119c"></script>
-  <script src="js/data/q-der.js?v=20261119c"></script>
-  <script src="js/data/q-alt.js?v=20261119c"></script>
-  <script src="js/data/q-pm.js?v=20261119c"></script>
-  <script src="js/data/q-2027.js?v=20261119c"></script>
-  <script src="js/data/q-fsa-ex.js?v=20261119c"></script>
-  <script src="js/data/q-hard.js?v=20261119c"></script>
-  <script src="js/storage.js?v=20261119c"></script>
-  <script src="js/access.js?v=20261119c"></script>
-  <script src="js/gate-art.js?v=20261119c"></script>
-  <script src="js/components.js?v=20261119c"></script>
-  <script src="js/progress.js?v=20261119c"></script>
-  <script src="js/flashcards.js?v=20261119c"></script>
-  <script src="js/quiz.js?v=20261119c"></script>
-  <script src="js/data/qbank-files.js?v=20261119c"></script>
-  <script src="js/qbank-tracker.js?v=20261119c"></script>
-  <script src="js/qbank-practice.js?v=20261119c"></script>
-  <script src="js/analysis.js?v=20261119c"></script>
-  <script src="js/distlab.js?v=20261119c"></script>
-  <script src="js/sampling.js?v=20261119c"></script>
-  <script src="js/mock.js?v=20261119c"></script>
-  <script src="js/app.js?v=20261119c"></script>
+  <script src="js/syllabus.js?v=20261119d"></script>
+  <script src="js/modules.js?v=20261119d"></script>
+  <script src="js/data/qbank.js?v=20261119d"></script>
+  <script src="js/data/q-eth.js?v=20261119d"></script>
+  <script src="js/data/q-eth2.js?v=20261119d"></script>
+  <script src="js/data/q-qm.js?v=20261119d"></script>
+  <script src="js/data/q-eco.js?v=20261119d"></script>
+  <script src="js/data/q-ci.js?v=20261119d"></script>
+  <script src="js/data/q-fsa.js?v=20261119d"></script>
+  <script src="js/data/q-eq.js?v=20261119d"></script>
+  <script src="js/data/q-fi.js?v=20261119d"></script>
+  <script src="js/data/q-der.js?v=20261119d"></script>
+  <script src="js/data/q-alt.js?v=20261119d"></script>
+  <script src="js/data/q-pm.js?v=20261119d"></script>
+  <script src="js/data/q-2027.js?v=20261119d"></script>
+  <script src="js/data/q-fsa-ex.js?v=20261119d"></script>
+  <script src="js/data/q-hard.js?v=20261119d"></script>
+  <script src="js/storage.js?v=20261119d"></script>
+  <script src="js/access.js?v=20261119d"></script>
+  <script src="js/gate-art.js?v=20261119d"></script>
+  <script src="js/components.js?v=20261119d"></script>
+  <script src="js/progress.js?v=20261119d"></script>
+  <script src="js/flashcards.js?v=20261119d"></script>
+  <script src="js/quiz.js?v=20261119d"></script>
+  <script src="js/data/qbank-files.js?v=20261119d"></script>
+  <script src="js/qbank-tracker.js?v=20261119d"></script>
+  <script src="js/qbank-practice.js?v=20261119d"></script>
+  <script src="js/analysis.js?v=20261119d"></script>
+  <script src="js/distlab.js?v=20261119d"></script>
+  <script src="js/sampling.js?v=20261119d"></script>
+  <script src="js/mock.js?v=20261119d"></script>
+  <script src="js/app.js?v=20261119d"></script>
 </body>
 </html>

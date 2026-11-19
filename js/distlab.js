@@ -190,7 +190,7 @@ function renderDist(tab) {
   dlStop();
   dl.tab = DL_TABS.some(t => t[0] === tab) ? tab : "explore";
   view.innerHTML = `
-    <a href="#/topic/QM" class="btn btn-ghost btn-sm" style="margin-bottom:12px;padding-left:6px">${icon("back", 18)} Quantitative Methods</a>
+    <a href="#/topic/QM" class="back-link">${icon("back", 16)} Quantitative Methods</a>
     ${pageHeader("Distributions", "Drag to calculate, simulate to check, read the z-table like in the exam.")}
     <div class="tabs" role="tablist">${DL_TABS.map(([k, l]) => `<a class="tab ${dl.tab === k ? "active" : ""}" href="#/dist/${k}">${l}</a>`).join("")}</div>
     <div id="dl-body"></div>`;
@@ -254,7 +254,7 @@ function dlExplore() {
   document.getElementById("dl-body").innerHTML = `
     <div class="dl-layout">
       <div class="card dl-chart-card"><div class="dl-stage"><div id="dl-chart">${dlChartHtml()}</div><canvas id="dl-balls" aria-hidden="true"></canvas></div>
-        <p class="text-3 small dl-hint">Drag the green dots or tap the chart to move x<sub>1</sub>, x<sub>2</sub>.</p></div>
+        <p class="text-3 small dl-hint">Drag the gold dots or tap the chart to move x<sub>1</sub>, x<sub>2</sub>.</p></div>
       <div class="dl-side">
         <div class="card">
           <label class="field"><span class="field-label">Distribution</span>

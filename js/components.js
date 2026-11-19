@@ -27,11 +27,16 @@ const ICON_PATHS = {
   alert: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h0"/>',
   save: '<path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3z"/><path d="M8 3v5h7M8 21v-7h8v7"/>',
   play: '<path d="M7 4v16l13-8z"/>',
-  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  curve: '<path d="M2 20h20"/><path d="M3 18c2.6 0 3.6-2.8 5-6.2S10.5 5 12 5s2.6 3.4 4 6.8 2.4 6.2 5 6.2"/>',
+  layers: '<path d="m12 3 9 4.6-9 4.6-9-4.6z"/><path d="m3 12.2 9 4.6 9-4.6"/><path d="m3 16.6 9 4.6 9-4.6"/>',
+  pulse: '<path d="M3 12h4l2.5-6.5 5 13 2.5-6.5h4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+  logout: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M9 8l-4 4 4 4M5 12h11"/>'
 };
 
 function icon(name, size = 20) {
-  return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ""}</svg>`;
+  return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ""}</svg>`;
 }
 
 // ---------- Toast notifications ----------
@@ -127,12 +132,14 @@ function progressBar(pct, tone = "") {
 }
 
 // ---------- Small building blocks ----------
-function pageHeader(title, subtitle = "", actions = "") {
+// kicker = small capitals line above the title (e.g. "Topic 2 of 10")
+function pageHeader(title, subtitle = "", actions = "", kicker = "") {
   return `
     <header class="page-header">
-      <div>
+      <div class="ph-text">
+        ${kicker ? `<div class="kicker">${kicker}</div>` : ""}
         <h1>${title}</h1>
-        ${subtitle ? `<p class="text-2">${subtitle}</p>` : ""}
+        ${subtitle ? `<p class="ph-sub">${subtitle}</p>` : ""}
       </div>
       ${actions ? `<div class="page-actions">${actions}</div>` : ""}
     </header>`;
@@ -184,34 +191,113 @@ function normInv(p) {                       // Acklam's approximation
   return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
 }
 
-// pctDone: 0–100. opts: { width, height, tip, showLabel, compact }
-function bellCurve(pctDone, opts = {}) {
-  const W = opts.width || 320, H = opts.height || 110, pad = 6, base = H - (opts.compact ? 6 : 22);
-  const X0 = -3.5, X1 = 3.5, peak = normPdf(0);
-  const sx = x => pad + ((x - X0) / (X1 - X0)) * (W - 2 * pad);
-  const sy = y => base - (y / peak) * (base - 8);
-  const pts = [];
-  for (let i = 0; i <= 120; i++) { const x = X0 + (i / 120) * (X1 - X0); pts.push([sx(x), sy(normPdf(x))]); }
-  const curve = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
-  const p = Math.min(Math.max(pctDone, 0), 100) / 100;
-  const z = p >= 1 ? X1 : p <= 0 ? X0 : Math.max(X0, Math.min(X1, normInv(p)));
-  const fillPts = pts.filter(pt => pt[0] <= sx(z) + 0.01);
-  const fill = p > 0 ? `M${sx(X0)},${base}` + fillPts.map(pt => `L${pt[0].toFixed(1)},${pt[1].toFixed(1)}`).join("") + `L${sx(z).toFixed(1)},${sy(normPdf(z)).toFixed(1)}L${sx(z).toFixed(1)},${base}Z` : "";
-  const ticks = opts.compact ? "" : [-2, -1, 0, 1, 2].map(t =>
-    `<line x1="${sx(t)}" x2="${sx(t)}" y1="${base}" y2="${base + 4}" class="bell-tick"/><text x="${sx(t)}" y="${base + 16}" class="bell-axis">${t === 0 ? "μ" : (t > 0 ? "+" : "−") + Math.abs(t) + "σ"}</text>`).join("");
-  const marker = p > 0 && p < 1 ? `<line x1="${sx(z)}" x2="${sx(z)}" y1="${sy(normPdf(z)) - 6}" y2="${base}" class="bell-marker"/>` : "";
-  const label = Math.round(p * 100);
-  return `
-    <div class="bell" ${opts.tip ? `data-tip="${esc(opts.tip)}"` : ""} role="img" aria-label="${label}% complete">
-      <svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" aria-hidden="true">
-        <line x1="${pad}" x2="${W - pad}" y1="${base}" y2="${base}" class="bell-base"/>
-        ${fill ? `<path d="${fill}" class="bell-fill"/>` : ""}
-        <path d="${curve}" class="bell-line"/>
-        ${marker}${ticks}
-      </svg>
-      ${opts.showLabel === false ? "" : `<div class="bell-label"><strong>${label}%</strong></div>`}
-    </div>`;
+// ---------- Guilloché rosette ----------
+// The engraved lace of banknotes and certificates: each band is one sine-modulated
+// circle repeated with a small rotation. pct (0–100) of the seal is printed in brass,
+// the rest stays as faint ink. Used as the syllabus progress "seal".
+let ROSETTE_N = 0, ROSETTE_PATHS = null;
+const ROSETTE_BANDS = [   // [radius, amplitude, lobes, copies]  (viewBox −100…100)
+  [81, 6.5, 24, 9],
+  [64, 6, 15, 8],
+  [48.5, 4.5, 9, 6]
+];
+function rosettePaths() {
+  if (ROSETTE_PATHS) return ROSETTE_PATHS;
+  ROSETTE_PATHS = ROSETTE_BANDS.map(([R, A, m]) => {
+    const steps = m * 14;
+    let d = "";
+    for (let i = 0; i < steps; i++) {
+      const t = (i / steps) * Math.PI * 2, r = R + A * Math.sin(m * t);
+      d += (i ? "L" : "M") + (r * Math.cos(t)).toFixed(2) + " " + (r * Math.sin(t)).toFixed(2);
+    }
+    return d + "Z";
+  });
+  return ROSETTE_PATHS;
 }
+// opts: { label: aria label, micro: text printed around the rim }
+function rosette(pct, opts = {}) {
+  const id = "ro" + (++ROSETTE_N);
+  const p = Math.min(Math.max(+pct || 0, 0), 100);
+  const paths = rosettePaths();
+  const lace = ROSETTE_BANDS.map(([, , m, k], i) => {
+    const step = 360 / m / k;
+    return `<path id="${id}b${i}" d="${paths[i]}"/>` +
+      Array.from({ length: k - 1 }, (_, j) => `<use href="#${id}b${i}" transform="rotate(${((j + 1) * step).toFixed(2)})"/>`).join("");
+  }).join("");
+  const micro = (opts.micro || "CFA PROGRAM · LEVEL I · ").repeat(6);
+  const ang = (-90 + 3.6 * p) * Math.PI / 180;
+  const tip = p > 0 && p < 100 ? `<circle class="ro-tip" cx="${(91 * Math.cos(ang)).toFixed(2)}" cy="${(91 * Math.sin(ang)).toFixed(2)}" r="2.6"/>` : "";
+  const a11y = opts.decorative ? 'aria-hidden="true"' : `role="img" aria-label="${esc(opts.label || p + "% complete")}"`;
+  return `<svg class="rosette" viewBox="-100 -100 200 200" ${a11y}>
+    <defs>
+      <g id="${id}l" fill="none" stroke-width=".5">${lace}</g>
+      <path id="${id}t" d="M-91 0a91 91 0 1 1 182 0a91 91 0 1 1-182 0"/>
+      <mask id="${id}m"><circle class="ro-mask-c" r="50" fill="none" stroke="#fff" stroke-width="101" pathLength="100" style="stroke-dasharray:${p} 100" transform="rotate(-90)"/></mask>
+    </defs>
+    <circle class="ro-rule" r="97"/><circle class="ro-rule" r="86.5"/><circle class="ro-rule" r="39"/>
+    <text class="ro-micro"><textPath href="#${id}t" textLength="570" lengthAdjust="spacing">${micro}</textPath></text>
+    <use class="ro-base" href="#${id}l"/>
+    <use class="ro-fill" href="#${id}l" mask="url(#${id}m)"/>
+    ${tip}
+  </svg>`;
+}
+
+// ---------- Woven wave band (decorative security-print ribbon) ----------
+function waveBand(opts = {}) {
+  const W = opts.width || 600, H = opts.height || 60, n = opts.lines || 9, waves = opts.waves || 5;
+  let d = "";
+  for (let k = 0; k < n; k++) {
+    const ph = (k / n) * Math.PI, amp = H * 0.34 * (0.55 + 0.45 * Math.cos((k / n) * Math.PI * 2));
+    let s = "";
+    for (let i = 0; i <= 160; i++) {
+      const x = (i / 160) * W, y = H / 2 + amp * Math.sin((x / W) * Math.PI * 2 * waves + ph);
+      s += (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+    }
+    d += `<path d="${s}" vector-effect="non-scaling-stroke"/>`;
+  }
+  return `<svg class="wave-band ${opts.cls || ""}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="${opts.stroke || 0.75}">${d}</g></svg>`;
+}
+
+// ---------- 25-week roadmap: Learn 1–15 · Review 16–20 · Mock exams 21–25 ----------
+const PLAN_PHASES = [["Learn", 1, 15, "New material, topic by topic"], ["Review", 16, 20, "Everything again · topic questions"], ["Mock exams", 21, 25, "Full mocks · fix weak areas", "Mocks"]];
+function phaseTimeline(week, opts = {}) {
+  const w = Math.min(Math.max(week, 0), 25);
+  const at = w <= 0 ? 0 : ((w - 0.5) / 25) * 100;
+  return `<div class="timeline${opts.detail ? " tl-detail" : ""}" role="img" aria-label="${w >= 1 ? `Week ${w} of 25` : "The plan has not started yet"}">
+    <div class="tl-flag" style="left:${at.toFixed(2)}%;transform:translateX(-${at.toFixed(2)}%)">${w >= 1 ? `Week ${w}` : "Start"}</div>
+    <div class="tl-stem" style="left:${at.toFixed(2)}%"></div>
+    <div class="tl-ruler"></div>
+    <div class="tl-phases">${PLAN_PHASES.map(([n, a, b, d, short]) => {
+      const fill = w > b ? 100 : w >= a ? ((w - a + 0.5) / (b - a + 1)) * 100 : 0;
+      return `<div class="tl-phase${w >= a && w <= b ? " now" : w > b ? " past" : ""}" style="flex:${b - a + 1}">
+        <span class="tl-bar"><i style="width:${fill.toFixed(1)}%"></i></span>
+        <span class="tl-name">${short ? `<span class="hide-mobile">${n}</span><span class="only-mobile">${short}</span>` : n}</span><span class="tl-weeks"><span class="hide-mobile">Weeks </span>${a}–${b}</span>${opts.detail ? `<span class="tl-desc">${d}</span>` : ""}
+      </div>`;
+    }).join("")}</div>
+  </div>`;
+}
+
+// ---------- Module completion meter ----------
+// The four parts of a module's score, each sized by its weight (40/40/10/10).
+// opts.labels adds a caption under each part.
+function meterHtml(mp, opts = {}) {
+  const parts = [["st", 40, mp.statusPct], ["qs", 40, mp.masteryPct], ["sw", 10, mp.schweser ? 100 : 0], ["cu", 10, mp.curriculum ? 100 : 0]];
+  const bar = `<div class="meter${opts.big ? " meter-big" : ""}" ${opts.tip ? `data-tip="${esc(opts.tip)}"` : ""} role="img" aria-label="${mp.pct}% complete">${parts.map(([k, w, v]) =>
+    `<span class="mt-seg mt-${k}" style="flex:${w}"><i style="width:${v}%"></i></span>`).join("")}</div>`;
+  if (!opts.labels) return bar;
+  // SchweserNotes + Curriculum share one caption: both are reading
+  return `<div class="meter-wrap">${bar}<div class="mt-labels"><span style="flex:40">Status</span><span style="flex:40">Questions</span><span style="flex:20">Reading</span></div></div>`;
+}
+const METER_LEGEND = `<div class="mt-legend"><span><i class="mt-st"></i>Study status 40%</span><span><i class="mt-qs"></i>Questions 40%</span><span><i class="mt-sw"></i>SchweserNotes 10%</span><span><i class="mt-cu"></i>Curriculum 10%</span></div>`;
+
+// ---------- Module status strip: one cell per module of a topic ----------
+function statusStrip(topicId) {
+  return `<div class="strip" aria-hidden="true">${modulesOf(topicId).map(m => {
+    const st = (DATA.chapters.find(c => c.id === m.id) || {}).status || "not_started";
+    return `<i class="st-${st}" title="${esc(`${m.id} · ${m.title} — ${STATUS_LABEL[st]}`)}"></i>`;
+  }).join("")}</div>`;
+}
+const STRIP_LEGEND = `<div class="strip-legend"><span><i class="st-not_started"></i>Not started</span><span><i class="st-learning"></i>Learning</span><span><i class="st-done"></i>Done</span><span><i class="st-reviewed"></i>Reviewed</span></div>`;
 
 // ---------- Hover tooltip for any element with data-tip ----------
 (function initTooltips() {
@@ -287,7 +373,7 @@ function promptDialog(options) {
 }
 
 // ---------- Profile avatar ----------
-const AVATAR_COLORS = ["#2952cc", "#0e9384", "#b54708", "#7a5af8", "#c11574", "#027a48"];
+const AVATAR_COLORS = ["#24386d", "#2e6b4e", "#8c5a17", "#6b3e5e", "#2f5d7c", "#8a3b2e"];
 function avatarHtml(profile, size = 32) {
   const initials = (profile.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
   return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.4)}px;background:${AVATAR_COLORS[profile.color % AVATAR_COLORS.length]}" aria-hidden="true">${esc(initials)}</span>`;
