@@ -597,42 +597,20 @@ function renderProfiles() {
 
 // ---------- Lock screen ----------
 // ================= ACCESS GATE (sign in / create account) =================
-const INVITE_FROM_LINK = (() => {
+// Creating an account needs no invitation code any more. Links that still carry ?invite=… open normally (the
+// parameter is removed from the address bar), and a code stored by an older version is forgotten.
+(() => {
   try {
-    const u = new URL(location.href), c = u.searchParams.get("invite");
-    if (c) { u.searchParams.delete("invite"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
-    return c || "";
-  } catch (e) { return ""; }
+    const u = new URL(location.href);
+    if (u.searchParams.has("invite")) { u.searchParams.delete("invite"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+  } catch (e) { /* ignore */ }
+  try { localStorage.removeItem("cfaStudy_invite"); sessionStorage.removeItem("cfaStudy_invite"); } catch (e) { /* ignore */ }
 })();
 // "Minh", "minh ", "Mình" and "MINH" all count as the same name
 const nameKey = n => String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]/g, "");
 function nameTaken(name, exceptId) {
   const k = nameKey(name);
   return PROFILES.list.some(p => p.id !== exceptId && !isPhantom(p) && nameKey(p.name) === k);
-}
-const normInvite = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-async function hashInvite(v) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-invite:" + normInvite(v)));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-// A valid code in the invitation link counts for that visit only (this tab, until it is closed, or until an
-// account is made with it). It is never kept on the device and never shown: opening the site any other way
-// asks for the code.
-const INVITE_KEY = "cfaStudy_invite";
-let INVITE_OK = false, INVITE_CODE = "";
-(async () => {
-  try { localStorage.removeItem(INVITE_KEY); } catch (e) { /* older versions kept the code on the device */ }
-  let c = INVITE_FROM_LINK;
-  if (!c) { try { c = sessionStorage.getItem(INVITE_KEY) || ""; } catch (e) { /* ignore */ } }
-  if (!c || typeof ACCESS === "undefined" || !ACCESS.inviteHash) return;
-  if (await hashInvite(c) !== ACCESS.inviteHash) return;
-  INVITE_OK = true; INVITE_CODE = c;
-  try { sessionStorage.setItem(INVITE_KEY, c); } catch (e) { /* ignore */ }
-  if (document.body.classList.contains("gated") && typeof renderGate === "function") renderGate();
-})();
-function inviteUsed() {
-  INVITE_OK = false; INVITE_CODE = "";
-  try { sessionStorage.removeItem(INVITE_KEY); } catch (e) { /* ignore */ }
 }
 const hasStoredData = id => { try { return localStorage.getItem(profileKey(id)) !== null; } catch (e) { return false; } };
 const gateAccounts = () => PROFILES.list.filter(p => p.pinHash || hasStoredData(p.id));
@@ -672,7 +650,7 @@ const gatePw = (id, ph, auto) => gateField("lock", `<input id="${id}" type="pass
 
 function renderGate() {
   document.body.classList.add("gated");
-  const accts = gateAccounts(), needCode = !!(typeof ACCESS !== "undefined" && ACCESS.inviteHash);
+  const accts = gateAccounts();
   if (!accts.length) gate.tab = "create"; else if (!gate.tab) gate.tab = "signin";
   let last = ""; try { last = localStorage.getItem("cfaStudy_last") || ""; } catch (e) { /* ignore */ }
   const setP = gate.tab === "setpw" ? PROFILES.list.find(p => p.id === gate.sel) : null;
@@ -687,8 +665,6 @@ function renderGate() {
       ${err}
       ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
       ${gatePw("g-pw", "Password (4+ characters)", "new-password")}
-      ${needCode && !INVITE_OK ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Invitation code">`) : ""}
-      ${needCode && INVITE_OK ? `<p class="gate-invited">✓ Invitation accepted</p>` : ""}
       <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
       <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn gold" id="g-go">Sign Up</button>
@@ -762,11 +738,6 @@ function renderGate() {
     if (!name || !nameKey(name)) return fail("Enter a username (letters or numbers).");
     if (nameTaken(name)) return fail(`The username “${name}” is already taken. Choose another, or sign in if it is yours.`);
     if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
-    if (needCode) {
-      const code = INVITE_OK ? INVITE_CODE : document.getElementById("g-code").value;
-      if (await hashInvite(code) !== ACCESS.inviteHash) { gateFail(); return fail(gateWait() ? waitMsg() : "The invitation code is not valid. Ask the course owner for it."); }
-      inviteUsed();                                  // one link visit, one new account
-    }
     const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
     let id;
     const firstP = PROFILES.list[0];
