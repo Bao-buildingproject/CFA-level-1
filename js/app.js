@@ -615,17 +615,25 @@ async function hashInvite(v) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cfa-invite:" + normInvite(v)));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
-// A valid code from the invitation link is remembered on this device, so the field is not needed
+// A valid code in the invitation link counts for that visit only (this tab, until it is closed, or until an
+// account is made with it). It is never kept on the device and never shown: opening the site any other way
+// asks for the code.
+const INVITE_KEY = "cfaStudy_invite";
 let INVITE_OK = false, INVITE_CODE = "";
 (async () => {
+  try { localStorage.removeItem(INVITE_KEY); } catch (e) { /* older versions kept the code on the device */ }
   let c = INVITE_FROM_LINK;
-  if (!c) { try { c = localStorage.getItem("cfaStudy_invite") || ""; } catch (e) { /* ignore */ } }
+  if (!c) { try { c = sessionStorage.getItem(INVITE_KEY) || ""; } catch (e) { /* ignore */ } }
   if (!c || typeof ACCESS === "undefined" || !ACCESS.inviteHash) return;
   if (await hashInvite(c) !== ACCESS.inviteHash) return;
   INVITE_OK = true; INVITE_CODE = c;
-  try { localStorage.setItem("cfaStudy_invite", c); } catch (e) { /* ignore */ }
+  try { sessionStorage.setItem(INVITE_KEY, c); } catch (e) { /* ignore */ }
   if (document.body.classList.contains("gated") && typeof renderGate === "function") renderGate();
 })();
+function inviteUsed() {
+  INVITE_OK = false; INVITE_CODE = "";
+  try { sessionStorage.removeItem(INVITE_KEY); } catch (e) { /* ignore */ }
+}
 const hasStoredData = id => { try { return localStorage.getItem(profileKey(id)) !== null; } catch (e) { return false; } };
 const gateAccounts = () => PROFILES.list.filter(p => p.pinHash || hasStoredData(p.id));
 const isPhantom = p => !p.pinHash && !hasStoredData(p.id) && PROFILES.list.length === 1;
@@ -665,7 +673,7 @@ const gatePw = (id, ph, auto) => gateField("lock", `<input id="${id}" type="pass
 function renderGate() {
   document.body.classList.add("gated");
   const accts = gateAccounts(), needCode = !!(typeof ACCESS !== "undefined" && ACCESS.inviteHash);
-  if (!accts.length) gate.tab = "create"; else if (!gate.tab) gate.tab = INVITE_FROM_LINK ? "create" : "signin";
+  if (!accts.length) gate.tab = "create"; else if (!gate.tab) gate.tab = "signin";
   let last = ""; try { last = localStorage.getItem("cfaStudy_last") || ""; } catch (e) { /* ignore */ }
   const setP = gate.tab === "setpw" ? PROFILES.list.find(p => p.id === gate.sel) : null;
   if (gate.tab === "setpw" && !setP) gate.tab = "signin";
@@ -679,7 +687,7 @@ function renderGate() {
       ${err}
       ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
       ${gatePw("g-pw", "Password (4+ characters)", "new-password")}
-      ${needCode && !INVITE_OK ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" value="${esc(INVITE_FROM_LINK)}" aria-label="Invitation code">`) : ""}
+      ${needCode && !INVITE_OK ? gateField("key", `<input id="g-code" maxlength="30" placeholder="Invitation code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Invitation code">`) : ""}
       ${needCode && INVITE_OK ? `<p class="gate-invited">✓ Invitation accepted</p>` : ""}
       <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
       <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
@@ -757,6 +765,7 @@ function renderGate() {
     if (needCode) {
       const code = INVITE_OK ? INVITE_CODE : document.getElementById("g-code").value;
       if (await hashInvite(code) !== ACCESS.inviteHash) { gateFail(); return fail(gateWait() ? waitMsg() : "The invitation code is not valid. Ask the course owner for it."); }
+      inviteUsed();                                  // one link visit, one new account
     }
     const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
     let id;
