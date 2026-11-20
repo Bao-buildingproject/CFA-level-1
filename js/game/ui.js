@@ -5,8 +5,9 @@
 //   Hồ sơ → Terminal → Bằng chứng → Workpapers → Quyết định → Committee → Kết quả
 // Numbers come from engine.js, rules and score from missions.js; this file only
 // draws them and keeps the player's progress in DATA.game.
-// Company files the player adds stay on this device (localStorage, per profile):
-// data from a provider such as WiData is for personal use and never goes online.
+// Company files added once are shared by every account on this device (localStorage);
+// each account keeps its own missions, scores and rank. Data from a provider such
+// as WiData is for personal use and never goes online.
 // ============================================================
 (function () {
   "use strict";
@@ -33,12 +34,24 @@
   const G = { lib: null, all: null, cases: {}, tab: "fs", cur: null, saveT: 0 };
 
   // ---------- storage ----------
-  const libKey = () => `cfaStudy_fw_${PROFILES.active}`;
+  const libKey = () => "cfaStudy_fw_shared";                 // one library for every account on the device
+  const oldLibKey = id => `cfaStudy_fw_${id}`;               // before: one library per account
+  const readJson = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
   function lib() {
     if (G.lib && G.lib.key === libKey()) return G.lib;
-    let raw = null;
-    try { raw = JSON.parse(localStorage.getItem(libKey()) || "null"); } catch (e) { raw = null; }
+    const raw = readJson(libKey());
     G.lib = { key: libKey(), datasets: raw && Array.isArray(raw.datasets) ? raw.datasets : [], quarantine: raw && Array.isArray(raw.quarantine) ? raw.quarantine : [] };
+    // files an account loaded before sharing join the shared library once (same file: the shared copy stays)
+    let moved = false;
+    PROFILES.list.forEach(p => {
+      const old = readJson(oldLibKey(p.id));
+      if (!old) return;
+      (Array.isArray(old.datasets) ? old.datasets : []).forEach(d => { if (d && d.id && !G.lib.datasets.some(x => x.id === d.id)) G.lib.datasets.push(d); });
+      (Array.isArray(old.quarantine) ? old.quarantine : []).forEach(q => G.lib.quarantine.push(q));
+      try { localStorage.removeItem(oldLibKey(p.id)); } catch (e) { /* ignore */ }
+      moved = true;
+    });
+    if (moved) { G.lib.quarantine = G.lib.quarantine.sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-12); saveLib(); }
     return G.lib;
   }
   function saveLib() {
@@ -92,7 +105,7 @@
       <div class="fw-hq">
         ${rankCard(rank)}
         <section class="card fw-files">
-          <div class="card-head fw-files-head"><div><h2>Hồ sơ doanh nghiệp</h2><p class="text-2 small">Chọn một công ty, rồi chọn nhiệm vụ. ${list.length - 1 ? `${list.length - 1} công ty thật trên thiết bị này.` : "Chưa có công ty thật: xem mục Thêm công ty."}</p></div>
+          <div class="card-head fw-files-head"><div><h2>Hồ sơ doanh nghiệp</h2><p class="text-2 small">Chọn một công ty, rồi chọn nhiệm vụ. ${list.length - 1 ? `${list.length - 1} công ty thật trên thiết bị này, dùng chung cho mọi tài khoản.` : "Chưa có công ty thật: xem mục Thêm công ty."}</p></div>
             ${list.length > 4 ? `<label class="fw-search">${icon("search", 16)}<input id="fw-q" type="search" placeholder="Tìm mã hoặc tên công ty" aria-label="Tìm hồ sơ"></label>` : ""}</div>
           <div class="fw-cos" id="fw-cos">${list.map(e => companyCard(e, best)).join("")}</div>
           <p class="text-3 small fw-empty-q" id="fw-noq" hidden>Không có hồ sơ khớp.</p>
@@ -162,7 +175,7 @@
         <li><span>Claude gửi lại file <span class="mono">.json</span>; nạp vào đây</span>
           <div class="row-gap"><button class="btn btn-primary btn-sm" id="fw-pick">${icon("upload", 15)} Nạp file</button><button class="btn btn-ghost btn-sm" id="fw-paste">Dán nội dung</button></div></li>
       </ol>
-      <p class="text-3 small fw-add-note">Nhận báo cáo năm, hợp nhất, của doanh nghiệp phi tài chính; một file có thể chứa nhiều công ty. File phải qua mọi kiểm tra bắt buộc mới được chơi, file không đạt bị cách ly kèm lý do. Nạp lại cùng công ty và cùng kỳ thì số mới thay số cũ. Số liệu WiData chỉ dùng cá nhân: file nằm trên thiết bị này, không đưa lên web.</p>
+      <p class="text-3 small fw-add-note">Nhận báo cáo năm, hợp nhất, của doanh nghiệp phi tài chính; một file có thể chứa nhiều công ty. File phải qua mọi kiểm tra bắt buộc mới được chơi, file không đạt bị cách ly kèm lý do. Nạp lại cùng công ty và cùng kỳ thì số mới thay số cũ. Nạp một lần là mọi tài khoản trên thiết bị này đều chơi được; điểm và cấp bậc vẫn riêng từng tài khoản. Số liệu WiData chỉ dùng cá nhân: file nằm trên thiết bị này, không đưa lên web.</p>
     </section>`;
   }
 
@@ -230,7 +243,7 @@
     if (qc) qc.onclick = () => { lib().quarantine = []; saveLib(); renderHQ(); };
     root.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
       const id = b.dataset.del, e = findDs(id);
-      const ok = await confirmDialog({ title: "Xoá hồ sơ này?", message: `${esc(e ? `${e.ds.company.ticker} · ${e.ds.company.name}` : id)}: file dữ liệu bị xoá khỏi thiết bị. Điểm cao nhất vẫn được giữ.`, confirmText: "Xoá", danger: true });
+      const ok = await confirmDialog({ title: "Xoá hồ sơ này?", message: `${esc(e ? `${e.ds.company.ticker} · ${e.ds.company.name}` : id)}: file dữ liệu bị xoá khỏi thiết bị, với mọi tài khoản. Điểm cao nhất vẫn được giữ.`, confirmText: "Xoá", danger: true });
       if (!ok) return;
       lib().datasets = lib().datasets.filter(d => d.id !== id); saveLib(); G.all = null;
       Object.keys(prog().runs).forEach(k => { if (k.startsWith(id + "|")) delete prog().runs[k]; });
@@ -814,9 +827,10 @@
   }
 
   // ================= entry =================
-  // "Delete all data" and deleting an account also remove the company files kept on this device
+  // Deleting an account (or its data) leaves the shared company files to the other accounts;
+  // only a library that account kept before sharing is removed. Files are removed for everyone from the HQ.
   window.fwClearProfile = function (pid) {
-    try { localStorage.removeItem(`cfaStudy_fw_${pid}`); } catch (e) { /* ignore */ }
+    try { localStorage.removeItem(oldLibKey(pid)); } catch (e) { /* ignore */ }
     G.lib = null; G.all = null; G.cases = {};
   };
   window.renderGame = function (sub, a, b) {

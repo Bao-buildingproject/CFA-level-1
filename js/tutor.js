@@ -1,18 +1,36 @@
 // ============================================================
 // tutor.js — "CFA Tutor": a private chatbot powered by Google Gemini
 //
-// Each account pastes its own Gemini API key (Google AI Studio). The key and
-// the chat stay in this browser only; messages go straight from the browser
-// to Google's Gemini API. Nothing is stored on GitHub.
+// A Gemini API key (Google AI Studio) is pasted once per device and every
+// account on it uses it; each account keeps its own chat. The key and the
+// chats stay in this browser only; messages go straight from the browser to
+// Google's Gemini API. Nothing is stored on GitHub.
 // ============================================================
 
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
-const TUTOR_CFG = () => `cfaStudy_tutor_${PROFILES.active}`;      // { key, model, models }
+const TUTOR_CFG = () => "cfaStudy_tutor_shared";                  // { key, model, models, scope } for every account
+const TUTOR_CFG_OLD = id => `cfaStudy_tutor_${id}`;                // before: one key per account
 const TUTOR_LOG = () => `cfaStudy_tutorlog_${PROFILES.active}`;   // [{ role, text, ctx }]
 const TUTOR_MAX_LOG = 40, TUTOR_SEND = 16;
 let TUTOR = { open: false, view: "chat", busy: false, abort: null, msgs: null, ctx: null, profile: null, note: "" };
 
-function tutorCfg() { try { return JSON.parse(localStorage.getItem(TUTOR_CFG()) || "{}"); } catch (e) { return {}; } }
+function tutorCfg() {
+  try {
+    const raw = localStorage.getItem(TUTOR_CFG());
+    if (raw) return JSON.parse(raw);
+    // a key an account saved before sharing becomes the device's key (the account in use first), once
+    const ids = [PROFILES.active, ...PROFILES.list.map(p => p.id).filter(id => id !== PROFILES.active)];
+    for (const id of ids) {
+      const c = JSON.parse(localStorage.getItem(TUTOR_CFG_OLD(id)) || "null");
+      if (c && c.key) {
+        localStorage.setItem(TUTOR_CFG(), JSON.stringify(c));
+        ids.forEach(x => localStorage.removeItem(TUTOR_CFG_OLD(x)));
+        return c;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return {};
+}
 function tutorSaveCfg(c) { try { localStorage.setItem(TUTOR_CFG(), JSON.stringify(c)); } catch (e) { /* ignore */ } }
 function tutorMsgs() {
   if (TUTOR.msgs && TUTOR.profile === PROFILES.active) return TUTOR.msgs;
@@ -518,7 +536,7 @@ function tutorRender() {
           <input class="input mono" id="tt-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
         <div class="field-error" id="tt-key-err" hidden></div>
         <button class="btn btn-primary btn-block" id="tt-key-save">Save and start</button>
-        <p class="text-3 small">The key is saved only in this browser, for this account. Messages go from your browser straight to Google; the free tier has a daily limit.</p>
+        <p class="text-3 small">The key is saved only in this browser, and every account on it can use the tutor (each account keeps its own chat). Messages go from your browser straight to Google; the free tier has a daily limit.</p>
       </div>`;
     tutorBind(p);
     return;
@@ -653,7 +671,7 @@ function tutorBind(p) {
   };
   const fg = document.getElementById("tt-forget");
   if (fg) fg.onclick = async () => {
-    if (!await confirmDialog({ title: "Remove the Gemini key?", message: "The tutor stops working in this browser until a key is pasted again. Your chat stays.", confirmText: "Remove", danger: true })) return;
+    if (!await confirmDialog({ title: "Remove the Gemini key?", message: "The tutor stops working for every account in this browser until a key is pasted again. Chats stay.", confirmText: "Remove", danger: true })) return;
     try { localStorage.removeItem(TUTOR_CFG()); } catch (e) { /* ignore */ }
     TUTOR.view = "setup"; tutorRender();
   };

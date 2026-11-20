@@ -46,7 +46,7 @@ function weightShare(t) {
 function qbImportButtonHtml() {
   return `<label class="btn btn-primary" style="margin-top:16px">${icon("upload", 18)} Import question pack<input type="file" id="qb-pack" accept=".json,application/json" multiple hidden></label>`;
 }
-const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). The sets then show up here with a <strong>Do it</strong> button. They stay in this browser, so import them once on each device.";
+const QB_EMPTY_HINT = "Press <strong>Import question pack</strong> and choose the <code>.cfaqb.json</code> files (you can pick all ten at once). The sets then show up here with a <strong>Do it</strong> button. They stay in this browser and every account on it can use them, so import them once on each device.";
 let qbOpen = null;
 let qbBulkReport = null;
 

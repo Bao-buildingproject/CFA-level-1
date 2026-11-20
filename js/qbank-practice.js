@@ -3,13 +3,16 @@
 //
 // You paste the text of an "Answers" PDF (Ctrl+A, Ctrl+C) once; the site
 // reads the questions, choices, correct answer and explanation and saves
-// them ONLY in this browser (IndexedDB, per profile). Nothing is uploaded
-// and nothing is added to the public website code.
+// them ONLY in this browser (IndexedDB). Sets are shared by every account on
+// this device: import once, every account can answer them. Each account keeps
+// its own answers and scores. Nothing is uploaded and nothing is added to the
+// public website code.
 // ============================================================
 
 const QBI_DB = "cfaStudy_qbank", QBI_STORE = "sets";
-let QBI = {};                // fileId -> imported set (active profile)
-let QBI_PROFILE = null;      // profile the in-memory sets belong to
+const QBI_SHARED = "*";      // "profile" of the sets shared by every account (older sets were saved per account)
+let QBI = {};                // fileId -> imported set (shared by all accounts)
+let QBI_PROFILE = null;      // account in use when the sets were loaded (the page reloads them after a switch)
 let qbRun = null;            // current practice run
 
 // ---------- IndexedDB (falls back to memory if unavailable) ----------
@@ -37,15 +40,24 @@ async function qbiTx(mode, fn) {
 async function qbiLoad() {
   const pid = PROFILES.active;
   try {
-    const all = await qbiTx("readonly", st => st.index("profile").getAll(pid));
-    QBI = {};
-    (all || []).forEach(r => { QBI[r.fileId] = r; });
+    const all = await qbiTx("readonly", st => st.getAll());
+    // one library for the device; sets an account saved before sharing move into it once (newest import wins)
+    const shared = {}, legacy = [];
+    (all || []).forEach(r => { if (r.profile === QBI_SHARED) shared[r.fileId] = r; else legacy.push(r); });
+    if (legacy.length) {
+      legacy.forEach(r => {
+        const s = shared[r.fileId];
+        if (!s || String(r.importedAt || "") > String(s.importedAt || "")) shared[r.fileId] = { ...r, profile: QBI_SHARED, key: `${QBI_SHARED}|${r.fileId}` };
+      });
+      await qbiTx("readwrite", st => { legacy.forEach(r => st.delete(r.key)); Object.values(shared).forEach(r => st.put(r)); });
+    }
+    QBI = shared;
   } catch (e) { if (QBI_PROFILE !== pid) QBI = {}; }
   QBI_PROFILE = pid;
   qbIndexReset();
 }
 async function qbiPut(rec) {
-  rec.profile = PROFILES.active; rec.key = `${rec.profile}|${rec.fileId}`;
+  rec.profile = QBI_SHARED; rec.key = `${QBI_SHARED}|${rec.fileId}`;
   QBI[rec.fileId] = rec;
   qbIndexReset();
   try { await qbiTx("readwrite", st => st.put(rec)); return true; } catch (e) { return false; }
@@ -53,17 +65,18 @@ async function qbiPut(rec) {
 async function qbiDelete(fileId) {
   delete QBI[fileId];
   qbIndexReset();
-  try { await qbiTx("readwrite", st => st.delete(`${PROFILES.active}|${fileId}`)); } catch (e) { /* ignore */ }
+  try { await qbiTx("readwrite", st => st.delete(`${QBI_SHARED}|${fileId}`)); } catch (e) { /* ignore */ }
 }
+// Deleting an account (or its data) leaves the shared sets to the other accounts; only sets that
+// account saved before sharing are removed. A set is removed for everyone from its own page.
 async function qbiClearProfile(pid) {
   try {
     const keys = await qbiTx("readonly", st => st.index("profile").getAllKeys(pid));
     await qbiTx("readwrite", st => (keys || []).forEach(k => st.delete(k)));
   } catch (e) { /* ignore */ }
-  if (pid === PROFILES.active) { QBI = {}; qbIndexReset(); }
 }
+// restoring a backup adds its sets to the shared library (same set: the backup's copy)
 async function qbiReplaceAll(list) {
-  await qbiClearProfile(PROFILES.active);
   for (const r of list || []) if (r && r.fileId && Array.isArray(r.questions)) await qbiPut({ ...r });
 }
 function qbiReady() { return QBI_PROFILE === PROFILES.active; }
@@ -259,7 +272,7 @@ function renderQBImport(fileId) {
         <li>On a computer: click inside the PDF, press <span class="kbd">Ctrl</span> + <span class="kbd">A</span>, then <span class="kbd">Ctrl</span> + <span class="kbd">C</span>.</li>
         <li>Paste it below with <span class="kbd">Ctrl</span> + <span class="kbd">V</span> and press <strong>Read questions</strong>.</li>
       </ol>
-      <p class="text-3 small">Use the <strong>Answers</strong> file (it has ✔ and the explanations). Everything stays in this browser only — it is not uploaded or published.</p>
+      <p class="text-3 small">Use the <strong>Answers</strong> file (it has ✔ and the explanations). Everything stays in this browser only — it is not uploaded or published. Every account on this device can then answer the set.</p>
       <label class="field full" style="margin-top:12px"><span class="field-label">Answers PDF text</span>
         <textarea class="textarea" id="qbi-text" rows="8" placeholder="Question 1 of 5&#10;...&#10;A. ...&#10;B. ... ✔&#10;C. ...&#10;Explanation: ...">${esc(qbDraft.text)}</textarea></label>
       <div class="form-actions" style="justify-content:flex-start"><button class="btn btn-primary" id="qbi-parse">Read questions</button></div>

@@ -366,7 +366,7 @@ function renderSettings() {
   });
 
   if (ob("btn-reset")) ob("btn-reset").onclick = async () => {
-    if (!await confirmDialog({ title: "Delete all data?", message: "This erases chapters, cards, questions and mock history on this device. Export a backup first.", confirmText: "Delete everything", danger: true, requireText: "DELETE" })) return;
+    if (!await confirmDialog({ title: "Delete all data?", message: "This erases this account's chapters, cards, questions and mock history on this device. Question Bank sets, game company files and the Tutor key are shared with every account and stay; remove them on their own pages. Export a backup first.", confirmText: "Delete everything", danger: true, requireText: "DELETE" })) return;
     DATA = upgrade({}); saveData(); if (typeof qbiClearProfile === "function") qbiClearProfile(PROFILES.active); if (typeof fwClearProfile === "function") fwClearProfile(PROFILES.active); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
   };
 }
