@@ -135,12 +135,12 @@ async function qbkTutorSync(m, key) {
     if (!key) return false;
     const c = JSON.parse(new TextDecoder().decode(await qbkDecrypt(key, qbkBytes(t.blob))));
     if (!c || typeof c.key !== "string" || c.key.length < 20) return false;
-    tutorSaveCfg({ ...cfg, key: c.key, model: c.model || "gemini-2.5-flash", models: [], from: t.hash });
+    tutorSaveCfg({ ...cfg, key: c.key, model: c.model || "gemini-2.5-flash", models: [], auth: c.auth || undefined, from: t.hash });
     // the model list comes from Google in the background; the tutor works with the saved model meanwhile
-    tutorListModels(c.key).then(models => {
+    tutorProbe(c.key, c.auth).then(({ models, auth }) => {
       const cur = tutorCfg();
       if (cur.key !== c.key || !models.length) return;
-      cur.models = models;
+      cur.models = models; cur.auth = auth;
       if (!models.some(x => x.id === cur.model)) cur.model = models[0].id;
       tutorSaveCfg(cur);
     }).catch(() => { /* ignore */ });
@@ -155,7 +155,7 @@ async function qbkSealTutor() {
   if (!qbkGet() || !(await qbkCheck(qbkGet(), m))) throw new Error("bad-key");
   const ek = await qbkDerive(qbkGet(), m, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, ek, new TextEncoder().encode(JSON.stringify({ key: cfg.key, model: cfg.model || "" }))));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, ek, new TextEncoder().encode(JSON.stringify({ key: cfg.key, model: cfg.model || "", auth: cfg.auth || "" }))));
   const blob = new Uint8Array(12 + ct.length);
   blob.set(iv); blob.set(ct, 12);
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", blob))).slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");

@@ -65,9 +65,24 @@ function tutorRank(id) {
   const tier = /flash-lite/.test(id) ? 1 : /flash/.test(id) ? 3 : /pro/.test(id) ? 2 : 0;
   return tier * 1000 + v * 10 - (/preview|exp/.test(id) ? 5 : 0) - (/latest/.test(id) ? 1 : 0);
 }
-async function tutorListModels(key) {
+// How the key is sent. Older AI Studio keys ("AIza…") go in the x-goog-api-key header; newer keys
+// ("AQ.…") may have to go as a bearer token. The first call tries one way, then the other, and the
+// way that works is kept in the settings (cfg.auth).
+const tutorHeaders = (key, auth) => auth === "bearer" ? { Authorization: `Bearer ${key}` } : { "x-goog-api-key": key };
+const tutorAuthRetry = (key, status) => !/^AIza/.test(key) && [400, 401, 403].includes(status);
+async function tutorProbe(key, auth) {
+  const first = auth || "header";
+  try { return { models: await tutorFetchModels(key, first), auth: first }; }
+  catch (e) {
+    if (!tutorAuthRetry(key, e.status)) throw e;
+    const other = first === "bearer" ? "header" : "bearer";
+    try { return { models: await tutorFetchModels(key, other), auth: other }; } catch (e2) { throw e; }
+  }
+}
+async function tutorListModels(key, auth) { return (await tutorProbe(key, auth)).models; }
+async function tutorFetchModels(key, auth) {
   let r;
-  try { r = await fetch(`${GEMINI_API}/models?pageSize=200`, { headers: { "x-goog-api-key": key } }); }
+  try { r = await fetch(`${GEMINI_API}/models?pageSize=200`, { headers: tutorHeaders(key, auth) }); }
   catch (e) { throw tutorErr(0, null); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw tutorErr(r.status, j);
@@ -119,12 +134,18 @@ function tutorContents() {
   }));
 }
 
-async function tutorStream(key, model, contents, onText, signal) {
-  const body = { systemInstruction: { parts: [{ text: tutorSystem() }] }, contents, generationConfig: { temperature: 0.4 } };
+async function tutorStream(key, model, contents, onText, signal, auth) {
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: tutorSystem() }] }, contents, generationConfig: { temperature: 0.4 } });
+  const go = a => fetch(`${GEMINI_API}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+    method: "POST", headers: { "Content-Type": "application/json", ...tutorHeaders(key, a) }, body, signal });
   let r;
   try {
-    r = await fetch(`${GEMINI_API}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body), signal });
+    r = await go(auth);
+    // a newer key refused one way: try the other way once, and keep it if it works
+    if (!r.ok && tutorAuthRetry(key, r.status)) {
+      const other = auth === "bearer" ? "header" : "bearer", r2 = await go(other);
+      if (r2.ok) { r = r2; const c = tutorCfg(); if (c.key === key) { c.auth = other; tutorSaveCfg(c); } }
+    }
   } catch (e) { if (e.name === "AbortError") throw e; throw tutorErr(0, null); }
   if (!r.ok) throw tutorErr(r.status, await r.json().catch(() => ({})));
   const reader = r.body.getReader(), dec = new TextDecoder();
@@ -181,7 +202,7 @@ async function tutorSend(text, ctx) {
   for (const model of tryList) {
     try {
       reply.model = model;
-      const out = await tutorStream(cfg.key, model, contents, t => { reply.text = t; tutorPaintLast(); }, TUTOR.abort.signal);
+      const out = await tutorStream(cfg.key, model, contents, t => { reply.text = t; tutorPaintLast(); }, TUTOR.abort.signal, tutorCfg().auth);
       reply.text = out.text;
       if (!out.text) { reply.error = true; reply.text = out.finish === "BLOCKED" || out.finish === "SAFETY" ? "Google blocked this answer. Try asking in a different way." : "No answer came back. Try again."; }
       else if (out.finish === "MAX_TOKENS") reply.text += "\n\n*(The answer was cut off — ask “tiếp tục” to continue.)*";
@@ -537,7 +558,7 @@ function tutorRender() {
           <li>Paste it here.</li>
         </ol>
         <label class="field"><span class="field-label">Gemini API key</span>
-          <input class="input mono" id="tt-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
+          <input class="input mono" id="tt-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza… or AQ.…"></label>
         <div class="field-error" id="tt-key-err" hidden></div>
         <button class="btn btn-primary btn-block" id="tt-key-save">Save and start</button>
         <p class="text-3 small">The key is saved only in this browser, and every account on it can use the tutor (each account keeps its own chat). Messages go from your browser straight to Google; the free tier has a daily limit.</p>
@@ -655,12 +676,12 @@ function tutorBind(p) {
     const inp = document.getElementById("tt-key"), err = document.getElementById("tt-key-err");
     const key = inp.value.trim().replace(/\s+/g, "");
     const fail = m => { err.textContent = m; err.hidden = false; inp.classList.add("invalid"); save.disabled = false; save.textContent = "Save and start"; };
-    if (key.length < 20) return fail("Paste the whole key (it usually starts with AIza).");
+    if (key.length < 20) return fail("Paste the whole key (it starts with AIza or AQ.).");
     save.disabled = true; save.textContent = "Checking the key…";
     try {
-      const models = await tutorListModels(key);
+      const { models, auth } = await tutorProbe(key);
       if (!models.length) return fail("This key works, but no chat models are available to it.");
-      tutorSaveCfg({ key, model: models[0].id, models });
+      tutorSaveCfg({ key, model: models[0].id, models, auth });
       try { localStorage.removeItem("cfaStudy_tutor_skip"); } catch (e) { /* ignore */ }
       TUTOR.view = "chat"; toast("CFA Tutor is ready");
       tutorRender();
@@ -676,7 +697,7 @@ function tutorBind(p) {
   const ref = document.getElementById("tt-refresh");
   if (ref) ref.onclick = async () => {
     const c = tutorCfg();
-    try { c.models = await tutorListModels(c.key); if (!c.models.some(m => m.id === c.model) && c.models.length) c.model = c.models[0].id; tutorSaveCfg(c); toast(`${c.models.length} models available`); tutorRender(); }
+    try { const pr = await tutorProbe(c.key, c.auth); c.models = pr.models; c.auth = pr.auth; if (!c.models.some(m => m.id === c.model) && c.models.length) c.model = c.models[0].id; tutorSaveCfg(c); toast(`${c.models.length} models available`); tutorRender(); }
     catch (e) { toast(tutorErrText(e), "error"); }
   };
   const fg = document.getElementById("tt-forget");
