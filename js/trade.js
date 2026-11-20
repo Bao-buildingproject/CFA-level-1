@@ -271,6 +271,7 @@ async function trFetchBars(sym, range) {
 
 const trChartLocalTime = t => new Date((t + 7 * 3600) * 1000);
 const trChartDate = t => trChartLocalTime(t).toISOString().slice(0, 10).split("-").reverse().join("/");
+const trIsWeeklyRange = range => range === "3Y" || range === "ALL";
 
 async function trLoadBars(sym, range) {
   const now = Math.floor(Date.now() / 1000);
@@ -288,7 +289,7 @@ async function trLoadBars(sym, range) {
     throw new Error("Invalid VNDirect chart data");
   }
   const bars = j.t.map((t, i) => ({ t, o: j.o[i], h: j.h[i], l: j.l[i], c: j.c[i], v: j.v[i] })).sort((a, b) => a.t - b.t);
-  if (range === "ALL" || range === "3Y") return trWeeklyBars(bars);
+  if (trIsWeeklyRange(range)) return trWeeklyBars(bars);
   if (range === "1D" && bars.length) {
     const last = trChartDate(bars[bars.length - 1].t);
     return bars.filter(b => trChartDate(b.t) === last);
@@ -399,9 +400,9 @@ function trChartSvg(bars, w, opts = {}) {
   const y = v => top + (hi - v) / (hi - lo) * plotH;
   const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
   let marks = "";
-  if (n <= 140 || opts.fullHistory) {
-    const bw = Math.min(10, opts.fullHistory ? step * 0.62 : Math.max(1, step * 0.62));
-    const wickStyle = opts.fullHistory ? ` style="stroke-width:${Math.min(1, step * 0.48).toFixed(2)}"` : "";
+  if (n <= 140 || opts.weekly) {
+    const bw = Math.min(10, opts.weekly ? step * 0.62 : Math.max(1, step * 0.62));
+    const wickStyle = opts.weekly ? ` style="stroke-width:${Math.min(1, step * 0.48).toFixed(2)}"` : "";
     bars.forEach((b, i) => {
       const x = i * step + step / 2, cls = b.c >= b.o ? "tr-up" : "tr-down";
       const y1 = y(Math.max(b.o, b.c)), y2 = y(Math.min(b.o, b.c));
@@ -411,7 +412,7 @@ function trChartSvg(bars, w, opts = {}) {
     const pts = bars.map((b, i) => `${(i * step + step / 2).toFixed(1)},${y(b.c).toFixed(1)}`);
     marks = `<path class="tr-area" d="M${pts[0].split(",")[0]},${top + plotH} L${pts.join(" L")} L${pts[pts.length - 1].split(",")[0]},${top + plotH}Z"/><polyline class="tr-line" points="${pts.join(" ")}"/>`;
   }
-  const volumeWidth = (opts.fullHistory ? step * 0.6 : Math.max(0.6, step * 0.6)).toFixed(1);
+  const volumeWidth = (opts.weekly ? step * 0.6 : Math.max(0.6, step * 0.6)).toFixed(1);
   const vol = bars.map((b, i) => { const hgt = (b.v || 0) / vmax * (VH - 6); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(H - 18 - hgt).toFixed(1)}" width="${volumeWidth}" height="${hgt.toFixed(1)}"/>`; }).join("");
   const ticks = [0, 1, 2, 3].map(k => lo + pad + (hi - lo - 2 * pad) * k / 3);
   const axis = ticks.map(v => `<line class="tr-grid" x1="0" x2="${plotW}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${plotW + 6}" y="${(y(v) + 4).toFixed(1)}">${trP(v)}</text>`).join("");
@@ -419,7 +420,7 @@ function trChartSvg(bars, w, opts = {}) {
   const fmtT = t => {
     const iso = trChartLocalTime(t).toISOString();
     if (opts.intraday) return iso.slice(11, 16);
-    if (opts.fullHistory && spansYears) return iso.slice(0, 7).split("-").reverse().join("/");
+    if (opts.weekly && spansYears) return iso.slice(0, 7).split("-").reverse().join("/");
     return iso.slice(5, 10).split("-").reverse().join("/");
   };
   const labelIndexes = new Set([0, Math.floor(n / 2), n - 1]);
@@ -1079,7 +1080,7 @@ function renderTradeStock(sym) {
 async function trDrawChart(sym) {
   const box = document.getElementById("tr-chart");
   if (!box) return;
-  const range = TRADE.range, fullHistory = range === "ALL";
+  const range = TRADE.range, weekly = trIsWeeklyRange(range);
   const out = document.getElementById("tr-readout"), period = document.getElementById("tr-chart-period");
   const request = Symbol();
   TRADE.chartRequest = request;
@@ -1091,8 +1092,8 @@ async function trDrawChart(sym) {
     const bars = await trFetchBars(sym, range);
     if (!isCurrent()) return;
     const w = Math.max(280, box.clientWidth || 640), q = TRADE.q[sym];
-    box.innerHTML = trChartSvg(bars, w, { intraday: range === "1D", fullHistory, ref: range === "1D" && q ? q.ref : null, h: w < 500 ? 220 : 280 });
-    if (fullHistory && bars.length) {
+    box.innerHTML = trChartSvg(bars, w, { intraday: range === "1D", weekly, ref: range === "1D" && q ? q.ref : null, h: w < 500 ? 220 : 280 });
+    if (weekly && bars.length) {
       period.textContent = `Dữ liệu VNDirect từ ${trChartDate(bars[0].t)} đến ${trChartDate(bars[bars.length - 1].end)} · Nến tuần`;
       period.hidden = false;
     }
