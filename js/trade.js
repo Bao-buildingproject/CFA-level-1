@@ -40,7 +40,7 @@ const TR_FUNDS = ["E1VFVN30", "FUEVFVND", "FUESSVFL", "FUEVN100", "FUEDCMID", "F
 const TR_GROUP_TIPS = { watch: "Danh sách theo dõi của bạn", hold: "Cổ phiếu bạn đang nắm giữ", VN30: "30 cổ phiếu vốn hóa lớn nhất HOSE",
   HOSE: "Tất cả cổ phiếu niêm yết trên HOSE", HNX: "Tất cả cổ phiếu niêm yết trên HNX", UPCOM: "Tất cả cổ phiếu giao dịch trên UPCoM" };
 const trGroupLabel = g => (TR_TABS.find(x => x[0] === g) || TR_MORE.flatMap(x => x[1]).find(x => x[0] === g) || [g, g])[1];
-const TRADE = { q: {}, seen: {}, at: 0, err: "", loading: false, timer: null, tab: "board", group: "VN30", lists: {}, idx: null, prev: {}, bars: {}, range: "3M",
+const TRADE = { q: {}, seen: {}, at: 0, err: "", loading: false, timer: null, tab: "board", group: "VN30", lists: {}, idx: null, prev: {}, bars: {}, range: "ALL", chartRequest: null,
   side: "B", type: "LO", vnindex: null, sort: null, uni: null, uniP: null, fullAt: 0, fullKey: "", shown: 0 };
 
 // ---------- Account ----------
@@ -252,20 +252,70 @@ function trFind(text, max = 8) {
 }
 async function trFetchBars(sym, range) {
   const key = `${sym}|${range}`, hit = TRADE.bars[key];
-  if (hit && Date.now() - hit.at < 60000) return hit.bars;
-  const now = Math.floor(Date.now() / 1000);
-  const [res, days] = { "1D": ["5", 6], "1M": ["D", 31], "3M": ["D", 92], "6M": ["D", 183], "1Y": ["D", 366], "3Y": ["W", 1100] }[range] || ["D", 92];
-  const r = await fetch(`${TR_BARS}?resolution=${res}&symbol=${encodeURIComponent(sym)}&from=${now - days * 86400}&to=${now}`, { cache: "no-store" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  const j = await r.json().catch(() => ({}));
-  let bars = j && j.s === "ok" && Array.isArray(j.t) ? j.t.map((t, i) => ({ t, o: j.o[i], h: j.h[i], l: j.l[i], c: j.c[i], v: j.v[i] })) : [];
-  if (range === "1D" && bars.length) {           // keep only the latest trading day
-    const day = t => new Date((t + 7 * 3600) * 1000).toISOString().slice(0, 10);
-    const last = day(bars[bars.length - 1].t);
-    bars = bars.filter(b => day(b.t) === last);
+  const cacheMs = range === "ALL" ? 300000 : 60000;
+  if (hit && hit.pending) return hit.pending;
+  if (hit && Date.now() - hit.at < cacheMs) return hit.bars;
+  const entry = { pending: trLoadBars(sym, range) };
+  TRADE.bars[key] = entry;
+  try {
+    entry.bars = await entry.pending;
+    entry.at = Date.now();
+    return entry.bars;
+  } catch (e) {
+    if (TRADE.bars[key] === entry) delete TRADE.bars[key];
+    throw e;
+  } finally {
+    delete entry.pending;
   }
-  TRADE.bars[key] = { at: Date.now(), bars };
+}
+
+const trChartLocalTime = t => new Date((t + 7 * 3600) * 1000);
+const trChartDate = t => trChartLocalTime(t).toISOString().slice(0, 10).split("-").reverse().join("/");
+
+async function trLoadBars(sym, range) {
+  const now = Math.floor(Date.now() / 1000);
+  const days = { "1D": 6, "1M": 31, "3M": 92, "6M": 183, "1Y": 366, "3Y": 1100 }[range] || 92;
+  const from = range === "ALL" ? 0 : now - days * 86400;
+  const resolution = range === "1D" ? "5" : "D";
+  const r = await fetch(`${TR_BARS}?resolution=${resolution}&symbol=${encodeURIComponent(sym)}&from=${from}&to=${now}`, { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const body = (await r.text()).trim();
+  if (!body) return [];
+  const j = JSON.parse(body);
+  if (j.s === "no_data") return [];
+  const columns = [j.t, j.o, j.h, j.l, j.c, j.v];
+  if (j.s !== "ok" || !columns.every(col => Array.isArray(col) && col.length === j.t.length && col.every(Number.isFinite))) {
+    throw new Error("Invalid VNDirect chart data");
+  }
+  const bars = j.t.map((t, i) => ({ t, o: j.o[i], h: j.h[i], l: j.l[i], c: j.c[i], v: j.v[i] })).sort((a, b) => a.t - b.t);
+  if (range === "ALL" || range === "3Y") return trWeeklyBars(bars);
+  if (range === "1D" && bars.length) {
+    const last = trChartDate(bars[bars.length - 1].t);
+    return bars.filter(b => trChartDate(b.t) === last);
+  }
   return bars;
+}
+
+function trWeeklyBars(bars) {
+  const weeks = [];
+  let week, monday;
+  for (const bar of bars) {
+    const local = trChartLocalTime(bar.t);
+    const day = Math.floor(local.getTime() / 86400000);
+    const start = day - (local.getUTCDay() + 6) % 7;
+    if (start !== monday) {
+      monday = start;
+      week = { ...bar, end: bar.t };
+      weeks.push(week);
+    } else if (bar.t !== week.end) {
+      week.h = Math.max(week.h, bar.h);
+      week.l = Math.min(week.l, bar.l);
+      week.c = bar.c;
+      week.v += bar.v;
+      week.end = bar.t;
+    }
+  }
+  return weeks;
 }
 
 // ---------- Orders ----------
@@ -349,21 +399,28 @@ function trChartSvg(bars, w, opts = {}) {
   const y = v => top + (hi - v) / (hi - lo) * plotH;
   const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
   let marks = "";
-  if (n <= 140) {
-    const bw = Math.max(1, Math.min(10, step * 0.62));
+  if (n <= 140 || opts.fullHistory) {
+    const bw = Math.min(10, opts.fullHistory ? step * 0.62 : Math.max(1, step * 0.62));
+    const wickStyle = opts.fullHistory ? ` style="stroke-width:${Math.min(1, step * 0.48).toFixed(2)}"` : "";
     bars.forEach((b, i) => {
       const x = i * step + step / 2, cls = b.c >= b.o ? "tr-up" : "tr-down";
       const y1 = y(Math.max(b.o, b.c)), y2 = y(Math.min(b.o, b.c));
-      marks += `<line class="${cls}" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(b.h).toFixed(1)}" y2="${y(b.l).toFixed(1)}"/><rect class="${cls}" x="${(x - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y2 - y1).toFixed(1)}"/>`;
+      marks += `<line class="${cls}"${wickStyle} x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(b.h).toFixed(1)}" y2="${y(b.l).toFixed(1)}"/><rect class="${cls}" x="${(x - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y2 - y1).toFixed(1)}"/>`;
     });
   } else {
     const pts = bars.map((b, i) => `${(i * step + step / 2).toFixed(1)},${y(b.c).toFixed(1)}`);
     marks = `<path class="tr-area" d="M${pts[0].split(",")[0]},${top + plotH} L${pts.join(" L")} L${pts[pts.length - 1].split(",")[0]},${top + plotH}Z"/><polyline class="tr-line" points="${pts.join(" ")}"/>`;
   }
-  const vol = bars.map((b, i) => { const hgt = (b.v || 0) / vmax * (VH - 6); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(H - 18 - hgt).toFixed(1)}" width="${Math.max(0.6, step * 0.6).toFixed(1)}" height="${hgt.toFixed(1)}"/>`; }).join("");
+  const volumeWidth = (opts.fullHistory ? step * 0.6 : Math.max(0.6, step * 0.6)).toFixed(1);
+  const vol = bars.map((b, i) => { const hgt = (b.v || 0) / vmax * (VH - 6); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(H - 18 - hgt).toFixed(1)}" width="${volumeWidth}" height="${hgt.toFixed(1)}"/>`; }).join("");
   const ticks = [0, 1, 2, 3].map(k => lo + pad + (hi - lo - 2 * pad) * k / 3);
   const axis = ticks.map(v => `<line class="tr-grid" x1="0" x2="${plotW}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${plotW + 6}" y="${(y(v) + 4).toFixed(1)}">${trP(v)}</text>`).join("");
-  const fmtT = t => { const d = new Date((t + 7 * 3600) * 1000); return opts.intraday ? d.toISOString().slice(11, 16) : d.toISOString().slice(5, 10).split("-").reverse().join("/"); };
+  const fmtT = t => {
+    const iso = trChartLocalTime(t).toISOString();
+    if (opts.intraday) return iso.slice(11, 16);
+    if (opts.fullHistory) return iso.slice(0, 7).split("-").reverse().join("/");
+    return iso.slice(5, 10).split("-").reverse().join("/");
+  };
   const labels = [0, Math.floor(n / 2), n - 1].map((i, k) => `<text class="tr-axis" x="${(i * step + step / 2).toFixed(1)}" y="${H - 4}" text-anchor="${["start", "middle", "end"][k]}">${fmtT(bars[i].t)}</text>`).join("");
   const ref = opts.ref ? `<line class="tr-refline" x1="0" x2="${plotW}" y1="${y(opts.ref).toFixed(1)}" y2="${y(opts.ref).toFixed(1)}"/>` : "";
   return `<svg class="tr-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" role="img" aria-label="Biểu đồ giá">${axis}${ref}${marks}${vol}${labels}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${H - 18}" visibility="hidden"/></svg>`;
@@ -938,8 +995,9 @@ function trBindRest(ctx) {
 }
 
 // ---------- One stock: chart, order book, order ticket ----------
-const TR_RANGES = [["1D", "Hôm nay"], ["1M", "1 tháng"], ["3M", "3 tháng"], ["6M", "6 tháng"], ["1Y", "1 năm"], ["3Y", "3 năm"]];
+const TR_RANGES = [["1D", "Hôm nay"], ["1M", "1 tháng"], ["3M", "3 tháng"], ["6M", "6 tháng"], ["1Y", "1 năm"], ["3Y", "3 năm"], ["ALL", "Toàn bộ"]];
 function renderTradeStock(sym) {
+  TRADE.range = "ALL";
   const T = tradeData();
   const draw = () => {
     if (currentRoute()[0] !== "trade" || String(currentRoute()[2] || "").toUpperCase() !== sym) return;
@@ -971,9 +1029,10 @@ function renderTradeStock(sym) {
       <div class="tr-layout">
         <div class="tr-main">
           <div class="card">
-            <div class="card-head" style="flex-wrap:wrap"><div class="segmented">${TR_RANGES.map(([r, l]) => `<button class="${TRADE.range === r ? "active" : ""}" data-tr-range="${r}">${l}</button>`).join("")}</div>
+            <div class="card-head" style="flex-wrap:wrap"><div class="segmented" role="group" aria-label="Khoảng thời gian biểu đồ">${TR_RANGES.map(([r, l]) => `<button type="button" class="${TRADE.range === r ? "active" : ""}" data-tr-range="${r}" aria-pressed="${TRADE.range === r}">${l}</button>`).join("")}</div>
               <span class="tr-readout text-2 small" id="tr-readout"></span></div>
-            <div id="tr-chart" class="tr-chart-box"><p class="text-3 small">Đang tải biểu đồ…</p></div>
+            <div id="tr-chart" class="tr-chart-box"></div>
+            <p id="tr-chart-period" class="text-3 small" hidden></p>
           </div>
           <div class="card section">
             <div class="card-head"><h2>Dư mua · Dư bán</h2><span class="text-3 small">3 mức giá tốt nhất</span></div>
@@ -1015,17 +1074,29 @@ function renderTradeStock(sym) {
 async function trDrawChart(sym) {
   const box = document.getElementById("tr-chart");
   if (!box) return;
-  const range = TRADE.range;
+  const range = TRADE.range, fullHistory = range === "ALL";
+  const out = document.getElementById("tr-readout"), period = document.getElementById("tr-chart-period");
+  const request = Symbol();
+  TRADE.chartRequest = request;
+  const isCurrent = () => TRADE.chartRequest === request && document.getElementById("tr-chart") === box;
+  box.innerHTML = '<p class="text-3 small" role="status">Đang tải biểu đồ…</p>';
+  out.textContent = "";
+  period.hidden = true;
   try {
     const bars = await trFetchBars(sym, range);
-    if (TRADE.range !== range || !document.getElementById("tr-chart")) return;
+    if (!isCurrent()) return;
     const w = Math.max(280, box.clientWidth || 640), q = TRADE.q[sym];
-    box.innerHTML = trChartSvg(bars, w, { intraday: range === "1D", ref: range === "1D" && q ? q.ref : null, h: w < 500 ? 220 : 280 });
-    const svg = box.querySelector("svg"), out = document.getElementById("tr-readout"), cross = svg && svg.querySelector(".tr-cross");
+    box.innerHTML = trChartSvg(bars, w, { intraday: range === "1D", fullHistory, ref: range === "1D" && q ? q.ref : null, h: w < 500 ? 220 : 280 });
+    if (fullHistory && bars.length) {
+      period.textContent = `Dữ liệu VNDirect từ ${trChartDate(bars[0].t)} đến ${trChartDate(bars[bars.length - 1].end)} · Nến tuần`;
+      period.hidden = false;
+    }
+    const svg = box.querySelector("svg"), cross = svg && svg.querySelector(".tr-cross");
     const show = i => {
       const b = bars[i]; if (!b) return;
-      const d = new Date((b.t + 7 * 3600) * 1000).toISOString();
-      out.innerHTML = `${range === "1D" ? d.slice(11, 16) : d.slice(0, 10).split("-").reverse().join("/")} · M ${trP(b.o)} C ${trP(b.h)} T ${trP(b.l)} <strong>Đ ${trP(b.c)}</strong> · KL ${trInt(b.v)}`;
+      const start = range === "1D" ? trChartLocalTime(b.t).toISOString().slice(11, 16) : trChartDate(b.t);
+      const dates = b.end && b.end !== b.t ? `${start}–${trChartDate(b.end)}` : start;
+      out.innerHTML = `${dates} · M ${trP(b.o)} C ${trP(b.h)} T ${trP(b.l)} <strong>Đ ${trP(b.c)}</strong> · KL ${trInt(b.v)}`;
     };
     if (svg && bars.length) {
       show(bars.length - 1);
@@ -1038,9 +1109,9 @@ async function trDrawChart(sym) {
       svg.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); show(bars.length - 1); });
     }
   } catch (e) {
+    if (!isCurrent()) return;
     box.innerHTML = `<div class="tr-chart-empty">Chưa tải được biểu đồ từ VNDirect. Giá và đặt lệnh vẫn dùng bình thường.<br><button class="btn btn-secondary btn-sm" style="margin-top:10px" id="tr-chart-retry">Thử lại</button></div>`;
-    const rb = document.getElementById("tr-chart-retry");
-    if (rb) rb.onclick = () => { delete TRADE.bars[`${sym}|${range}`]; box.innerHTML = `<p class="text-3 small">Đang tải biểu đồ…</p>`; trDrawChart(sym); };
+    box.querySelector("#tr-chart-retry").onclick = () => trDrawChart(sym);
   }
 }
 function trBindStock(sym, draw) {
@@ -1049,7 +1120,16 @@ function trBindStock(sym, draw) {
   if (rf) rf.onclick = async () => { rf.disabled = true; TRADE.bars = {}; await trRefresh([sym]); draw(); };
   const wt = document.getElementById("tr-watch");
   if (wt) wt.onclick = () => { T.watch.unshift(sym); saveData(); toast(`Đã thêm ${sym} vào Theo dõi`); draw(); };
-  view.querySelectorAll("[data-tr-range]").forEach(b => b.onclick = () => { TRADE.range = b.dataset.trRange; view.querySelectorAll("[data-tr-range]").forEach(x => x.classList.toggle("active", x === b)); trDrawChart(sym); });
+  const ranges = view.querySelectorAll("[data-tr-range]");
+  ranges.forEach(b => b.onclick = () => {
+    if (TRADE.range === b.dataset.trRange) return;
+    TRADE.range = b.dataset.trRange;
+    ranges.forEach(x => {
+      x.classList.toggle("active", x === b);
+      x.setAttribute("aria-pressed", String(x === b));
+    });
+    trDrawChart(sym);
+  });
   view.querySelectorAll("[data-tr-side]").forEach(b => b.onclick = () => { TRADE.side = b.dataset.trSide; draw(); });
   view.querySelectorAll("[data-tr-type]").forEach(b => b.onclick = () => { TRADE.type = b.dataset.trType; draw(); });
   view.querySelectorAll("[data-tr-cancel]").forEach(b => b.onclick = () => {
