@@ -264,6 +264,7 @@ function deleteProfile(id) {
   if (PROFILES.list.length <= 1) return false;
   try { localStorage.removeItem(profileKey(id)); } catch (e) { /* ignore */ }
   if (typeof qbiClearProfile === "function") qbiClearProfile(id);
+  if (typeof fwClearProfile === "function") fwClearProfile(id);
   PROFILES.list = PROFILES.list.filter(p => p.id !== id);
   if (PROFILES.active === id) switchProfile(PROFILES.list[0].id);
   saveProfiles();
