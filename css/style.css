@@ -1220,6 +1220,7 @@ body.gated .tutor, body.tutor-off .tutor { display: none !important; }
 .tt-setup { gap: 14px; }
 .tt-lead { color: var(--text-2); line-height: 1.55; }
 .tt-steps { padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+.tt-share { border-top: 1px solid var(--border); padding-top: 12px; display: grid; gap: 6px; justify-items: start; }
 .tt-steps a { font-weight: 600; }
 @media (max-width: 767px) {
   .tutor { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; z-index: 85; }

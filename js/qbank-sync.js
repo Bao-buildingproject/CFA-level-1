@@ -23,10 +23,10 @@ async function qbkManifest() {
   if (!r.ok) throw new Error("http " + r.status);
   return r.json();
 }
-async function qbkDerive(pass, m) {
+async function qbkDerive(pass, m, usages = ["decrypt"]) {
   const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(qbkNorm(pass)), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: qbkBytes(m.salt), iterations: m.iter },
-    base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    base, { name: "AES-GCM", length: 256 }, false, usages);
 }
 function qbkDecrypt(key, buf) { return crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.slice(0, 12) }, key, buf.slice(12)); }
 function qbkGunzip(buf) { return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).text(); }
@@ -109,6 +109,7 @@ async function qbkSync(opts = {}) {
       if (report.failed.length) console.warn("Question Bank:", report.failed);
       toast(`Question Bank ready · ${qbiQuestionCount().toLocaleString("en-US")} questions`);
     }
+    await qbkTutorSync(m, opts.key);
   } catch (e) {
     QBS.error = e.message === "bad-key" ? "bad-key" : e.message === "profile" ? null : "network";
     if (e.message === "profile") QBS.checked = null;
@@ -116,6 +117,51 @@ async function qbkSync(opts = {}) {
   QBS.running = false; QBS.step = null;
   qbkPaint(true, true);
   if (PROFILES.active !== pid) qbkAuto();
+}
+
+// ---------- CFA Tutor key, sealed with the same access key ----------
+// The owner can publish the tutor's Gemini key in the manifest ("tutor"), encrypted like the packs.
+// A browser that unlocks the Question Bank then sets up the tutor too, for every account in it.
+// A key someone pasted in this browser wins, and a published key removed here is not put back.
+const QBK_TUTOR_SKIP = "cfaStudy_tutor_skip";
+async function qbkTutorSync(m, key) {
+  const t = m && m.tutor;
+  if (!t || !t.blob || typeof tutorCfg !== "function" || !qbkGet()) return false;
+  const cfg = tutorCfg();
+  if (cfg.key && (!cfg.from || cfg.from === t.hash)) return false;
+  try { if (localStorage.getItem(QBK_TUTOR_SKIP) === t.hash) return false; } catch (e) { /* ignore */ }
+  try {
+    key = key || await qbkCheck(qbkGet(), m);
+    if (!key) return false;
+    const c = JSON.parse(new TextDecoder().decode(await qbkDecrypt(key, qbkBytes(t.blob))));
+    if (!c || typeof c.key !== "string" || c.key.length < 20) return false;
+    tutorSaveCfg({ ...cfg, key: c.key, model: c.model || "gemini-2.5-flash", models: [], from: t.hash });
+    // the model list comes from Google in the background; the tutor works with the saved model meanwhile
+    tutorListModels(c.key).then(models => {
+      const cur = tutorCfg();
+      if (cur.key !== c.key || !models.length) return;
+      cur.models = models;
+      if (!models.some(x => x.id === cur.model)) cur.model = models[0].id;
+      tutorSaveCfg(cur);
+    }).catch(() => { /* ignore */ });
+    if (typeof TUTOR !== "undefined" && TUTOR.open) { TUTOR.view = "chat"; tutorRender(); }
+    return true;
+  } catch (e) { return false; }
+}
+// Seal this browser's tutor key with the access key, for the owner to publish in qb/manifest.json
+async function qbkSealTutor() {
+  const cfg = tutorCfg(), m = await qbkManifest();
+  if (!cfg.key) throw new Error("no-tutor-key");
+  if (!qbkGet() || !(await qbkCheck(qbkGet(), m))) throw new Error("bad-key");
+  const ek = await qbkDerive(qbkGet(), m, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, ek, new TextEncoder().encode(JSON.stringify({ key: cfg.key, model: cfg.model || "" }))));
+  const blob = new Uint8Array(12 + ct.length);
+  blob.set(iv); blob.set(ct, 12);
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", blob))).slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");
+  let bin = "";
+  blob.forEach(b => { bin += String.fromCharCode(b); });
+  return { app: "cfa-study", kind: "tutor-key", version: 1, blob: btoa(bin), hash };
 }
 
 // One-tap link #/qbank/key/<access key>: remember the key until the user is signed in

@@ -471,6 +471,10 @@ function tutorOpen() {
   tutorMount();
   tutorHint(false);
   TUTOR.open = true;
+  // no key here yet, but the Question Bank is unlocked: the owner may have published a sealed tutor key
+  if (!tutorCfg().key && typeof qbkGet === "function" && qbkGet() && typeof qbkManifest === "function") {
+    qbkManifest().then(m => { QBS.manifest = QBS.manifest || m; return qbkTutorSync(m); }).catch(() => { /* ignore */ });
+  }
   if (!tutorCfg().key) TUTOR.view = "setup";
   else if (TUTOR.view === "setup") TUTOR.view = "chat";
   document.body.classList.add("tutor-open");
@@ -537,6 +541,7 @@ function tutorRender() {
         <div class="field-error" id="tt-key-err" hidden></div>
         <button class="btn btn-primary btn-block" id="tt-key-save">Save and start</button>
         <p class="text-3 small">The key is saved only in this browser, and every account on it can use the tutor (each account keeps its own chat). Messages go from your browser straight to Google; the free tier has a daily limit.</p>
+        <p class="text-3 small">Have the Question Bank access link? Open it in this browser: if the site's owner has shared the tutor key with it, the tutor sets itself up and you can skip this.</p>
       </div>`;
     tutorBind(p);
     return;
@@ -554,6 +559,10 @@ function tutorRender() {
           <button class="btn btn-soft-danger btn-sm" id="tt-forget">${icon("trash", 16)} Remove key from this browser</button>
         </div>
         <p class="text-3 small">Key: <span class="mono">…${esc((cfg.key || "").slice(-4))}</span> · manage your keys at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a></p>
+        ${cfg.from ? `<p class="text-3 small">This key came with the Question Bank: every browser that unlocks the Question Bank sets up the tutor by itself.</p>`
+          : typeof qbkGet === "function" && qbkGet() ? `<div class="tt-share"><strong>Use this key on your other devices</strong>
+          <p class="text-3 small">Download the key sealed with the Question Bank access key and publish it with the question packs. Any browser that unlocks the Question Bank then sets up the tutor by itself, for every account in it. Anyone with the access key can then use this Gemini key.</p>
+          <button class="btn btn-secondary btn-sm" id="tt-seal">${icon("download", 16)} Download sealed key</button></div>` : ""}
       </div>`;
     tutorBind(p);
     return;
@@ -652,6 +661,7 @@ function tutorBind(p) {
       const models = await tutorListModels(key);
       if (!models.length) return fail("This key works, but no chat models are available to it.");
       tutorSaveCfg({ key, model: models[0].id, models });
+      try { localStorage.removeItem("cfaStudy_tutor_skip"); } catch (e) { /* ignore */ }
       TUTOR.view = "chat"; toast("CFA Tutor is ready");
       tutorRender();
       if (TUTOR.ctx && !TUTOR.busy) tutorSend("Giải thích giúp mình câu này: vì sao đáp án đúng, vì sao các lựa chọn khác sai, và bẫy của câu này.", TUTOR.ctx);
@@ -672,7 +682,18 @@ function tutorBind(p) {
   const fg = document.getElementById("tt-forget");
   if (fg) fg.onclick = async () => {
     if (!await confirmDialog({ title: "Remove the Gemini key?", message: "The tutor stops working for every account in this browser until a key is pasted again. Chats stay.", confirmText: "Remove", danger: true })) return;
-    try { localStorage.removeItem(TUTOR_CFG()); } catch (e) { /* ignore */ }
+    const from = tutorCfg().from;
+    try { localStorage.removeItem(TUTOR_CFG()); if (from) localStorage.setItem("cfaStudy_tutor_skip", from); } catch (e) { /* ignore */ }
     TUTOR.view = "setup"; tutorRender();
+  };
+  const seal = document.getElementById("tt-seal");
+  if (seal) seal.onclick = async () => {
+    seal.disabled = true;
+    try {
+      const out = await qbkSealTutor();
+      downloadFile("cfa-tutor-key.sealed.json", JSON.stringify(out, null, 1), "application/json");
+      toast("Sealed key downloaded: publish it with the question packs");
+    } catch (e) { toast(e.message === "bad-key" ? "The Question Bank access key on this browser is not valid" : "Could not seal the key — check your connection", "error"); }
+    seal.disabled = false;
   };
 }
