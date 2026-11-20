@@ -20,9 +20,11 @@ function trTechnicalControls() {
   return `<div class="tr-terminal-tools">
     <label class="tr-interval"><span>Loại nến</span><select id="tr-interval">${TR_CHART_INTERVALS.map(([value, label]) =>
       `<option value="${value}"${TRADE.interval === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
-    <details class="tr-indicator-menu"><summary>Chỉ báo</summary>
+    <details class="tr-indicator-menu"><summary>${icon("settings", 15)} Chỉ báo</summary>
       <div>${TR_INDICATORS.map(([key, label]) => `<label><input type="checkbox" data-tr-indicator="${key}"${TR_INDICATOR_OPTIONS[key] ? " checked" : ""}> ${label}</label>`).join("")}</div>
     </details>
+    ${trDrawingControls()}
+    <button type="button" class="tr-expand" data-tr-expand aria-pressed="false" title="Toàn màn hình" aria-label="Toàn màn hình">${icon("expand", 16)}</button>
   </div>`;
 }
 

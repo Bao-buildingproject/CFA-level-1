@@ -377,10 +377,18 @@ function trPlace({ sym, side, type, qty, price }) {
 }
 
 // ---------- Charts ----------
+function trVolumeLabel(value) {
+  for (const [scale, unit] of [[1e9, "B"], [1e6, "M"], [1e3, "K"]]) {
+    if (value >= scale) return `${(value / scale).toFixed(3)}${unit}`;
+  }
+  return trInt(value);
+}
+
 function trChartSvg(bars, w, opts = {}) {
-  const H = opts.h || 260, VH = 46, R = 46, top = 10, plotH = H - VH - top - 18;
   if (!bars.length) return `<div class="tr-chart-empty">Chưa có dữ liệu giá cho khoảng thời gian này.</div>`;
-  const n = bars.length, plotW = w - R, step = plotW / n;
+  const H = opts.h || 260, VH = 46, R = 46, top = 10;
+  const bottom = H - 18, volumeTop = bottom - VH, plotH = volumeTop - top;
+  const n = bars.length, plotW = w - R, step = plotW / n, axisX = plotW + R / 2;
   let lo = Math.min(...bars.map(b => b.l)), hi = Math.max(...bars.map(b => b.h));
   if (opts.ref) { lo = Math.min(lo, opts.ref); hi = Math.max(hi, opts.ref); }
   for (const { values } of opts.overlays || []) {
@@ -390,9 +398,12 @@ function trChartSvg(bars, w, opts = {}) {
       hi = Math.max(hi, value);
     }
   }
-  const pad = (hi - lo) * 0.08 || hi * 0.01 || 1; lo -= pad; hi += pad;
+  const pad = (hi - lo) * 0.08 || hi * 0.01 || 1;
+  lo = Math.max(0, lo - pad);
+  hi += pad;
   const y = v => top + (hi - v) / (hi - lo) * plotH;
   const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
+  const volumeHeight = v => (v || 0) / vmax * (VH - 6);
   const bw = Math.min(10, step * 0.62);
   const wickWidth = Math.min(1, step * 0.48).toFixed(2);
   const marks = bars.map((b, i) => {
@@ -401,9 +412,24 @@ function trChartSvg(bars, w, opts = {}) {
     return `<line class="${cls}" style="stroke-width:${wickWidth}" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(b.h).toFixed(1)}" y2="${y(b.l).toFixed(1)}"/><rect class="${cls}" x="${(x - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(2)}" height="${Math.max(1, y2 - y1).toFixed(1)}"/>`;
   }).join("");
   const volumeWidth = (step * 0.6).toFixed(2);
-  const vol = bars.map((b, i) => { const hgt = (b.v || 0) / vmax * (VH - 6); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(H - 18 - hgt).toFixed(1)}" width="${volumeWidth}" height="${hgt.toFixed(1)}"/>`; }).join("");
-  const ticks = [0, 1, 2, 3].map(k => lo + pad + (hi - lo - 2 * pad) * k / 3);
-  const axis = ticks.map(v => `<line class="tr-grid" x1="0" x2="${plotW}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${plotW + 6}" y="${(y(v) + 4).toFixed(1)}">${trP(v)}</text>`).join("");
+  const vol = bars.map((b, i) => { const hgt = volumeHeight(b.v); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(bottom - hgt).toFixed(1)}" width="${volumeWidth}" height="${hgt.toFixed(1)}"/>`; }).join("");
+
+  const last = bars[n - 1], close = trP(last.c), closeY = y(last.c);
+  const markerTone = last.c >= last.o ? "tr-marker-up" : "tr-marker-down";
+  const closeMarkerY = Math.min(volumeTop - 10, Math.max(top + 9, closeY));
+  const volumeMarkerY = Math.min(bottom - 10, Math.max(volumeTop + 10, bottom - volumeHeight(last.v)));
+  const roughStep = (hi - lo) / Math.max(2, Math.floor(plotH / 42));
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const priceStep = Math.max(0.01, [1, 2, 2.5, 5, 10].find(multiple => multiple * magnitude >= roughStep) * magnitude);
+  const firstTick = Math.ceil(lo / priceStep), lastTick = Math.floor(hi / priceStep);
+  const horizontalGrid = [], priceTicks = [];
+  for (let i = firstTick; i <= lastTick; i++) {
+    const price = i * priceStep, ty = y(price);
+    horizontalGrid.push(`<line class="tr-grid" x1="0" x2="${plotW}" y1="${ty.toFixed(1)}" y2="${ty.toFixed(1)}"/>`);
+    if (Math.abs(ty - closeMarkerY) > 16) {
+      priceTicks.push(`<text class="tr-axis tr-price-tick" x="${axisX}" y="${ty.toFixed(1)}" text-anchor="middle" dominant-baseline="central">${trP(price)}</text>`);
+    }
+  }
   const spansYears = trChartLocalTime(bars[0].t).getUTCFullYear() !== trChartLocalTime(bars[n - 1].t).getUTCFullYear();
   const fmtT = t => {
     const iso = trChartLocalTime(t).toISOString();
@@ -413,14 +439,34 @@ function trChartSvg(bars, w, opts = {}) {
     if (opts.hourly) return `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
     return iso.slice(5, 10).split("-").reverse().join("/");
   };
-  const labelIndexes = new Set([0, Math.floor(n / 2), n - 1]);
-  const labels = Array.from(labelIndexes, i => {
-    const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
-    return `<text class="tr-axis" x="${(i * step + step / 2).toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${fmtT(bars[i].t)}</text>`;
-  }).join("");
+  const labelWidth = Math.max(fmtT(bars[0].t).length, fmtT(bars[n - 1].t).length) * 6.5;
+  const tickCount = Math.min(n, 8, Math.max(2, Math.floor((plotW - labelWidth) / (labelWidth + 18)) + 1));
+  const verticalGrid = [], timeTicks = [];
+  let previousLabel;
+  for (let tick = 0; tick < tickCount; tick++) {
+    const i = tickCount === 1 ? 0 : Math.round(tick * (n - 1) / (tickCount - 1));
+    const label = fmtT(bars[i].t);
+    if (label === previousLabel) continue;
+    previousLabel = label;
+    const tx = i * step + step / 2;
+    const anchor = tickCount === 1 ? "middle" : tick === 0 ? "start" : tick === tickCount - 1 ? "end" : "middle";
+    const lx = anchor === "start" ? 2 : anchor === "end" ? plotW - 2 : tx;
+    if (anchor === "middle" && tickCount > 1) {
+      verticalGrid.push(`<line class="tr-time-grid" x1="${tx.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${top}" y2="${bottom}"/>`);
+    }
+    timeTicks.push(`<text class="tr-axis tr-time-tick" x="${lx.toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${label}</text>`);
+  }
+  const grid = `${horizontalGrid.join("")}${verticalGrid.join("")}<line class="tr-price-axis-line" x1="${plotW}" x2="${plotW}" y1="${top}" y2="${bottom}"/><line class="tr-volume-divider" x1="0" x2="${w}" y1="${volumeTop}" y2="${volumeTop}"/>`;
+  const closeGuide = `<line class="tr-close-line ${markerTone}" x1="0" x2="${plotW}" y1="${closeY.toFixed(1)}" y2="${closeY.toFixed(1)}"/>`;
+  const marker = (group, badge, label, value, position) => {
+    const fit = value.length > 6 ? ' textLength="36" lengthAdjust="spacingAndGlyphs"' : "";
+    return `<g class="${group} ${markerTone}"><rect class="${badge}" x="${plotW + 2}" y="${(position - 9).toFixed(1)}" width="${R - 4}" height="18" rx="3"/><text class="${label}" x="${axisX}" y="${position.toFixed(1)}" text-anchor="middle" dominant-baseline="central"${fit}>${value}</text></g>`;
+  };
+  const closeBadge = marker("tr-price-marker", "tr-close-badge", "tr-close-label", close, closeMarkerY);
+  const volumeBadge = marker("tr-volume-marker", "tr-volume-badge", "tr-volume-badge-label", trVolumeLabel(last.v), volumeMarkerY);
   const ref = opts.ref ? `<line class="tr-refline" x1="0" x2="${plotW}" y1="${y(opts.ref).toFixed(1)}" y2="${y(opts.ref).toFixed(1)}"/>` : "";
   const overlays = (opts.overlays || []).map(series => trTechnicalPath(series, step, y)).join("");
-  return `<svg class="tr-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" role="img" aria-label="Biểu đồ giá">${axis}${ref}${marks}${overlays}${vol}${labels}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${H - 18}" visibility="hidden"/></svg>`;
+  return `<svg class="tr-chart tr-price-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" data-price-min="${lo}" data-price-max="${hi}" data-price-top="${top}" data-price-bottom="${volumeTop}" role="img" aria-label="Biểu đồ nến và khối lượng, giá đóng cửa gần nhất ${close} nghìn đồng, khối lượng ${trInt(last.v)}">${grid}${ref}${closeGuide}${marks}${overlays}${vol}${priceTicks.join("")}${timeTicks.join("")}${closeBadge}${volumeBadge}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${bottom}" visibility="hidden"/></svg>`;
 }
 // Lines over time: each series is [[time ms, value], …]
 function trLinesSvg(series, w, h = 200, opts = {}) {
@@ -439,7 +485,7 @@ function trLinesSvg(series, w, h = 200, opts = {}) {
 }
 
 // ---------- Shared page parts ----------
-function tradeStop() { if (TRADE.timer) { clearInterval(TRADE.timer); TRADE.timer = null; } trQuickClose(); }
+function tradeStop() { trStopDrawing(); trUnbindChartSize(); if (TRADE.timer) { clearInterval(TRADE.timer); TRADE.timer = null; } trQuickClose(); }
 function trAutoRefresh(fn, every = 10000) {
   if (TRADE.timer) clearInterval(TRADE.timer);
   TRADE.timer = setInterval(() => {
@@ -992,6 +1038,7 @@ function trBindRest(ctx) {
 }
 
 // ---------- One stock: chart, order book, order ticket ----------
+const TR_RANGE_SHORT = { "1D": "Nay", "1M": "1Th", "3M": "3Th", "6M": "6Th", "1Y": "1N", "3Y": "3N", "ALL": "Toàn bộ" };
 const TR_RANGES = [["1D", "Hôm nay"], ["1M", "1 tháng"], ["3M", "3 tháng"], ["6M", "6 tháng"], ["1Y", "1 năm"], ["3Y", "3 năm"], ["ALL", "Toàn bộ"]];
 function renderTradeStock(sym) {
   TRADE.range = "ALL";
@@ -1008,35 +1055,48 @@ function renderTradeStock(sym) {
     const tone = trTone(q), pend = trPending(sym);
     const pl = h ? h.qty * q.last * 1000 - h.cost : 0;
     const bookCls = p => trPxClass(q, p);
+    const watching = T.watch.includes(sym);
     view.innerHTML = `
-      <a href="#/trade" class="back-link">${icon("back", 16)} Giả lập chứng khoán</a>
-      <header class="page-header tr-head">
-        <div class="ph-text">
-          <div class="kicker">${TR_MARKET[q.market] || ""} · ${T.watch.includes(sym) ? "đang theo dõi" : `<button class="linklike" id="tr-watch">thêm vào Theo dõi</button>`}</div>
-          <h1>${sym} <span class="tr-big ${tone}">${trP(q.last)}</span></h1>
-          <p class="tr-name" id="tr-name">${esc(trName(sym))}</p>
-          <p class="ph-sub ${tone}"><strong>${trSigned(q.chg, trP)} (${trPct(q.pct)})</strong></p>
+      <article class="tr-stock" aria-labelledby="tr-stock-title">
+      <nav class="tr-desk-nav" aria-label="Điều hướng cổ phiếu">
+        <a href="#/trade" class="tr-board-link">${icon("prev", 16)} Bảng giá</a>
+        <div class="tr-desk-market">${trHeadActions()}</div>
+      </nav>
+      <header class="tr-instrument">
+        <div class="tr-identity"><div class="tr-symbol"><h1 id="tr-stock-title">${esc(sym)}</h1><span>${esc(TR_MARKET[q.market] || q.market || "")}</span></div>
+          <p class="tr-name" id="tr-name">${esc(trName(sym))}</p></div>
+        <div class="tr-last"><span class="tr-last-label">Giá khớp <small>· nghìn ₫</small></span>
+          <div><strong>${trP(q.last)}</strong><span class="tr-change ${tone}">${trSigned(q.chg, trP)} (${trPct(q.pct)})</span></div></div>
+        <div class="tr-instrument-actions">
+          <button type="button" class="tr-watch-action" id="tr-watch" aria-pressed="${watching}" aria-label="${watching ? "Bỏ theo dõi" : "Theo dõi"} ${esc(sym)}" title="${watching ? "Bỏ theo dõi" : "Theo dõi"}">${icon("star", 17)}</button>
+          <button type="button" class="tr-order-jump" id="tr-open-ticket">Đặt lệnh ${icon("next", 15)}</button>
         </div>
-        <div class="page-actions">${trHeadActions()}</div>
       </header>
+      <section class="tr-terminal" aria-label="Biểu đồ và phân tích kỹ thuật">
+        <header class="tr-terminal-head">
+          <h2>${icon("trend", 18)} <span>${esc(sym)} <small id="tr-chart-context"></small></span></h2>
+          ${trTechnicalControls()}
+        </header>
+        <div class="tr-plot-region">
+          <div class="tr-readout" id="tr-readout"></div>
+          <div class="tr-plot-key"><span id="tr-volume-readout" class="tr-volume-readout"></span><div id="tr-chart-legend" class="tr-chart-legend"></div></div>
+          <div id="tr-chart" class="tr-chart-box"></div>
+          <div id="tr-indicator-plots"></div>
+        </div>
+        <footer class="tr-chart-footer">
+          <div class="tr-terminal-ranges" role="group" aria-label="Khoảng thời gian biểu đồ">${TR_RANGES.map(([r, l]) => `<button type="button" class="${TRADE.range === r ? "active" : ""}" data-tr-range="${r}" aria-label="${l}" title="${l}" aria-pressed="${TRADE.range === r}"><span class="tr-range-long">${l}</span><span class="tr-range-short">${TR_RANGE_SHORT[r]}</span></button>`).join("")}</div>
+          <div class="tr-sources"><p id="tr-chart-period" hidden></p>
+            <a href="https://fireant.vn/embed?widget=technical-chart&amp;symbol=${encodeURIComponent(sym)}" target="_blank" rel="noopener noreferrer" aria-label="Biểu đồ FireAnt cho ${esc(sym)} (mở trong thẻ mới)">Biểu đồ FireAnt ${icon("external", 13)}</a></div>
+        </footer>
+      </section>
+      <div class="tr-layout">
+        <div class="tr-main">
+          <section class="card tr-analysis-card" id="tr-technical" aria-label="Phân tích kỹ thuật"></section>
+          <section class="card tr-session-card"><h2>Thống kê phiên</h2>
       <dl class="tr-quote">
         <div><dt>Tham chiếu</dt><dd class="px-ref">${trP(q.ref)}</dd></div><div><dt>Trần</dt><dd class="px-ceil">${trP(q.ceil)}</dd></div><div><dt>Sàn</dt><dd class="px-floor">${trP(q.floor)}</dd></div>
         <div><dt>Mở cửa</dt><dd class="${bookCls(q.open)}">${trP(q.open)}</dd></div><div><dt>Cao nhất</dt><dd class="${bookCls(q.high)}">${trP(q.high)}</dd></div><div><dt>Thấp nhất</dt><dd class="${bookCls(q.low)}">${trP(q.low)}</dd></div><div><dt>Tổng KL</dt><dd>${trInt(q.vol)}</dd></div>
       </dl>
-      <div class="tr-layout">
-        <div class="tr-main">
-          <section class="card tr-terminal" aria-label="Biểu đồ và phân tích kỹ thuật">
-            <header class="tr-terminal-head">
-              <div><h2>${esc(sym)} <span>${TR_MARKET[q.market] || ""}</span></h2>
-              <div class="tr-readout small" id="tr-readout"></div></div>
-              ${trTechnicalControls()}
-            </header>
-            <div id="tr-chart-legend" class="tr-chart-legend"></div>
-            <div id="tr-chart" class="tr-chart-box"></div>
-            <p id="tr-chart-period" class="text-3 small" hidden></p>
-            <div id="tr-indicator-plots"></div>
-            <div class="tr-terminal-ranges segmented" role="group" aria-label="Khoảng thời gian biểu đồ">${TR_RANGES.map(([r, l]) => `<button type="button" class="${TRADE.range === r ? "active" : ""}" data-tr-range="${r}" aria-pressed="${TRADE.range === r}">${l}</button>`).join("")}</div>
-            <div id="tr-technical"></div>
           </section>
           <div class="card section">
             <div class="card-head"><h2>Dư mua · Dư bán</h2><span class="text-3 small">3 mức giá tốt nhất</span></div>
@@ -1046,7 +1106,7 @@ function renderTradeStock(sym) {
           </div>
         </div>
         <aside class="tr-side-col">
-          <div class="card tr-ticket">
+          <div class="card tr-ticket" id="tr-order-ticket" tabindex="-1"><h2>Đặt lệnh <span>${esc(sym)}</span></h2>
             <div class="tr-sides"><button class="${TRADE.side === "B" ? "active buy" : ""}" data-tr-side="B">Mua</button><button class="${TRADE.side === "S" ? "active sell" : ""}" data-tr-side="S">Bán</button></div>
             <div class="segmented tr-types"><button class="${TRADE.type === "LO" ? "active" : ""}" data-tr-type="LO">LO · giới hạn</button><button class="${TRADE.type === "MP" ? "active" : ""}" data-tr-type="MP">MP · thị trường</button></div>
             ${TRADE.type === "LO" ? `<label class="field"><span class="field-label">Giá đặt (nghìn ₫)</span>
@@ -1065,7 +1125,8 @@ function renderTradeStock(sym) {
           ${pend.length ? `<div class="card section"><div class="stat-label">Lệnh chờ khớp</div>${pend.map(o => `<div class="row-between tr-pend"><span><span class="tr-side ${o.side === "B" ? "buy" : "sell"}">${o.side === "B" ? "Mua" : "Bán"}</span> ${trInt(o.qty)} giá ${trP(o.price)}</span><button class="btn btn-ghost btn-sm" data-tr-cancel="${o.id}">Hủy</button></div>`).join("")}</div>` : ""}
         </aside>
       </div>
-      <p class="text-3 small section">${trUpdatedHtml()}</p>`;
+      <p class="text-3 small section">${trUpdatedHtml()}</p>
+      </article>`;
     trBindStock(sym, draw);
     trDrawChart(sym);
   };
@@ -1074,7 +1135,7 @@ function renderTradeStock(sym) {
   trRefresh([sym], true).then(draw);
   if (!trName(sym)) trUniverse().then(() => { const el = document.getElementById("tr-name"); if (el) el.textContent = trName(sym); }).catch(() => {});
   trAutoRefresh(() => trRefresh([sym], true).then(() => {
-    if (document.querySelector(".tr-indicator-menu[open]") || document.activeElement?.closest(".tr-terminal, #tr-price, #tr-qty")) return;
+    if (document.fullscreenElement || trDrawingActive(sym) || document.querySelector(".tr-indicator-menu[open]") || document.activeElement?.closest(".tr-terminal, #tr-price, #tr-qty")) return;
     draw();
   }));
 }
@@ -1087,6 +1148,7 @@ async function trDrawChart(sym) {
   const hourly = interval === "hour";
   const calendar = ["week", "month", "year"].includes(interval);
   const analysisInterval = selection === "auto" ? "day" : interval;
+  const volume = document.getElementById("tr-volume-readout"), context = document.getElementById("tr-chart-context");
   const out = document.getElementById("tr-readout"), period = document.getElementById("tr-chart-period");
   const summary = document.getElementById("tr-technical"), plots = document.getElementById("tr-indicator-plots");
   const legend = document.getElementById("tr-chart-legend");
@@ -1095,6 +1157,9 @@ async function trDrawChart(sym) {
   const isCurrent = () => TRADE.chartRequest === request && document.getElementById("tr-chart") === box;
   box.innerHTML = '<p class="text-3 small" role="status">Đang tải biểu đồ…</p>';
   out.textContent = "";
+  volume.textContent = "";
+  const resolution = intraday ? "5m" : { hour: "1H", day: "1D", week: "1W", month: "1M", year: "1Y" }[interval];
+  context.textContent = [resolution, TR_MARKET[TRADE.q[sym]?.market]].filter(Boolean).join(" · ");
   period.hidden = true;
   plots.replaceChildren();
   legend.replaceChildren();
@@ -1113,7 +1178,8 @@ async function trDrawChart(sym) {
     plots.innerHTML = technical.plots;
     legend.innerHTML = trTechnicalLegend(technical.overlays);
     summary.querySelector("[data-tr-tech-retry]")?.addEventListener("click", () => trDrawChart(sym));
-    box.innerHTML = trChartSvg(bars, w, { intraday, hourly, yearly: interval === "year", calendar: calendar || range === "ALL", overlays: technical.overlays, ref: intraday && q ? q.ref : null, h: w < 500 ? 255 : 350 });
+    box.innerHTML = trChartSvg(bars, w, { intraday, hourly, yearly: interval === "year", calendar: calendar || range === "ALL", overlays: technical.overlays, ref: intraday && q ? q.ref : null, h: document.fullscreenElement === box.closest(".tr-terminal") ? Math.max(270, window.innerHeight - 230) : Math.max(275, Math.min(445, Math.round(w * 0.41))) });
+    trBindDrawingTools(sym, box, bars, intraday ? bars : allBars, intraday ? "minute" : interval);
     if (bars.length) {
       const type = intraday ? "5 phút" : TR_CHART_INTERVALS.find(([key]) => key === interval)[1].toLowerCase();
       const first = trChartDate(bars[0].t), last = trChartDate(bars.at(-1).end ?? bars.at(-1).t);
@@ -1121,12 +1187,26 @@ async function trDrawChart(sym) {
       period.hidden = false;
     }
     const svg = box.querySelector("svg"), cross = svg && svg.querySelector(".tr-cross");
+    // On a cropped window the first visible candle can still have a previous close.
+    const offset = !intraday && bars.length ? allBars.indexOf(bars[0]) : -1;
+    let priorClose = offset > 0 ? allBars[offset - 1].c : null;
+    if (intraday && bars.length && raw) {
+      const firstDay = trChartLocalTime(bars[0].t).toISOString().slice(0, 10);
+      for (let i = raw.length - 1; i >= 0; i--) {
+        if (trChartLocalTime(raw[i].t).toISOString().slice(0, 10) < firstDay) { priorClose = raw[i].c; break; }
+      }
+    }
     const show = i => {
       const b = bars[i]; if (!b) return;
       const time = trChartLocalTime(b.t).toISOString().slice(11, 16);
       const start = intraday ? time : hourly ? `${trChartDate(b.t)} ${time}` : trChartDate(b.t);
       const dates = b.end && b.end !== b.t ? `${start}–${trChartDate(b.end)}` : start;
-      out.innerHTML = `${dates} · M ${trP(b.o)} C ${trP(b.h)} T ${trP(b.l)} <strong>Đ ${trP(b.c)}</strong> · KL ${trInt(b.v)}`;
+      const previous = i ? bars[i - 1].c : priorClose;
+      const delta = previous == null ? null : b.c - previous;
+      const change = delta !== null && previous > 0 ? `${trSigned(delta, trP)} (${trPct(100 * delta / previous)})` : "—";
+      const closeTone = (delta ?? b.c - b.o) >= 0 ? "px-up" : "px-down";
+      out.innerHTML = `<span class="tr-readout-date">${dates}</span><span title="Mở cửa">O <b class="${closeTone}">${trP(b.o)}</b></span><span title="Cao nhất">H <b class="${closeTone}">${trP(b.h)}</b></span><span title="Thấp nhất">L <b class="${closeTone}">${trP(b.l)}</b></span><span title="Đóng cửa">C <b class="${closeTone}">${trP(b.c)}</b></span><strong class="${closeTone}" title="So với giá đóng cửa của nến trước">${change}</strong>`;
+      volume.innerHTML = `Volume · Khối lượng <b class="${b.c >= b.o ? "px-up" : "px-down"}" title="${trInt(b.v)}">${trVolumeLabel(b.v)}</b>`;
     };
     if (svg && bars.length) {
       show(bars.length - 1);
@@ -1156,12 +1236,59 @@ async function trDrawChart(sym) {
     box.querySelector("#tr-chart-retry").onclick = () => trDrawChart(sym);
   }
 }
+let trUnbindChartSize = () => {};
+function trBindChartSize(sym) {
+  trUnbindChartSize();
+  const terminal = view.querySelector(".tr-terminal"), box = terminal.querySelector("#tr-chart");
+  const expand = terminal.querySelector("[data-tr-expand]");
+  const draw = () => { if (terminal.isConnected) trDrawChart(sym); };
+  const syncFullscreen = () => {
+    const expanded = document.fullscreenElement === terminal;
+    expand.setAttribute("aria-pressed", String(expanded));
+    expand.title = expanded ? "Thu nhỏ biểu đồ" : "Toàn màn hình";
+    expand.setAttribute("aria-label", expand.title);
+    draw();
+  };
+  expand.hidden = !document.fullscreenEnabled;
+  expand.onclick = async () => {
+    try {
+      if (document.fullscreenElement === terminal) await document.exitFullscreen();
+      else await terminal.requestFullscreen();
+    } catch { toast("Trình duyệt chưa mở được chế độ toàn màn hình.", "error"); }
+  };
+  document.addEventListener("fullscreenchange", syncFullscreen);
+  let width = box.clientWidth;
+  const observer = new ResizeObserver(() => {
+    if (box.clientWidth !== width) { width = box.clientWidth; draw(); }
+  });
+  observer.observe(box);
+  trUnbindChartSize = () => {
+    observer.disconnect();
+    document.removeEventListener("fullscreenchange", syncFullscreen);
+    trUnbindChartSize = () => {};
+  };
+}
 function trBindStock(sym, draw) {
   const T = tradeData(), q = TRADE.q[sym];
   const rf = document.getElementById("tr-refresh");
   if (rf) rf.onclick = async () => { rf.disabled = true; TRADE.bars = {}; await trRefresh([sym]); draw(); };
   const wt = document.getElementById("tr-watch");
-  if (wt) wt.onclick = () => { T.watch.unshift(sym); saveData(); toast(`Đã thêm ${sym} vào Theo dõi`); draw(); };
+  if (wt) wt.onclick = () => {
+    const wasWatching = T.watch.includes(sym);
+    if (wasWatching) T.watch = T.watch.filter(s => s !== sym);
+    else T.watch.unshift(sym);
+    saveData();
+    toast(wasWatching ? `Đã bỏ theo dõi ${sym}` : `Đã thêm ${sym} vào Theo dõi`);
+    wt.setAttribute("aria-pressed", String(!wasWatching));
+    wt.title = wasWatching ? "Theo dõi" : "Bỏ theo dõi";
+    wt.setAttribute("aria-label", wt.title + " " + sym);
+  };
+  view.querySelector("#tr-open-ticket").onclick = () => {
+    const ticket = view.querySelector("#tr-order-ticket");
+    ticket.focus({ preventScroll: true });
+    ticket.scrollIntoView({ block: "start" });
+  };
+  trBindChartSize(sym);
   const ranges = view.querySelectorAll("[data-tr-range]");
   view.querySelector("#tr-interval").onchange = event => {
     TRADE.interval = event.target.value;
