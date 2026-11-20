@@ -1643,7 +1643,7 @@ body.qo-open .main { padding-bottom: 160px; }
 }
 .tr-desk-nav, .tr-terminal-head, .tr-chart-footer { justify-content: space-between; gap: 12px; }
 .tr-desk-nav { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-.tr-board-link, .tr-watch-action, .tr-order-jump, .tr-interval, .tr-expand, .tr-indicator-menu summary, .tr-draw-tools, .tr-draw-toggle, .tr-draw-undo {
+.tr-board-link, .tr-watch-action, .tr-order-jump, .tr-interval, .tr-expand, .tr-indicator-menu summary, .tr-draw-tools, .tr-draw-tools button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
 .tr-board-link { color: var(--text-2); font-size: .85rem; }
@@ -1663,7 +1663,7 @@ body.qo-open .main { padding-bottom: 160px; }
 .tr-last > div { gap: 10px; flex-wrap: wrap; }
 .tr-last strong { font: 500 clamp(1.5rem, 2vw, 2.25rem)/1.15 var(--sans); letter-spacing: -.035em; }
 .tr-change { font: 500 .81rem var(--mono); }
-.tr-watch-action, .tr-order-jump, .tr-expand, .tr-draw-toggle, .tr-draw-undo, .tr-indicator-menu summary, .tr-interval select {
+.tr-watch-action, .tr-order-jump, .tr-expand, .tr-draw-tools button, .tr-indicator-menu summary, .tr-interval select {
   min-height: 35px; border-radius: 6px; padding: 6px 10px; border: 1px solid var(--border-strong);
   background: var(--surface); color: var(--text); font: 500 .83rem var(--sans);
 }
@@ -1690,6 +1690,8 @@ body.qo-open .main { padding-bottom: 160px; }
 .tr-indicator-menu label { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 3px 8px; cursor: pointer; }
 .tr-indicator-menu input { accent-color: var(--primary); }
 .tr-draw-tools { gap: 3px; }
+.tr-draw-tools button { white-space: nowrap; }
+.tr-draw-tools [data-tr-delete][aria-pressed=true] { color: var(--px-down); border-color: currentColor; background: color-mix(in srgb, var(--px-down) 8%, var(--surface)); }
 .tr-draw-tools button:disabled { cursor: default; opacity: .4; }
 .tr-draw-status:not(:empty) { color: var(--primary); font-size: .78rem; }
 .tr-plot-region { padding: 13px 12px 2px 16px; }
