@@ -415,13 +415,18 @@ function trChartSvg(bars, w, opts = {}) {
   const vol = bars.map((b, i) => { const hgt = (b.v || 0) / vmax * (VH - 6); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(H - 18 - hgt).toFixed(1)}" width="${volumeWidth}" height="${hgt.toFixed(1)}"/>`; }).join("");
   const ticks = [0, 1, 2, 3].map(k => lo + pad + (hi - lo - 2 * pad) * k / 3);
   const axis = ticks.map(v => `<line class="tr-grid" x1="0" x2="${plotW}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${plotW + 6}" y="${(y(v) + 4).toFixed(1)}">${trP(v)}</text>`).join("");
+  const spansYears = trChartLocalTime(bars[0].t).getUTCFullYear() !== trChartLocalTime(bars[n - 1].t).getUTCFullYear();
   const fmtT = t => {
     const iso = trChartLocalTime(t).toISOString();
     if (opts.intraday) return iso.slice(11, 16);
-    if (opts.fullHistory) return iso.slice(0, 7).split("-").reverse().join("/");
+    if (opts.fullHistory && spansYears) return iso.slice(0, 7).split("-").reverse().join("/");
     return iso.slice(5, 10).split("-").reverse().join("/");
   };
-  const labels = [0, Math.floor(n / 2), n - 1].map((i, k) => `<text class="tr-axis" x="${(i * step + step / 2).toFixed(1)}" y="${H - 4}" text-anchor="${["start", "middle", "end"][k]}">${fmtT(bars[i].t)}</text>`).join("");
+  const labelIndexes = new Set([0, Math.floor(n / 2), n - 1]);
+  const labels = Array.from(labelIndexes, i => {
+    const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    return `<text class="tr-axis" x="${(i * step + step / 2).toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${fmtT(bars[i].t)}</text>`;
+  }).join("");
   const ref = opts.ref ? `<line class="tr-refline" x1="0" x2="${plotW}" y1="${y(opts.ref).toFixed(1)}" y2="${y(opts.ref).toFixed(1)}"/>` : "";
   return `<svg class="tr-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" role="img" aria-label="Biểu đồ giá">${axis}${ref}${marks}${vol}${labels}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${H - 18}" visibility="hidden"/></svg>`;
 }
