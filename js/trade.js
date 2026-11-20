@@ -40,7 +40,7 @@ const TR_FUNDS = ["E1VFVN30", "FUEVFVND", "FUESSVFL", "FUEVN100", "FUEDCMID", "F
 const TR_GROUP_TIPS = { watch: "Danh sách theo dõi của bạn", hold: "Cổ phiếu bạn đang nắm giữ", VN30: "30 cổ phiếu vốn hóa lớn nhất HOSE",
   HOSE: "Tất cả cổ phiếu niêm yết trên HOSE", HNX: "Tất cả cổ phiếu niêm yết trên HNX", UPCOM: "Tất cả cổ phiếu giao dịch trên UPCoM" };
 const trGroupLabel = g => (TR_TABS.find(x => x[0] === g) || TR_MORE.flatMap(x => x[1]).find(x => x[0] === g) || [g, g])[1];
-const TRADE = { q: {}, seen: {}, at: 0, err: "", loading: false, timer: null, tab: "board", group: "VN30", lists: {}, idx: null, prev: {}, bars: {}, range: "ALL", chartRequest: null,
+const TRADE = { q: {}, seen: {}, at: 0, err: "", loading: false, timer: null, tab: "board", group: "VN30", lists: {}, idx: null, prev: {}, bars: {}, range: "ALL", interval: "auto", chartRequest: null,
   side: "B", type: "LO", vnindex: null, sort: null, uni: null, uniP: null, fullAt: 0, fullKey: "", shown: 0 };
 
 // ---------- Account ----------
@@ -252,7 +252,7 @@ function trFind(text, max = 8) {
 }
 async function trFetchBars(sym, range) {
   const key = `${sym}|${range}`, hit = TRADE.bars[key];
-  const cacheMs = range === "ALL" ? 300000 : 60000;
+  const cacheMs = range === "1D" ? 60000 : 300000;
   if (hit && hit.pending) return hit.pending;
   if (hit && Date.now() - hit.at < cacheMs) return hit.bars;
   const entry = { pending: trLoadBars(sym, range) };
@@ -271,13 +271,12 @@ async function trFetchBars(sym, range) {
 
 const trChartLocalTime = t => new Date((t + 7 * 3600) * 1000);
 const trChartDate = t => trChartLocalTime(t).toISOString().slice(0, 10).split("-").reverse().join("/");
-const trIsWeeklyRange = range => range === "3Y" || range === "ALL";
+const TR_RANGE_DAYS = { "1M": 31, "3M": 92, "6M": 183, "1Y": 366, "3Y": 1100 };
 
 async function trLoadBars(sym, range) {
   const now = Math.floor(Date.now() / 1000);
-  const days = { "1D": 6, "1M": 31, "3M": 92, "6M": 183, "1Y": 366, "3Y": 1100 }[range] || 92;
-  const from = range === "ALL" ? 0 : now - days * 86400;
-  const resolution = range === "1D" ? "5" : "D";
+  const from = range === "1D" ? now - 6 * 86400 : 0;
+  const resolution = range === "1D" ? "5" : range === "HOUR" ? "60" : "D";
   const r = await fetch(`${TR_BARS}?resolution=${resolution}&symbol=${encodeURIComponent(sym)}&from=${from}&to=${now}`, { cache: "no-store" });
   if (!r.ok) throw new Error("HTTP " + r.status);
   const body = (await r.text()).trim();
@@ -288,8 +287,8 @@ async function trLoadBars(sym, range) {
   if (j.s !== "ok" || !columns.every(col => Array.isArray(col) && col.length === j.t.length && col.every(Number.isFinite))) {
     throw new Error("Invalid VNDirect chart data");
   }
-  const bars = j.t.map((t, i) => ({ t, o: j.o[i], h: j.h[i], l: j.l[i], c: j.c[i], v: j.v[i] })).sort((a, b) => a.t - b.t);
-  if (trIsWeeklyRange(range)) return trWeeklyBars(bars);
+  const bars = j.t.map((t, i) => ({ t, o: j.o[i], h: j.h[i], l: j.l[i], c: j.c[i], v: j.v[i] }))
+    .sort((a, b) => a.t - b.t).filter((bar, i, rows) => !i || bar.t !== rows[i - 1].t);
   if (range === "1D" && bars.length) {
     const last = trChartDate(bars[bars.length - 1].t);
     return bars.filter(b => trChartDate(b.t) === last);
@@ -297,26 +296,14 @@ async function trLoadBars(sym, range) {
   return bars;
 }
 
-function trWeeklyBars(bars) {
-  const weeks = [];
-  let week, monday;
-  for (const bar of bars) {
-    const local = trChartLocalTime(bar.t);
-    const day = Math.floor(local.getTime() / 86400000);
-    const start = day - (local.getUTCDay() + 6) % 7;
-    if (start !== monday) {
-      monday = start;
-      week = { ...bar, end: bar.t };
-      weeks.push(week);
-    } else if (bar.t !== week.end) {
-      week.h = Math.max(week.h, bar.h);
-      week.l = Math.min(week.l, bar.l);
-      week.c = bar.c;
-      week.v += bar.v;
-      week.end = bar.t;
-    }
+function trVisibleBars(bars, range) {
+  if (range === "ALL" || !bars.length) return bars;
+  if (range === "1D") {
+    const lastDay = trChartDate(bars.at(-1).end ?? bars.at(-1).t);
+    return bars.filter(b => trChartDate(b.end ?? b.t) === lastDay);
   }
-  return weeks;
+  const from = Date.now() / 1000 - TR_RANGE_DAYS[range] * 86400;
+  return bars.filter(b => (b.end ?? b.t) >= from);
 }
 
 // ---------- Orders ----------
@@ -396,6 +383,13 @@ function trChartSvg(bars, w, opts = {}) {
   const n = bars.length, plotW = w - R, step = plotW / n;
   let lo = Math.min(...bars.map(b => b.l)), hi = Math.max(...bars.map(b => b.h));
   if (opts.ref) { lo = Math.min(lo, opts.ref); hi = Math.max(hi, opts.ref); }
+  for (const { values } of opts.overlays || []) {
+    for (const value of values) {
+      if (value === null) continue;
+      lo = Math.min(lo, value);
+      hi = Math.max(hi, value);
+    }
+  }
   const pad = (hi - lo) * 0.08 || hi * 0.01 || 1; lo -= pad; hi += pad;
   const y = v => top + (hi - v) / (hi - lo) * plotH;
   const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
@@ -414,7 +408,9 @@ function trChartSvg(bars, w, opts = {}) {
   const fmtT = t => {
     const iso = trChartLocalTime(t).toISOString();
     if (opts.intraday) return iso.slice(11, 16);
-    if (opts.weekly && spansYears) return iso.slice(0, 7).split("-").reverse().join("/");
+    if (opts.yearly) return iso.slice(0, 4);
+    if ((opts.calendar || opts.hourly) && spansYears) return iso.slice(0, 7).split("-").reverse().join("/");
+    if (opts.hourly) return `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
     return iso.slice(5, 10).split("-").reverse().join("/");
   };
   const labelIndexes = new Set([0, Math.floor(n / 2), n - 1]);
@@ -423,7 +419,8 @@ function trChartSvg(bars, w, opts = {}) {
     return `<text class="tr-axis" x="${(i * step + step / 2).toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${fmtT(bars[i].t)}</text>`;
   }).join("");
   const ref = opts.ref ? `<line class="tr-refline" x1="0" x2="${plotW}" y1="${y(opts.ref).toFixed(1)}" y2="${y(opts.ref).toFixed(1)}"/>` : "";
-  return `<svg class="tr-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" role="img" aria-label="Biểu đồ giá">${axis}${ref}${marks}${vol}${labels}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${H - 18}" visibility="hidden"/></svg>`;
+  const overlays = (opts.overlays || []).map(series => trTechnicalPath(series, step, y)).join("");
+  return `<svg class="tr-chart" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" data-n="${n}" data-step="${step}" role="img" aria-label="Biểu đồ giá">${axis}${ref}${marks}${overlays}${vol}${labels}<line class="tr-cross" x1="0" x2="0" y1="${top}" y2="${H - 18}" visibility="hidden"/></svg>`;
 }
 // Lines over time: each series is [[time ms, value], …]
 function trLinesSvg(series, w, h = 200, opts = {}) {
@@ -1028,12 +1025,19 @@ function renderTradeStock(sym) {
       </dl>
       <div class="tr-layout">
         <div class="tr-main">
-          <div class="card">
-            <div class="card-head" style="flex-wrap:wrap"><div class="segmented" role="group" aria-label="Khoảng thời gian biểu đồ">${TR_RANGES.map(([r, l]) => `<button type="button" class="${TRADE.range === r ? "active" : ""}" data-tr-range="${r}" aria-pressed="${TRADE.range === r}">${l}</button>`).join("")}</div>
-              <span class="tr-readout text-2 small" id="tr-readout"></span></div>
+          <section class="card tr-terminal" aria-label="Biểu đồ và phân tích kỹ thuật">
+            <header class="tr-terminal-head">
+              <div><h2>${esc(sym)} <span>${TR_MARKET[q.market] || ""}</span></h2>
+              <div class="tr-readout small" id="tr-readout"></div></div>
+              ${trTechnicalControls()}
+            </header>
+            <div id="tr-chart-legend" class="tr-chart-legend"></div>
             <div id="tr-chart" class="tr-chart-box"></div>
             <p id="tr-chart-period" class="text-3 small" hidden></p>
-          </div>
+            <div id="tr-indicator-plots"></div>
+            <div class="tr-terminal-ranges segmented" role="group" aria-label="Khoảng thời gian biểu đồ">${TR_RANGES.map(([r, l]) => `<button type="button" class="${TRADE.range === r ? "active" : ""}" data-tr-range="${r}" aria-pressed="${TRADE.range === r}">${l}</button>`).join("")}</div>
+            <div id="tr-technical"></div>
+          </section>
           <div class="card section">
             <div class="card-head"><h2>Dư mua · Dư bán</h2><span class="text-3 small">3 mức giá tốt nhất</span></div>
             <table class="table tr-book"><thead><tr><th class="num">KL mua</th><th class="num">Giá mua</th><th class="num">Giá bán</th><th class="num">KL bán</th></tr></thead>
@@ -1069,47 +1073,85 @@ function renderTradeStock(sym) {
   draw();
   trRefresh([sym], true).then(draw);
   if (!trName(sym)) trUniverse().then(() => { const el = document.getElementById("tr-name"); if (el) el.textContent = trName(sym); }).catch(() => {});
-  trAutoRefresh(() => trRefresh([sym], true).then(() => { if (!document.activeElement || !["tr-price", "tr-qty"].includes(document.activeElement.id)) draw(); }));
+  trAutoRefresh(() => trRefresh([sym], true).then(() => {
+    if (document.querySelector(".tr-indicator-menu[open]") || document.activeElement?.closest(".tr-terminal, #tr-price, #tr-qty")) return;
+    draw();
+  }));
 }
 async function trDrawChart(sym) {
   const box = document.getElementById("tr-chart");
   if (!box) return;
-  const range = TRADE.range, weekly = trIsWeeklyRange(range);
+  const range = TRADE.range, selection = TRADE.interval;
+  const interval = selection === "auto" ? (range === "ALL" || range === "3Y" ? "week" : "day") : selection;
+  const intraday = selection === "auto" && range === "1D";
+  const hourly = interval === "hour";
+  const calendar = ["week", "month", "year"].includes(interval);
+  const analysisInterval = selection === "auto" ? "day" : interval;
   const out = document.getElementById("tr-readout"), period = document.getElementById("tr-chart-period");
+  const summary = document.getElementById("tr-technical"), plots = document.getElementById("tr-indicator-plots");
+  const legend = document.getElementById("tr-chart-legend");
   const request = Symbol();
   TRADE.chartRequest = request;
   const isCurrent = () => TRADE.chartRequest === request && document.getElementById("tr-chart") === box;
   box.innerHTML = '<p class="text-3 small" role="status">Đang tải biểu đồ…</p>';
   out.textContent = "";
   period.hidden = true;
+  plots.replaceChildren();
+  legend.replaceChildren();
+  if (!summary.hasChildNodes()) summary.innerHTML = '<p class="small" role="status">Đang tính chỉ báo…</p>';
+  const history = trFetchBars(sym, hourly ? "HOUR" : "HISTORY").catch(() => null);
   try {
-    const bars = await trFetchBars(sym, range);
+    const [raw, minutes] = await Promise.all([history, intraday ? trFetchBars(sym, "1D") : null]);
     if (!isCurrent()) return;
-    const w = Math.max(280, box.clientWidth || 640), q = TRADE.q[sym];
-    box.innerHTML = trChartSvg(bars, w, { intraday: range === "1D", weekly, ref: range === "1D" && q ? q.ref : null, h: w < 500 ? 220 : 280 });
-    if (weekly && bars.length) {
-      period.textContent = `Dữ liệu VNDirect từ ${trChartDate(bars[0].t)} đến ${trChartDate(bars[bars.length - 1].end)} · Nến tuần`;
+    if (!raw && !minutes) throw new Error("Could not load chart history");
+    const allBars = calendar ? trCalendarSeries(raw, interval) : raw || [];
+    const bars = intraday ? minutes : trVisibleBars(allBars, range);
+    const analysis = analysisInterval === interval && calendar ? allBars : raw;
+    const w = Math.max(250, box.clientWidth || 640), q = TRADE.q[sym];
+    const technical = trTechnicalView(analysis, intraday ? [] : bars, analysisInterval, w);
+    summary.innerHTML = technical.summary;
+    plots.innerHTML = technical.plots;
+    legend.innerHTML = trTechnicalLegend(technical.overlays);
+    summary.querySelector("[data-tr-tech-retry]")?.addEventListener("click", () => trDrawChart(sym));
+    box.innerHTML = trChartSvg(bars, w, { intraday, hourly, yearly: interval === "year", calendar: calendar || range === "ALL", overlays: technical.overlays, ref: intraday && q ? q.ref : null, h: w < 500 ? 255 : 350 });
+    if (bars.length) {
+      const type = intraday ? "5 phút" : TR_CHART_INTERVALS.find(([key]) => key === interval)[1].toLowerCase();
+      const first = trChartDate(bars[0].t), last = trChartDate(bars.at(-1).end ?? bars.at(-1).t);
+      period.textContent = `VNDirect · Nến ${type} · ${first === last ? first : `${first}–${last}`}${hourly ? " · Có thể thiếu phiên giờ ở các giai đoạn cũ" : ""}`;
       period.hidden = false;
     }
     const svg = box.querySelector("svg"), cross = svg && svg.querySelector(".tr-cross");
     const show = i => {
       const b = bars[i]; if (!b) return;
-      const start = range === "1D" ? trChartLocalTime(b.t).toISOString().slice(11, 16) : trChartDate(b.t);
+      const time = trChartLocalTime(b.t).toISOString().slice(11, 16);
+      const start = intraday ? time : hourly ? `${trChartDate(b.t)} ${time}` : trChartDate(b.t);
       const dates = b.end && b.end !== b.t ? `${start}–${trChartDate(b.end)}` : start;
       out.innerHTML = `${dates} · M ${trP(b.o)} C ${trP(b.h)} T ${trP(b.l)} <strong>Đ ${trP(b.c)}</strong> · KL ${trInt(b.v)}`;
     };
     if (svg && bars.length) {
       show(bars.length - 1);
       const step = +svg.dataset.step;
-      svg.addEventListener("pointermove", e => {
+      const showPointer = e => {
         const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) * (w / r.width), i = Math.min(bars.length - 1, Math.max(0, Math.floor(x / step)));
         cross.setAttribute("x1", i * step + step / 2); cross.setAttribute("x2", i * step + step / 2); cross.setAttribute("visibility", "visible");
         show(i);
+      };
+      svg.addEventListener("pointermove", showPointer);
+      svg.addEventListener("pointerdown", showPointer);
+      svg.addEventListener("pointerleave", e => {
+        if (e.pointerType === "touch") return;
+        cross.setAttribute("visibility", "hidden");
+        show(bars.length - 1);
       });
-      svg.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); show(bars.length - 1); });
     }
   } catch (e) {
     if (!isCurrent()) return;
+    const raw = await history;
+    const analysis = calendar && analysisInterval === interval && raw ? trCalendarSeries(raw, interval) : raw;
+    const technical = trTechnicalView(analysis, [], analysisInterval, 0);
+    if (!isCurrent()) return;
+    summary.innerHTML = technical.summary;
+    summary.querySelector("[data-tr-tech-retry]")?.addEventListener("click", () => trDrawChart(sym));
     box.innerHTML = `<div class="tr-chart-empty">Chưa tải được biểu đồ từ VNDirect. Giá và đặt lệnh vẫn dùng bình thường.<br><button class="btn btn-secondary btn-sm" style="margin-top:10px" id="tr-chart-retry">Thử lại</button></div>`;
     box.querySelector("#tr-chart-retry").onclick = () => trDrawChart(sym);
   }
@@ -1121,6 +1163,14 @@ function trBindStock(sym, draw) {
   const wt = document.getElementById("tr-watch");
   if (wt) wt.onclick = () => { T.watch.unshift(sym); saveData(); toast(`Đã thêm ${sym} vào Theo dõi`); draw(); };
   const ranges = view.querySelectorAll("[data-tr-range]");
+  view.querySelector("#tr-interval").onchange = event => {
+    TRADE.interval = event.target.value;
+    trDrawChart(sym);
+  };
+  view.querySelectorAll("[data-tr-indicator]").forEach(input => input.onchange = () => {
+    TR_INDICATOR_OPTIONS[input.dataset.trIndicator] = input.checked;
+    trDrawChart(sym);
+  });
   ranges.forEach(b => b.onclick = () => {
     if (TRADE.range === b.dataset.trRange) return;
     TRADE.range = b.dataset.trRange;
