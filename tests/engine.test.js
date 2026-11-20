@@ -129,6 +129,12 @@ test("warnings show but do not block: unit scale, continuity, audit status", () 
   assert.equal(check(v3, "audit").status, "fail");
   assert.match(check(v3, "audit").detail, /2025 \(unaudited\)/);
   assert.equal(v3.publishable, true);
+
+  const restated = fixture(); restated.periodMeta[2024] = { audit: "restated", restated: true };
+  const v4 = E.validate(load(restated));
+  assert.equal(check(v4, "audit").status, "fail");
+  assert.doesNotMatch(check(v4, "audit").detail, /Chưa kiểm toán/, "a restated year is audited");
+  assert.match(check(v4, "audit").detail, /hồi tố: 2024/);
 });
 
 test("ratios match hand calculations (2025)", () => {
@@ -211,6 +217,11 @@ test("an optional line is counted as zero with a visible note", () => {
   const q = metric(E.computeMetrics(load(raw)), "quick", 2025);
   close(q.v, (9 + 35) / 48);
   assert.match(q.notes.join(" "), /Không có đầu tư tài chính ngắn hạn — tính bằng 0/);
+});
+
+test("dataset ids are made safe for links and storage keys", () => {
+  const raw = fixture(); raw.id = 'bad id/"><script>';
+  assert.match(E.normalize(raw).ds.id, /^[A-Za-z0-9._-]+$/);
 });
 
 test("manifest lists what is in the file and what is not", () => {

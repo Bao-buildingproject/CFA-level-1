@@ -113,7 +113,7 @@
       periodMeta[y] = { audit: str(m.audit, 40) || "không rõ", restated: m.restated === true };
     });
     const ds = {
-      schema: SCHEMA, id: str(raw.id, 80) || "dataset", class: raw.class,
+      schema: SCHEMA, id: (str(raw.id, 80) || "dataset").replace(/[^A-Za-z0-9._-]+/g, "-"), class: raw.class,   // safe in links and storage keys
       company: { name: str(company.name), ticker: str(company.ticker, 20), exchange: str(company.exchange, 20), sector: str(company.sector, 80), fictional: company.fictional === true },
       scope: { basis: str(scope.basis, 20), framework: str(scope.framework, 30), periodType: str(scope.periodType, 20), currency: str(scope.currency, 8), unit: 1, sourceUnit: SCALES[unit] },
       years: years.slice().sort((a, b) => a - b), values, lineage, periodMeta,
@@ -188,10 +188,11 @@
     add("signs", "Dấu và độ lớn hợp lý", "block", neg.length ? "fail" : "pass", neg.length ? `Không dương: ${neg.join(", ")}` : "Tổng tài sản và doanh thu dương");
     const odd = ys.filter(y => { const r = v(y, "rev") / v(y, "ta"); return isFinite(r) && (r < 0.02 || r > 20); });
     add("scale", "Thang đơn vị nhất quán (doanh thu so với tài sản)", "warn", odd.length ? "fail" : "pass", odd.length ? `Tỷ lệ bất thường ở ${odd.join(", ")} — kiểm tra đơn vị` : "Không thấy lệch đơn vị");
-    const notAudited = ys.filter(y => ds.periodMeta[y].audit !== "audited" && ds.periodMeta[y].audit !== "simulated");
-    const restated = ys.filter(y => ds.periodMeta[y].restated);
+    // "restated" = numbers taken from the period's adjusted report: audited, but worth stating
+    const notAudited = ys.filter(y => !["audited", "simulated", "restated"].includes(ds.periodMeta[y].audit));
+    const restated = ys.filter(y => ds.periodMeta[y].restated || ds.periodMeta[y].audit === "restated");
     add("audit", "Tình trạng kiểm toán", "warn", notAudited.length || restated.length ? "fail" : "pass",
-      [notAudited.length ? `Chưa kiểm toán/không rõ: ${notAudited.map(y => `${y} (${ds.periodMeta[y].audit})`).join(", ")}` : "", restated.length ? `Có số liệu hồi tố: ${restated.join(", ")}` : ""].filter(Boolean).join(" · ") || (ds.class === "SIMULATED" ? "Dữ liệu mô phỏng" : "Mọi năm đã kiểm toán"));
+      [notAudited.length ? `Chưa kiểm toán/không rõ: ${notAudited.map(y => `${y} (${ds.periodMeta[y].audit})`).join(", ")}` : "", restated.length ? `Có số liệu điều chỉnh hồi tố: ${restated.join(", ")}` : ""].filter(Boolean).join(" · ") || (ds.class === "SIMULATED" ? "Dữ liệu mô phỏng" : "Mọi năm đã kiểm toán"));
 
     const publishable = !checks.some(c => c.level === "block" && c.status === "fail");
     return { publishable, checks };

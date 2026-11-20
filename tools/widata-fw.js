@@ -91,6 +91,16 @@ function build(rows, opt) {
   };
 }
 
+// several companies in one file: one dataset per ticker found in the rows
+function pack(rows, meta, opt) {
+  const tickers = [...new Set(rows.map(r => String(r.symbol).toUpperCase()))].sort();
+  return {
+    schema: "fw-pack/1", createdAt: opt.retrieved || new Date().toISOString().slice(0, 10),
+    note: "Dữ liệu WiData MCP by WiGroup: chỉ dùng cá nhân, không phân phối lại.",
+    datasets: tickers.map(tk => build(rows, { ...opt, ...((meta || {})[tk] || {}), ticker: tk }).ds)
+  };
+}
+
 function parseArgs(argv) {
   const opt = { _: [] };
   for (let i = 0; i < argv.length; i++) {
@@ -102,7 +112,19 @@ function parseArgs(argv) {
   return opt;
 }
 
-if (require.main === module) {
+if (require.main === module && process.argv[2] === "pack") {
+  // node tools/widata-fw.js pack --meta companies.json --retrieved YYYY-MM-DD --out pack.json rows1.json rows2.json …
+  const opt = parseArgs(process.argv.slice(3));
+  const rows = opt._.flatMap(readRows);
+  const meta = opt.meta ? JSON.parse(fs.readFileSync(opt.meta, "utf8")) : {};
+  const p = pack(rows, meta, opt);
+  p.datasets.forEach(ds => {
+    const val = E.validate(E.normalize(ds).ds);
+    console.log(`${val.publishable ? "PUBLISHABLE    " : "NOT PUBLISHABLE"} ${ds.company.ticker.padEnd(5)} ${ds.years[0]}–${ds.years[ds.years.length - 1]} ${val.checks.filter(c => c.status !== "pass").map(c => c.detail).join(" · ")}`);
+  });
+  fs.writeFileSync(opt.out || "pack.fwpack.json", JSON.stringify(p));
+  console.log(`${p.datasets.length} công ty → ${opt.out || "pack.fwpack.json"}`);
+} else if (require.main === module) {
   const opt = parseArgs(process.argv.slice(2));
   if (opt.columns !== undefined || !opt._[0] || !opt.ticker) {
     console.log(`Cột cần lấy ở fs_nonfin:\n${COLUMNS.join(",")}\n\nCách dùng: node tools/widata-fw.js rows.json --ticker MÃ [--name "..."] [--exchange HOSE] [--sector "..."] [--retrieved YYYY-MM-DD] [--out file] [--separate]`);
@@ -119,4 +141,4 @@ if (require.main === module) {
   console.log(`${val.publishable ? "PUBLISHABLE" : "NOT PUBLISHABLE (game sẽ cách ly)"} · ${ds.company.ticker} ${ds.years[0]}–${ds.years[ds.years.length - 1]} → ${out}`);
 }
 
-module.exports = { FS_NONFIN, COLUMNS, build, readRows };
+module.exports = { FS_NONFIN, COLUMNS, build, pack, readRows };
