@@ -113,6 +113,9 @@ test("workpaper tolerance by unit", () => {
   assert.equal(M.gradeWorkpaper(x, 2.1).frac, 0.3);
   assert.equal(M.gradeWorkpaper(x, 2.4).frac, 0);
   assert.equal(M.gradeWorkpaper(d, 80.4).frac, 1);
+  assert.equal(M.gradeWorkpaper({ unit: "x", value: 0.1672 }, 0.17).frac, 1, "rounding to two decimals is not an error");
+  assert.equal(M.gradeWorkpaper({ unit: "x", value: 0.1672 }, 0.18).frac, 0.6);
+  assert.equal(M.gradeWorkpaper({ unit: "x", value: 0.1672 }, 0.25).frac, 0);
   assert.equal(M.gradeWorkpaper(p, 44.6).frac, 1);                 // typed as a percentage
   assert.equal(M.gradeWorkpaper(p, 45).frac, 0.6);
   assert.equal(M.gradeWorkpaper(p, 46.5).frac, 0.3);

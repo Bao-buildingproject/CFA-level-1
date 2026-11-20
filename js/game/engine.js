@@ -132,7 +132,7 @@
     const tolOf = base => Math.max(1e6, Math.abs(base || 0) * 1e-5);   // 1 million VND or 0.001%: rounding in published statements
     const exceptionFor = (id, y) => ds.exceptions.find(e => e.check === id && (e.year === undefined || e.year === y));
     const v = (y, k) => ds.values[y] ? ds.values[y][k] : null;
-    const fmtBn = x => `${(x / 1e9).toLocaleString("en-US", { maximumFractionDigits: 3 })} tỷ`;
+    const fmtBn = x => `${(x / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 3 }).replace("-", "−")} tỷ`;
     // runs an identity for every year where all its inputs exist
     const identity = (id, label, level, needs, left, right, base) => {
       const bad = [], ok = [], skipped = [], excused = [];

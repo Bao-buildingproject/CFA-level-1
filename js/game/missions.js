@@ -527,12 +527,14 @@
     const shown = wp.unit === "pct" ? wp.value * 100 : wp.value;   // percentages are typed as 12.3 for 12.3%
     let frac;
     if (wp.unit === "pct") { const d = Math.abs(input - shown); frac = d <= 0.2 ? 1 : d <= 1 ? 0.6 : d <= 3 ? 0.3 : 0; return { frac, err: d, errUnit: "điểm %" }; }
-    const rel = Math.abs(input - shown) / Math.max(Math.abs(shown), 1e-9);
-    const absOk = wp.unit === "days" && Math.abs(input - shown) <= 0.5;
-    frac = absOk || rel <= 0.01 ? 1 : rel <= 0.03 ? 0.6 : rel <= 0.08 ? 0.3 : 0;
+    // relative error, but rounding to the shown precision never costs points (0,17 for 0,1672 lần; 82,9 for 82,93 ngày)
+    const d = Math.abs(input - shown), rel = d / Math.max(Math.abs(shown), 1e-9), step = wp.unit === "days" ? 0.5 : 0.006;
+    frac = d <= step || rel <= 0.01 ? 1 : d <= step * 2.5 || rel <= 0.03 ? 0.6 : d <= step * 6 || rel <= 0.08 ? 0.3 : 0;
     return { frac, err: rel, errUnit: "%" };
   }
   const shownValue = wp => wp.unit === "pct" ? wp.value * 100 : wp.value;
+  // a workpaper number as typed or shown: 44,6% · 82,9 ngày · 0,17 lần
+  const wpFmt = (wp, v) => wp.unit === "pct" ? `${num(v, 1)}%` : wp.unit === "days" ? `${num(v, 1)} ngày` : wp.unit === "x" ? `${num(v, 2)} lần` : num(v, 2);
 
   // ---------- Score (100 points) ----------
   // Data accuracy 25 · Evidence quality 25 · Analytical reasoning 25 · Decision discipline 15 · Source awareness 10
@@ -547,7 +549,7 @@
     const accItems = cs.workpapers.map(wp => {
       const a = (st.wp || {})[wp.id];
       const g = a && a.checked ? gradeWorkpaper(wp, a.input) : { frac: 0, err: null };
-      return { label: `${wp.title} (${wp.year})`, score: r1(per * g.frac), raw: per * g.frac, max: r1(per), note: a && a.checked ? `Bạn: ${num(a.input, 2)} · Tham chiếu: ${num(shownValue(wp), 2)}` : "Chưa làm" };
+      return { label: `${wp.title} (${wp.year})`, score: r1(per * g.frac), raw: per * g.frac, max: r1(per), note: a && a.checked ? `Bạn: ${wpFmt(wp, a.input)} · Engine: ${wpFmt(wp, shownValue(wp))}` : "Chưa làm" };
     });
     parts.push({ id: "accuracy", name: "Data Accuracy", vi: "Độ chính xác số liệu", max: 25, items: accItems });
 
@@ -642,5 +644,5 @@
   }
 
   return { RULES_VERSION, DECISIONS, DECISION_IDS, REC_POINTS, CONFIDENCE, CONF_ORDER, RELATIONS, STATUS, RANKS, ARCHETYPES, ARCHETYPE_IDS, ALL_CARDS, TESTS,
-    fmt, num, bn, sp, prepare, cardInfo, buildCase, decide, refStatusOf, balance, playerStatuses, verdictPoints, linkCheck, gradeWorkpaper, shownValue, score, rankOf, caseKey, unlocked };
+    fmt, num, bn, sp, prepare, cardInfo, buildCase, decide, refStatusOf, balance, playerStatuses, verdictPoints, linkCheck, gradeWorkpaper, shownValue, wpFmt, score, rankOf, caseKey, unlocked };
 });

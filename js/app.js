@@ -367,7 +367,7 @@ function renderSettings() {
 
   if (ob("btn-reset")) ob("btn-reset").onclick = async () => {
     if (!await confirmDialog({ title: "Delete all data?", message: "This erases chapters, cards, questions and mock history on this device. Export a backup first.", confirmText: "Delete everything", danger: true, requireText: "DELETE" })) return;
-    DATA = upgrade({}); saveData(); if (typeof qbiClearProfile === "function") qbiClearProfile(PROFILES.active); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
+    DATA = upgrade({}); saveData(); if (typeof qbiClearProfile === "function") qbiClearProfile(PROFILES.active); if (typeof fwClearProfile === "function") fwClearProfile(PROFILES.active); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
   };
 }
 
@@ -391,7 +391,7 @@ const ROUTES = {
   analysis: renderAnalysis,
   dist: renderDist,
   trade: (sub, sym) => renderTrade(sub, sym),
-  game: renderGame,
+  game: (sub, a, b) => renderGame(sub, a, b),
   profiles: renderProfiles
 };
 
@@ -404,7 +404,7 @@ function renderMore() {
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["trade", "trend", "Giả lập chứng khoán", "Tiền ảo · giá thật cổ phiếu Việt Nam"],
-    ["game", "target", "Game", "Financial World · đang xây dựng"],
+    ["game", "target", "Game", "Financial World · phân tích BCTC"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "user", "Account", activeProfile().name],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],

@@ -15,6 +15,10 @@ A personal study app for the CFA Level I exam (May 2027). Plain HTML, CSS and Ja
 - **Mock exams** — timed mocks built from your question bank, weighted by exam topic weights: Mini (30 Q / 45 min), Session (90 Q / 2h15), Full (180 Q, 2 sessions), Custom. Resume after reload, auto-submit at time-up, results by topic and answer review
 - **CFA Tutor** — a private chatbot (Google Gemini). Each account pastes its own Gemini API key once; the key and the chat stay in that browser and messages go straight to Google. Explains concepts and calculations, and an **Ask the tutor** button under every explanation sends the question on screen. Off during a timed mock
 - **Giả lập chứng khoán** (Learn, in Vietnamese) — paper trading with 1 billion ₫ of virtual money on real Vietnamese prices. A price board in the standard Vietnamese layout (ceiling/floor/reference, three bids and offers, matched price, total volume, high/low, foreign buying and selling) with VN-Index, VN30, HNX and UPCoM. Every listed code: tabs for all stocks on HOSE (~410), HNX (~300) and UPCoM (~800), plus VN30 and a picker for the other index baskets (VN100, VNMidcap, VNSmallcap, VNX50, VNDiamond, VNFinLead, HNX30), sectors and the listed ETFs; search any code or company name (accents optional) and star it into Theo dõi; click a column to sort (e.g. by volume or %). Long lists refresh only the rows on screen. Click an offer to buy or a bid to sell from an order bar. HOSE rules: 100-share lots, tick sizes (10 ₫ for funds), the price band, LO and MP day orders, T+2 settlement, 0.15% fee and 0.1% tax on sales. Charts from VNDirect, portfolio P/L and performance against the VN-Index
+- **Game: Financial World — Evidence of Value** (Learn, in Vietnamese with English finance terms) — you are an analyst at a fictional fund and must defend a decision on a company's financial statements before an Investment Committee. Each mission: case file and data manifest → Terminal (three statements, 31 ratios, data checks, the source column of every number) → evidence board (link each card to a hypothesis as supports / contradicts / explains / needs more evidence, then give your own verdict) → workpapers (compute three ratios by hand) → decision (INVEST · HOLD · AVOID · REQUEST MORE EVIDENCE, with confidence) → three committee questions → a score out of 100 (data accuracy 25, evidence 25, reasoning 25, discipline 15, source awareness 10), the reference view of the rules, and what you missed. Two missions: *The Earnings Quality Case* and *The Liquidity Clock* (opens after the first). Ranks from Analyst Intern to Chief Investment Officer
+  - Every number is labelled **REAL** (from a data provider, with its column), **CALCULATED** (by the engine, with formula and inputs) or **SIMULATED** (the bundled training case, a fictional company). Missing inputs make a ratio "unavailable" with the reason; nothing is guessed
+  - A company file must pass the blocking checks (assets = liabilities + equity, cash flow sections and cash roll-forward, cash ties to the balance sheet, three consecutive years, required lines, scope and label) or it is held in quarantine as NOT PUBLISHABLE
+  - Real companies are added one at a time, when someone needs them: ask Claude with the WiData MCP for a company's annual consolidated statements, then load the file in the game (VN30 picker included; banks and securities firms use another statement format and are not supported yet). `tools/widata-fw.js` turns the WiData `fs_nonfin` rows into a game file. **WiData data is for personal use: the files stay in the browser of the person who loaded them and are never committed here**
 - **Backup** — export/import JSON; light/dark theme
 
 All data is stored in the browser (`localStorage`). Export a backup regularly.
@@ -28,6 +32,12 @@ All data is stored in the browser (`localStorage`). Export a backup regularly.
 
 ## Run locally
 Open `index.html` in a browser (double-click), or use VS Code's Live Server.
+
+## Tests
+The game's engine, rules and converter have tests (Node 18 or later, nothing to install):
+```
+node --test tests/*.test.js
+```
 
 ## Structure
 ```
@@ -43,5 +53,12 @@ js/progress.js       study plan & topic pages
 js/flashcards.js     Leitner flashcards
 js/quiz.js           question bank & practice
 js/mock.js           mock exams
+js/game/engine.js    game: checks on a dataset and the ratio registry (formula, inputs, conventions)
+js/game/missions.js  game: missions, hypotheses, data tests, reference view, score, ranks
+js/game/sample.js    game: the training case (simulated, fictional company)
+js/game/ui.js        game: HQ, mission steps, inspector, import and quarantine
+css/game.css         game styles
+tools/widata-fw.js   WiData fs_nonfin rows → game file (mapping only, no data)
+tests/               node:test suites for the game
 js/app.js            navigation, dashboard, settings, router
 ```

@@ -127,9 +127,8 @@
       <div class="fw-co-head">
         <span class="fw-ticker">${esc(co.ticker || "—")}</span>
         <div class="fw-co-id"><div class="fw-co-name">${esc(co.name)}</div><div class="text-3 small">${[co.sector, yrs(ds)].filter(Boolean).map(esc).join(" · ")}</div></div>
-        ${chip(ds.class)}
       </div>
-      <div class="fw-co-meta text-3 small"><span>${src}</span><span>${e.val.publishable ? `${icon("check", 13)} ${passed}/${e.val.checks.length} kiểm tra đạt` : `<span class="fw-bad">NOT PUBLISHABLE</span>`}</span></div>
+      <div class="fw-co-meta text-3 small"><span>${chip(ds.class)} ${src}</span><span>${e.val.publishable ? `${icon("check", 13)} ${passed}/${e.val.checks.length} kiểm tra đạt` : `<span class="fw-bad">NOT PUBLISHABLE</span>`}</span></div>
       <div class="fw-co-missions">${e.val.publishable ? M.ARCHETYPE_IDS.map(a => missionLink(e, a, best)).join("") : `<p class="small fw-bad">${e.val.checks.filter(c => c.level === "block" && c.status === "fail").map(c => esc(c.label)).join(" · ")}</p>`}</div>
       ${e.builtin ? "" : `<div class="fw-co-foot"><button class="btn btn-ghost btn-sm" data-del="${esc(ds.id)}">${icon("trash", 14)} Xoá hồ sơ</button></div>`}
     </article>`;
@@ -142,7 +141,7 @@
     else if (b) status = `Tốt nhất <strong>${b.score}</strong>/100`;
     else if (run && !run.done && (run.pins.length || run.step !== "brief")) status = `Đang làm · bước ${STEPS.findIndex(s => s.id === run.step) + 1}/7`;
     else status = "Chưa chơi";
-    const inner = `<span class="fw-code">${arch.code}</span><span class="fw-m-title"><span>${arch.title}</span><small>${arch.vi}</small></span><span class="fw-m-status">${status}</span>`;
+    const inner = `<span class="fw-code">${arch.code}</span><span class="fw-m-title"><span>${arch.title}</span><small>${arch.vi} · <span class="fw-m-status">${status}</span></small></span>`;
     return open ? `<a class="fw-mission" href="#/game/m/${esc(e.ds.id)}/${archId}">${inner}${icon("chevron", 16)}</a>` : `<div class="fw-mission locked" aria-disabled="true">${inner}</div>`;
   }
 
@@ -328,14 +327,11 @@
         `<div class="fw-h-label">${chip(e.ds.class)}<span class="text-3 small">${esc(e.ds.class === "SIMULATED" ? "Doanh nghiệp hư cấu" : (e.ds.source.attribution || e.ds.source.provider))}</span></div>`, `${arch.code} · ${arch.title}`)}
       <div id="fw-stepper"></div>
       <div id="fw-step" class="fw-step-body"></div>
-      <div class="fw-drawer-back" id="fw-drawer-back" data-close hidden></div>
-      <aside class="fw-drawer" id="fw-drawer" role="dialog" aria-modal="true" aria-labelledby="fw-drawer-title" hidden></aside>
     </div>`;
     const root = document.getElementById("fw-root");
     root.addEventListener("click", onMissionClick);
     root.addEventListener("submit", onMissionSubmit);
     root.addEventListener("input", onMissionInput);
-    root.addEventListener("keydown", ev => { if (ev.key === "Escape" && !document.getElementById("fw-drawer").hidden) { ev.stopPropagation(); closeDrawer(); } });
     drawStep();
   }
 
@@ -433,7 +429,7 @@
     }
   }
   function togglePin(id) {
-    const { st, cs } = G.cur, on = !st.pins.includes(id);
+    const st = G.cur.st, on = !st.pins.includes(id);
     if (on) st.pins.push(id); else unpin(id);
     save();
     document.querySelectorAll(`[data-pin="${id}"]`).forEach(b => {
@@ -443,11 +439,10 @@
       if (b.classList.contains("fw-pin-wide")) b.innerHTML = `${icon("pin", 15)} ${on ? "Đã ghim · bấm để bỏ" : "Ghim làm bằng chứng"}`;
     });
     const n = document.getElementById("fw-pin-count");
-    if (n) n.textContent = st.pins.length;
+    if (n) { n.textContent = st.pins.length; const box = n.parentElement; box.classList.remove("bump"); void box.offsetWidth; box.classList.add("bump"); }
     const sn = document.getElementById("fw-stepper");
     if (sn) sn.innerHTML = stepper();
     if (st.step === "board") drawStep();
-    else toast(on ? `Đã ghim: ${M.cardInfo(cs.c, id).title}` : "Đã bỏ ghim");
   }
   function unpin(id) {
     const st = G.cur.st;
@@ -601,23 +596,44 @@
         <p class="text-3 small">Engine ${E.ENGINE_VERSION} · bộ quy tắc ${M.RULES_VERSION}</p>`;
     }
     const on = st.pins.includes(card);
-    const dr = document.getElementById("fw-drawer");
+    const { back, dr } = drawerEls();
+    if (dr.hidden) G.lastFocus = document.activeElement;
     dr.innerHTML = `<div class="fw-drawer-head"><span class="kicker">Inspector · lineage</span><button class="btn btn-ghost btn-sm" data-close aria-label="Đóng">${icon("x", 16)}</button></div>
       <div class="fw-drawer-body">${body}</div>
       ${st.done ? "" : `<div class="fw-drawer-foot"><button class="btn btn-secondary btn-sm fw-pin-wide ${on ? "on" : ""}" data-pin="${card}" aria-pressed="${on}">${icon("pin", 15)} ${on ? "Đã ghim · bấm để bỏ" : "Ghim làm bằng chứng"}</button></div>`}`;
-    dr.hidden = false;
-    document.getElementById("fw-drawer-back").hidden = false;
+    dr.hidden = false; back.hidden = false;
     requestAnimationFrame(() => dr.classList.add("open"));
+    document.addEventListener("keydown", onDrawerKey, true);
     dr.querySelector("[data-close]").focus();
     if (!st.done && !st.inspected.includes(ref)) { st.inspected.push(ref); save(); }
   }
+  function drawerEls() {
+    let back = document.getElementById("fw-drawer-back"), dr = document.getElementById("fw-drawer");
+    if (!dr) {
+      back = document.createElement("div"); back.id = "fw-drawer-back"; back.className = "fw-drawer-back"; back.hidden = true;
+      dr = document.createElement("aside"); dr.id = "fw-drawer"; dr.className = "fw-drawer"; dr.hidden = true;
+      dr.setAttribute("role", "dialog"); dr.setAttribute("aria-modal", "true"); dr.setAttribute("aria-labelledby", "fw-drawer-title");
+      back.addEventListener("click", closeDrawer);
+      dr.addEventListener("click", onMissionClick);
+      document.body.append(back, dr);
+    }
+    return { back, dr };
+  }
+  function onDrawerKey(ev) { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); closeDrawer(); } }
   function closeDrawer() {
-    const dr = document.getElementById("fw-drawer");
+    const dr = document.getElementById("fw-drawer"), back = document.getElementById("fw-drawer-back");
+    document.removeEventListener("keydown", onDrawerKey, true);
     if (!dr || dr.hidden) return;
     dr.classList.remove("open");
-    document.getElementById("fw-drawer-back").hidden = true;
-    setTimeout(() => { dr.hidden = true; }, 220);
+    if (back) back.hidden = true;
+    setTimeout(() => { if (!dr.classList.contains("open")) dr.hidden = true; }, 220);
+    if (G.lastFocus && document.contains(G.lastFocus)) G.lastFocus.focus();
   }
+  function removeDrawer() {
+    document.removeEventListener("keydown", onDrawerKey, true);
+    ["fw-drawer", "fw-drawer-back"].forEach(id => { const el = document.getElementById(id); if (el) el.remove(); });
+  }
+  window.addEventListener("hashchange", removeDrawer);
 
   // ---------- 3. Evidence board ----------
   function boardHtml() {
@@ -688,7 +704,7 @@
     </article>`;
     const g = M.gradeWorkpaper(w, a.input), ok = g.frac === 1 ? "ok" : g.frac > 0 ? "near" : "bad";
     return `<article class="card fw-wp done ${ok}">${head}
-      <div class="fw-wp-res"><div><div class="stat-label">Bạn</div><strong>${M.num(a.input, 2)} ${UNIT[w.unit]}</strong></div><div><div class="stat-label">Engine</div><strong>${M.num(M.shownValue(w), 2)} ${UNIT[w.unit]}</strong></div>
+      <div class="fw-wp-res"><div><div class="stat-label">Bạn</div><strong>${M.wpFmt(w, a.input)}</strong></div><div><div class="stat-label">Engine</div><strong>${M.wpFmt(w, M.shownValue(w))}</strong></div>
         <span class="fw-wp-badge">${ok === "ok" ? "Khớp" : ok === "near" ? "Gần đúng" : "Chưa đúng"} · ${Math.round(g.frac * 100)}%</span></div>
       <div class="stat-label">Đầu vào</div><ul class="fw-inputs">${w.inputs.map(x => `<li><button class="fw-cell" data-insp="i:${x.item}|${x.year}"><span>${E.ITEMS[x.item].vi} <span class="text-3">${x.year} · ${x.how}</span></span><span class="mono">${ty(x.v)}</span></button></li>`).join("")}</ul>
       ${w.notes.length ? `<ul class="fw-notes">${w.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
@@ -798,6 +814,11 @@
   }
 
   // ================= entry =================
+  // "Delete all data" and deleting an account also remove the company files kept on this device
+  window.fwClearProfile = function (pid) {
+    try { localStorage.removeItem(`cfaStudy_fw_${pid}`); } catch (e) { /* ignore */ }
+    G.lib = null; G.all = null; G.cases = {};
+  };
   window.renderGame = function (sub, a, b) {
     if (!E || !M || !SAMPLE) { G.cur = null; view.innerHTML = emptyState("alert", "Không tải được game", "Thiếu tệp của game. Tải lại trang.", ""); return; }
     if (sub === "m") renderMission(a, b);
