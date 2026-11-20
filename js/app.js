@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { route: "cards", label: "Flashcards", icon: "cards", group: "Learn" },
   { route: "dist", label: "Distributions", icon: "curve", group: "Learn" },
   { route: "trade", label: "Giả lập chứng khoán", icon: "trend", group: "Learn" },
+  { route: "game", label: "Game", icon: "target", group: "Learn" },
   { route: "practice", label: "Practice", icon: "check", group: "Test" },
   { route: "qbank", label: "Question Bank", icon: "flag", group: "Test" },
   { route: "mock", label: "Mock exams", icon: "clock", group: "Test" },
@@ -390,6 +391,7 @@ const ROUTES = {
   analysis: renderAnalysis,
   dist: renderDist,
   trade: (sub, sym) => renderTrade(sub, sym),
+  game: renderGame,
   profiles: renderProfiles
 };
 
@@ -402,6 +404,7 @@ function renderMore() {
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["trade", "trend", "Giả lập chứng khoán", "Tiền ảo · giá thật cổ phiếu Việt Nam"],
+    ["game", "target", "Game", "Financial World · đang xây dựng"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "user", "Account", activeProfile().name],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],
