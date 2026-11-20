@@ -495,9 +495,15 @@ function trAutoRefresh(fn, every = 10000) {
 }
 async function trRefresh(syms, quiet) {
   TRADE.loading = true; TRADE.err = "";
-  try { await trFetchQuotes(syms); trProcessPending(); }
-  catch (e) { TRADE.err = "Không tải được giá. Kiểm tra kết nối mạng rồi thử lại."; if (!quiet) toast(TRADE.err, "error"); }
-  TRADE.loading = false;
+  try {
+    const updated = await trFetchQuotes(syms);
+    trProcessPending();
+    return updated;
+  } catch (e) {
+    TRADE.err = "Không tải được giá. Kiểm tra kết nối mạng rồi thử lại.";
+    if (!quiet) toast(TRADE.err, "error");
+    return [];
+  } finally { TRADE.loading = false; }
 }
 function trHeadActions() {
   const st = trStatus();
@@ -1042,18 +1048,23 @@ const TR_RANGE_SHORT = { "1D": "Nay", "1M": "1Th", "3M": "3Th", "6M": "6Th", "1Y
 const TR_RANGES = [["1D", "Hôm nay"], ["1M", "1 tháng"], ["3M", "3 tháng"], ["6M", "6 tháng"], ["1Y", "1 năm"], ["3Y", "3 năm"], ["ALL", "Toàn bộ"]];
 function renderTradeStock(sym) {
   TRADE.range = "ALL";
+  let quoteStatus, quote = TRADE.q[sym];
+  const refresh = async (quiet = true) => {
+    const updated = await trRefresh([sym], quiet);
+    quote = updated.includes(sym) ? TRADE.q[sym] : null;
+  };
   const T = tradeData();
   const draw = () => {
     if (currentRoute()[0] !== "trade" || String(currentRoute()[2] || "").toUpperCase() !== sym) return;
-    const q = TRADE.q[sym], h = T.holdings[sym];
-    if (!q) {
-      view.innerHTML = `<a href="#/trade" class="back-link">${icon("back", 16)} Giả lập chứng khoán</a>${pageHeader(sym, "", trHeadActions())}
-        ${TRADE.err ? `<div class="callout danger">${icon("alert", 18)}<div style="flex:1">${esc(TRADE.err)}</div><button class="btn btn-secondary btn-sm" data-tr-retry>Thử lại</button></div>` : TRADE.loading ? `<p class="text-2">Đang tải…</p>` : `<div class="card">${emptyState("alert", `Không tìm thấy mã ${esc(sym)}`, "Kiểm tra lại mã rồi thử lại.")}</div>`}`;
-      view.querySelectorAll("[data-tr-retry]").forEach(b => b.onclick = async () => { await trRefresh([sym]); draw(); });
+    const q = quote, h = T.holdings[sym];
+    const quoteMessage = TRADE.loading ? "Đang tải bảng giá VPS…" : "Chưa có báo giá VPS cho mã này. Bấm Làm mới để tải lại bảng giá và mở phiếu lệnh.";
+    if (!q && quoteStatus?.isConnected) {
+      quoteStatus.textContent = quoteMessage;
       return;
     }
+    const exchange = TR_MARKET[q?.market] || q?.market || TRADE.uni?.by[sym]?.ex;
     const tone = trTone(q), pend = trPending(sym);
-    const pl = h ? h.qty * q.last * 1000 - h.cost : 0;
+    const pl = h && q ? h.qty * q.last * 1000 - h.cost : 0;
     const bookCls = p => trPxClass(q, p);
     const watching = T.watch.includes(sym);
     view.innerHTML = `
@@ -1063,13 +1074,13 @@ function renderTradeStock(sym) {
         <div class="tr-desk-market">${trHeadActions()}</div>
       </nav>
       <header class="tr-instrument">
-        <div class="tr-identity"><div class="tr-symbol"><h1 id="tr-stock-title">${esc(sym)}</h1><span>${esc(TR_MARKET[q.market] || q.market || "")}</span></div>
+        <div class="tr-identity"><div class="tr-symbol"><h1 id="tr-stock-title">${esc(sym)}</h1>${exchange ? `<span>${esc(exchange)}</span>` : ""}</div>
           <p class="tr-name" id="tr-name">${esc(trName(sym))}</p></div>
-        <div class="tr-last"><span class="tr-last-label">Giá khớp <small>· nghìn ₫</small></span>
-          <div><strong>${trP(q.last)}</strong><span class="tr-change ${tone}">${trSigned(q.chg, trP)} (${trPct(q.pct)})</span></div></div>
+        ${q ? `<div class="tr-last"><span class="tr-last-label">Giá khớp <small>· nghìn ₫</small></span>
+          <div><strong>${trP(q.last)}</strong><span class="tr-change ${tone}">${trSigned(q.chg, trP)} (${trPct(q.pct)})</span></div></div>` : ""}
         <div class="tr-instrument-actions">
           <button type="button" class="tr-watch-action" id="tr-watch" aria-pressed="${watching}" aria-label="${watching ? "Bỏ theo dõi" : "Theo dõi"} ${esc(sym)}" title="${watching ? "Bỏ theo dõi" : "Theo dõi"}">${icon("star", 17)}</button>
-          <button type="button" class="tr-order-jump" id="tr-open-ticket">Đặt lệnh ${icon("next", 15)}</button>
+          ${q ? `<button type="button" class="tr-order-jump" id="tr-open-ticket">Đặt lệnh ${icon("next", 15)}</button>` : ""}
         </div>
       </header>
       <section class="tr-terminal" aria-label="Biểu đồ và phân tích kỹ thuật">
@@ -1092,7 +1103,7 @@ function renderTradeStock(sym) {
       <div class="tr-layout">
         <div class="tr-main">
           <section class="card tr-analysis-card" id="tr-technical" aria-label="Phân tích kỹ thuật"></section>
-          <section class="card tr-session-card"><h2>Thống kê phiên</h2>
+          ${q ? `<section class="card tr-session-card"><h2>Thống kê phiên</h2>
       <dl class="tr-quote">
         <div><dt>Tham chiếu</dt><dd class="px-ref">${trP(q.ref)}</dd></div><div><dt>Trần</dt><dd class="px-ceil">${trP(q.ceil)}</dd></div><div><dt>Sàn</dt><dd class="px-floor">${trP(q.floor)}</dd></div>
         <div><dt>Mở cửa</dt><dd class="${bookCls(q.open)}">${trP(q.open)}</dd></div><div><dt>Cao nhất</dt><dd class="${bookCls(q.high)}">${trP(q.high)}</dd></div><div><dt>Thấp nhất</dt><dd class="${bookCls(q.low)}">${trP(q.low)}</dd></div><div><dt>Tổng KL</dt><dd>${trInt(q.vol)}</dd></div>
@@ -1103,10 +1114,10 @@ function renderTradeStock(sym) {
             <table class="table tr-book"><thead><tr><th class="num">KL mua</th><th class="num">Giá mua</th><th class="num">Giá bán</th><th class="num">KL bán</th></tr></thead>
               <tbody>${[0, 1, 2].map(i => { const [bp, bv, br] = q.bid[i], [ap, av, ar] = q.ask[i]; return `<tr><td class="num">${bv ? trInt(bv) : ""}</td><td class="num ${br ? "px-ref" : bookCls(bp)}"><strong>${br || (bp ? trP(bp) : "–")}</strong></td><td class="num ${ar ? "px-ref" : bookCls(ap)}"><strong>${ar || (ap ? trP(ap) : "–")}</strong></td><td class="num">${av ? trInt(av) : ""}</td></tr>`; }).join("")}</tbody></table>
             <p class="text-3 small" style="margin-top:8px">Nước ngoài mua ${trInt(q.fBuy)} · bán ${trInt(q.fSell)} cổ phiếu${q.fRoom ? ` · room còn ${trInt(q.fRoom)}` : ""}</p>
-          </div>
+          </div>` : ""}
         </div>
         <aside class="tr-side-col">
-          <div class="card tr-ticket" id="tr-order-ticket" tabindex="-1"><h2>Đặt lệnh <span>${esc(sym)}</span></h2>
+          ${q ? `<div class="card tr-ticket" id="tr-order-ticket" tabindex="-1"><h2>Đặt lệnh <span>${esc(sym)}</span></h2>
             <div class="tr-sides"><button class="${TRADE.side === "B" ? "active buy" : ""}" data-tr-side="B">Mua</button><button class="${TRADE.side === "S" ? "active sell" : ""}" data-tr-side="S">Bán</button></div>
             <div class="segmented tr-types"><button class="${TRADE.type === "LO" ? "active" : ""}" data-tr-type="LO">LO · giới hạn</button><button class="${TRADE.type === "MP" ? "active" : ""}" data-tr-type="MP">MP · thị trường</button></div>
             ${TRADE.type === "LO" ? `<label class="field"><span class="field-label">Giá đặt (nghìn ₫)</span>
@@ -1123,18 +1134,21 @@ function renderTradeStock(sym) {
             <p class="tr-pos"><strong>${trInt(h.qty)}</strong> cổ phiếu · giá vốn <strong>${trP(h.cost / h.qty / 1000)}</strong></p>
             <p class="${trPlTone(pl)}"><strong>${trSigned(pl)}</strong> (${trPct(h.cost ? pl / h.cost * 100 : 0)})</p></div>` : ""}
           ${pend.length ? `<div class="card section"><div class="stat-label">Lệnh chờ khớp</div>${pend.map(o => `<div class="row-between tr-pend"><span><span class="tr-side ${o.side === "B" ? "buy" : "sell"}">${o.side === "B" ? "Mua" : "Bán"}</span> ${trInt(o.qty)} giá ${trP(o.price)}</span><button class="btn btn-ghost btn-sm" data-tr-cancel="${o.id}">Hủy</button></div>`).join("")}</div>` : ""}
+          ` : `<section class="card"><h2>Đặt lệnh</h2><p class="text-2 small" role="status" id="tr-quote-status">${quoteMessage}</p></section>`}
         </aside>
       </div>
-      <p class="text-3 small section">${trUpdatedHtml()}</p>
+      ${q ? `<p class="text-3 small section">${trUpdatedHtml()}</p>` : ""}
       </article>`;
-    trBindStock(sym, draw);
+    quoteStatus = view.querySelector("#tr-quote-status");
+    trBindStock(sym, q, refresh, draw);
     trDrawChart(sym);
   };
   trUniQuick();
+  refresh().then(draw);
   draw();
-  trRefresh([sym], true).then(draw);
-  if (!trName(sym)) trUniverse().then(() => { const el = document.getElementById("tr-name"); if (el) el.textContent = trName(sym); }).catch(() => {});
-  trAutoRefresh(() => trRefresh([sym], true).then(() => {
+  if (!trName(sym)) trUniverse().then(() => { const el = document.getElementById("tr-name"); if (el && view.querySelector("#tr-stock-title")?.textContent === sym) el.textContent = trName(sym); }).catch(() => {});
+  trAutoRefresh(() => refresh().then(() => {
+    if (Boolean(quote) !== Boolean(view.querySelector("#tr-order-ticket"))) { draw(); return; }
     if (document.fullscreenElement || trDrawingActive(sym) || document.querySelector(".tr-indicator-menu[open]") || document.activeElement?.closest(".tr-terminal, #tr-price, #tr-qty")) return;
     draw();
   }));
@@ -1159,7 +1173,7 @@ async function trDrawChart(sym) {
   out.textContent = "";
   volume.textContent = "";
   const resolution = intraday ? "5m" : { hour: "1H", day: "1D", week: "1W", month: "1M", year: "1Y" }[interval];
-  context.textContent = [resolution, TR_MARKET[TRADE.q[sym]?.market]].filter(Boolean).join(" · ");
+  context.textContent = [resolution, TR_MARKET[TRADE.q[sym]?.market] || TRADE.uni?.by[sym]?.ex].filter(Boolean).join(" · ");
   period.hidden = true;
   plots.replaceChildren();
   legend.replaceChildren();
@@ -1232,7 +1246,7 @@ async function trDrawChart(sym) {
     if (!isCurrent()) return;
     summary.innerHTML = technical.summary;
     summary.querySelector("[data-tr-tech-retry]")?.addEventListener("click", () => trDrawChart(sym));
-    box.innerHTML = `<div class="tr-chart-empty">Chưa tải được biểu đồ từ VNDirect. Giá và đặt lệnh vẫn dùng bình thường.<br><button class="btn btn-secondary btn-sm" style="margin-top:10px" id="tr-chart-retry">Thử lại</button></div>`;
+    box.innerHTML = `<div class="tr-chart-empty">Chưa tải được biểu đồ từ VNDirect.<br><button class="btn btn-secondary btn-sm" style="margin-top:10px" id="tr-chart-retry">Thử lại</button></div>`;
     box.querySelector("#tr-chart-retry").onclick = () => trDrawChart(sym);
   }
 }
@@ -1268,10 +1282,18 @@ function trBindChartSize(sym) {
     trUnbindChartSize = () => {};
   };
 }
-function trBindStock(sym, draw) {
-  const T = tradeData(), q = TRADE.q[sym];
+function trBindStock(sym, q, refresh, draw) {
+  const T = tradeData();
   const rf = document.getElementById("tr-refresh");
-  if (rf) rf.onclick = async () => { rf.disabled = true; TRADE.bars = {}; await trRefresh([sym]); draw(); };
+  if (rf) rf.onclick = async () => {
+    rf.disabled = true;
+    TRADE.bars = {};
+    await refresh(false);
+    if (!rf.isConnected) return;
+    rf.disabled = false;
+    draw();
+    if (rf.isConnected && view.querySelector("#tr-quote-status")) trDrawChart(sym);
+  };
   const wt = document.getElementById("tr-watch");
   if (wt) wt.onclick = () => {
     const wasWatching = T.watch.includes(sym);
@@ -1282,11 +1304,6 @@ function trBindStock(sym, draw) {
     wt.setAttribute("aria-pressed", String(!wasWatching));
     wt.title = wasWatching ? "Theo dõi" : "Bỏ theo dõi";
     wt.setAttribute("aria-label", wt.title + " " + sym);
-  };
-  view.querySelector("#tr-open-ticket").onclick = () => {
-    const ticket = view.querySelector("#tr-order-ticket");
-    ticket.focus({ preventScroll: true });
-    ticket.scrollIntoView({ block: "start" });
   };
   trBindChartSize(sym);
   const ranges = view.querySelectorAll("[data-tr-range]");
@@ -1307,6 +1324,12 @@ function trBindStock(sym, draw) {
     });
     trDrawChart(sym);
   });
+  if (!q) return;
+  view.querySelector("#tr-open-ticket").onclick = () => {
+    const ticket = view.querySelector("#tr-order-ticket");
+    ticket.focus({ preventScroll: true });
+    ticket.scrollIntoView({ block: "start" });
+  };
   view.querySelectorAll("[data-tr-side]").forEach(b => b.onclick = () => { TRADE.side = b.dataset.trSide; draw(); });
   view.querySelectorAll("[data-tr-type]").forEach(b => b.onclick = () => { TRADE.type = b.dataset.trType; draw(); });
   view.querySelectorAll("[data-tr-cancel]").forEach(b => b.onclick = () => {
@@ -1338,11 +1361,13 @@ function trBindStock(sym, draw) {
     qin.value = Math.max(0, max); update();
   });
   update();
-  document.getElementById("tr-go").onclick = async () => {
+  const submit = document.getElementById("tr-go");
+  submit.onclick = async () => {
     const p = price(), n = qty();
     const o = { sym, side: TRADE.side, type: TRADE.type, qty: n, price: Math.round(p * 100) / 100 };
     const verb = o.side === "B" ? "Mua" : "Bán";
     if (!await confirmDialog({ title: `${verb} ${trInt(n)} ${sym}?`, message: `${o.type === "MP" ? "Lệnh MP (thị trường)" : `Lệnh LO giá ${trP(o.price)}`} · khoảng ${trVND(n * p * 1000)} chưa gồm phí. Chỉ là giả lập — không dùng tiền thật.`, confirmText: verb })) return;
+    if (!submit.isConnected) return;
     const res = trPlace(o);
     if (typeof res === "string") { toast(res, "error"); return; }
     toast(res.status === "filled" ? `Đã khớp: ${res.side === "B" ? "mua" : "bán"} ${trInt(res.qty)} ${sym} giá ${trP(res.fill)}` : `Đã đặt lệnh — sẽ khớp khi giá chạm ${trP(res.price)}`);
