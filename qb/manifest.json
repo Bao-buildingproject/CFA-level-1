@@ -1,0 +1,214 @@
+{
+ "app": "cfa-study",
+ "kind": "qbank-sealed",
+ "version": 1,
+ "kdf": "PBKDF2-SHA256",
+ "iter": 250000,
+ "salt": "ZoS8o2GbNfqZE9cEyNJEQg==",
+ "check": "ynovtjuXFba23YdKWLdPbrd9thr9l6Qkfod2ZW92+kNOB1pLwCJuZA==",
+ "packs": [
+  {
+   "id": "01",
+   "file": "01.bin",
+   "topic": "ETH",
+   "title": "Ethical and Professional Standards",
+   "bytes": 378259,
+   "hash": "4fb6f5fb84cdcb00",
+   "sets": [
+    "1jzB1WeP_KIswkw43cLRX6ujjikXxdWKL",
+    "1OFh0vuErQElPMD1tgVnrYETBFGby_S4M",
+    "1ShgwxxkozmnQMK_sx6_ncnpWiI9bOLA9",
+    "1y2ZTAFSF-TUnM6AvhEAK4iet_aP8LZSC",
+    "1JjWI_IsrG2m7ku9cS08SPMZECXWhHHBj"
+   ],
+   "questions": 215
+  },
+  {
+   "id": "02",
+   "file": "02.bin",
+   "topic": "QM",
+   "title": "Quantitative Methods",
+   "bytes": 3673055,
+   "hash": "a41d6300ad815fb4",
+   "sets": [
+    "1GK7PZgljs8tzNA6RZ-9X_eT06QOsUCrH",
+    "1m3QNkxWiKxT7wcRvjGwULQ-mnaIuKrVf",
+    "1xXmOEKeIx42KqFyH8gS9r5n22_gH_Dps",
+    "1uUhzBhoypaNygW09HQBAsnsvMKNyFLaL",
+    "1sLEIx84IWX2q7pPNPVdFQRFODRvc2Kh6",
+    "1rLspV_vyHh8p0rECuMmeXBxiUm0UM-pS",
+    "11l5JviNJf3ovmPJvs1ByZ3c4GBPW1zQY",
+    "1KQRNxRb9dH-6lXSZssEjkV1TUusYhZbU",
+    "1uIFfKcODMoPnd3y__0y8Y9KG6oBdYo3W",
+    "1E6HwTG-XwKmEpLcLbmADbnBUBIxJWHyl",
+    "1pJRL2TVsqMIuDLOjHqTMz8MQc7W8qkVe"
+   ],
+   "questions": 213
+  },
+  {
+   "id": "03",
+   "file": "03.bin",
+   "topic": "ECO",
+   "title": "Economics",
+   "bytes": 1361605,
+   "hash": "2912ceff9dfab6ae",
+   "sets": [
+    "1P5zaPnAeVPl8qdpe832ce3AN9nLOu0rv",
+    "108yQPSj5tocC6tAgoRduo7HjJOFwfCqW",
+    "1jds98W_meGglR4UsK2gJNJ-x6e9343rl",
+    "1VmXVbqvo5I2A47BGtehDi3KDfsw68g_e",
+    "1ET8fv-vE2UCtR-xjRqTFwgXgYw65yPT1",
+    "1pQzmoudyuo9Qky-CX14HOwh-XQfmMmRf",
+    "1hJ0aYVQC3AlnPwq8Dr0N4m3uOsdwdNDJ",
+    "1ti98ZiHHh4Dk11YZzdPunbD6HjHrgbAN"
+   ],
+   "questions": 146
+  },
+  {
+   "id": "04",
+   "file": "04.bin",
+   "topic": "FSA",
+   "title": "Financial Statement Analysis",
+   "bytes": 4314666,
+   "hash": "f642afa2e8edec5b",
+   "sets": [
+    "1SnjKCbEodAL2H0AqLbwBRTtoxH8XRDYi",
+    "1ShYajDO9AOFYe38hhI6iOzDOZw1pT4oL",
+    "1IyxN0lWq0vQftasWpS_U_nZFpXuVGv7U",
+    "1z3lRHJLLdrwRL_sywaV3cbsHJSQuhojQ",
+    "1j45ms75mPxgzH8bpolk8inQ42jn4OAsK",
+    "1-KaW-bwuUeMkS26U_J5qia6hGYcQE0U9",
+    "1Lec8TAnlzY5NiXHI2zM2vw4w-hXcgRkC",
+    "1dxfb90bWQKQEGihjmt5xZOPVOCFGLkFP",
+    "1994z4SR89nQQCgL_7Y7ghGPTwfv17Lwd",
+    "1Tm-AH6DFerz2hVhqnrjJ_quf5Y5rpVGO",
+    "1xoqZV45gDLxELG0dSHbcffVmsGF_0CvB",
+    "1EXjtPp6w0wlObir-QLevnEqJdNcjAEDP"
+   ],
+   "questions": 264
+  },
+  {
+   "id": "05",
+   "file": "05.bin",
+   "topic": "CI",
+   "title": "Corporate Issuers",
+   "bytes": 1154004,
+   "hash": "ec527449ae0521c1",
+   "sets": [
+    "14p5ufBYwTSCW3qRNazv7b9jU-77eb1fX",
+    "1r1IUsfatbNQ1_Zqoqjg3SijlhlKEemeN",
+    "16i5678d9zFROIX1AkagkB3Fd7dVDBK8U",
+    "1fbD7eWFdfDs8cdpICBucJm-CH9315GOr",
+    "17zFjW5Ug7ICywOmg2ZqA61GeTm_2_tSs",
+    "1jS0u_KxvdO5VpwpD_-SKxs_A0GspzyjL",
+    "1hCxJDOLXt0jTWgoBl9CS62RCSQ3807th"
+   ],
+   "questions": 116
+  },
+  {
+   "id": "06",
+   "file": "06.bin",
+   "topic": "EQ",
+   "title": "Equity Investments",
+   "bytes": 3274046,
+   "hash": "2f67f033e9fdb8f3",
+   "sets": [
+    "1qjVapvC2xhMGnKitQ3EV72ZR3Cz7YrtN",
+    "1LeyoXvtkylt0N2PL3g00FWUwrzGk2eHH",
+    "1vpsq9bPUMRfSAE769r8W-QxLqjWxMDWY",
+    "1Qmj6e4Fs3YbdzLDeA21rwD-pBJHzL9h2",
+    "1s8qIODAn1qd27VuNmPCcFdw-BrB7r1Il",
+    "1k92RHoeeG2FWVmDXD6YRSB9QT5QRVEVs",
+    "1z6MXGmOOdS7vcl0_zFfwjJkmWOcUqOLL",
+    "1bZsWfXemA0XHm08lQNCxEoo8KSGtWIuX"
+   ],
+   "questions": 274
+  },
+  {
+   "id": "07",
+   "file": "07.bin",
+   "topic": "FI",
+   "title": "Fixed Income",
+   "bytes": 4080396,
+   "hash": "2a9e28674fffc8b7",
+   "sets": [
+    "1CKLl6FVkgk95vlkRwjbPvJp2bfmwQLdF",
+    "1e1XGQpN13B83FkQWNlsTTnI1qf2tujZf",
+    "1etIwxtI5LQicgEwzHqG4WeJLUKo1zbPj",
+    "1vcHKSt30vnGnutpdlOkcMqp7shPzbW03",
+    "1LGtHN8sQny6gyAP_3PdExaAFlk8MaL8n",
+    "19xojHHC-tDwQn3CuZ7H1xS4wxLkS_W16",
+    "1ec12pUoCAvSoQ6ajxcSZtbPHDUzroWqk",
+    "12Lit9k3TtcmpnScayGOAJFRBNHbgh5lJ",
+    "19fxcwU6YiclrIadZh_3bOvxdK28ZezzM",
+    "1ul41R6_sqPXWzsB0XtPdaNubTAXxDn94",
+    "14-LADFFM5Qpu9CMjP0NTKQQU-okwWu0j",
+    "1DOQ7-jIqjvU5-dhxCTIuevzoEN5G1ZV4",
+    "1ZGS8fxC5Ayppar4d_2AORySFewl1sujI",
+    "1to6z_P-wlrnMnj-HOd36RHmw1_29rZ99",
+    "1p_B4GLZGTcYgsIaGLxh-4DDLJeU-YE0U",
+    "1REj-iKnWrH860RtsGreg7azWhDmlSsLS",
+    "1JbZTaOaopojrP1TOoLfeSL4HwZTABpdC",
+    "1IRA68HHuZb4xx0MQ5MbAth8-uvFTGREd",
+    "1JPg2vrgovUnyHnEx7PnY1MKF-0Iqhphv"
+   ],
+   "questions": 292
+  },
+  {
+   "id": "08",
+   "file": "08.bin",
+   "topic": "DER",
+   "title": "Derivatives",
+   "bytes": 1260634,
+   "hash": "5f2d85b03c3ecd32",
+   "sets": [
+    "1tYk0dKZwUByc29YgxiN-ALPf4mla6OMY",
+    "1tL1SaZYGAG3CSe9Re-hHhc0tkedySuTv",
+    "16wlTz9ftGK8roETsZqOUIpclX4SFO2jO",
+    "1WlMjmopEUQEfsTRmeIOZ5iTt4w9AAhgl",
+    "1H-m42KyaOVk0_cSL6XRetQ_ykKJ3bZTr",
+    "1NTyhPh34VBdu5CiRs-NVB0rFVaAdXkoZ",
+    "100GYqCYIoSGN4HsXQ8S7bdBikbZ-HhDb",
+    "1DZRn_s7nwLxL-YasyHoCJZiXSy1oz7OE",
+    "1UmWz4_zntzSeSM86UisuK2nqhRnliuX_",
+    "19YTi7AVxz3oo23aNCZpd4-Gc7_Zra04v"
+   ],
+   "questions": 131
+  },
+  {
+   "id": "09",
+   "file": "09.bin",
+   "topic": "ALT",
+   "title": "Alternative Investments",
+   "bytes": 823016,
+   "hash": "6588db2b723f02bd",
+   "sets": [
+    "1nttvzCEktfssvXr2otjo2NujPiSA4eLO",
+    "1Cj1_iRynjquV7WYFSNsUwBPOnHaLuYnm",
+    "1ezrpzjuNQXMn_dfOa3HmXiTQMVC9hDSi",
+    "1GA3eFH7EzVcZotT8HZrorOu6CQlz-O_h",
+    "1hWqWhA5BsMVrtyROfvuSj6U0IUM7Ya3z",
+    "1mTbwuC3kYQJTMI9Ltgr3YstuG9lg3w-4",
+    "1b6UZ5nghDtHZ6cEJP7UhKiUCAoFbdsyz"
+   ],
+   "questions": 118
+  },
+  {
+   "id": "10",
+   "file": "10.bin",
+   "topic": "PM",
+   "title": "Portfolio Management",
+   "bytes": 1946603,
+   "hash": "e64e7b3766d82b8a",
+   "sets": [
+    "10letWyYYSOW5XO6nRB_DZMmd7-rXaDO3",
+    "1GNJjdHDDo-6k9ktLIGxa7gR1b8SYvMoe",
+    "1TyeO_uIy6jNPYmyy09MN3R3-BBZetK44",
+    "1p_h14-AE4Cz1TulDsXPdAVwmzMYrBSof",
+    "1pxL0_JQP_Mm5jgA4Xp5IWB7MkCu0f27W",
+    "1dR-lhEllR4bdPKEfCPnJHjjWU0DgIztM"
+   ],
+   "questions": 165
+  }
+ ]
+}
