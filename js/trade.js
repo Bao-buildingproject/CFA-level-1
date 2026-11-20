@@ -399,20 +399,14 @@ function trChartSvg(bars, w, opts = {}) {
   const pad = (hi - lo) * 0.08 || hi * 0.01 || 1; lo -= pad; hi += pad;
   const y = v => top + (hi - v) / (hi - lo) * plotH;
   const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
-  let marks = "";
-  if (n <= 140 || opts.weekly) {
-    const bw = Math.min(10, opts.weekly ? step * 0.62 : Math.max(1, step * 0.62));
-    const wickStyle = opts.weekly ? ` style="stroke-width:${Math.min(1, step * 0.48).toFixed(2)}"` : "";
-    bars.forEach((b, i) => {
-      const x = i * step + step / 2, cls = b.c >= b.o ? "tr-up" : "tr-down";
-      const y1 = y(Math.max(b.o, b.c)), y2 = y(Math.min(b.o, b.c));
-      marks += `<line class="${cls}"${wickStyle} x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(b.h).toFixed(1)}" y2="${y(b.l).toFixed(1)}"/><rect class="${cls}" x="${(x - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y2 - y1).toFixed(1)}"/>`;
-    });
-  } else {
-    const pts = bars.map((b, i) => `${(i * step + step / 2).toFixed(1)},${y(b.c).toFixed(1)}`);
-    marks = `<path class="tr-area" d="M${pts[0].split(",")[0]},${top + plotH} L${pts.join(" L")} L${pts[pts.length - 1].split(",")[0]},${top + plotH}Z"/><polyline class="tr-line" points="${pts.join(" ")}"/>`;
-  }
-  const volumeWidth = (opts.weekly ? step * 0.6 : Math.max(0.6, step * 0.6)).toFixed(1);
+  const bw = Math.min(10, step * 0.62);
+  const wickWidth = Math.min(1, step * 0.48).toFixed(2);
+  const marks = bars.map((b, i) => {
+    const x = i * step + step / 2, cls = b.c >= b.o ? "tr-up" : "tr-down";
+    const y1 = y(Math.max(b.o, b.c)), y2 = y(Math.min(b.o, b.c));
+    return `<line class="${cls}" style="stroke-width:${wickWidth}" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(b.h).toFixed(1)}" y2="${y(b.l).toFixed(1)}"/><rect class="${cls}" x="${(x - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(2)}" height="${Math.max(1, y2 - y1).toFixed(1)}"/>`;
+  }).join("");
+  const volumeWidth = (step * 0.6).toFixed(2);
   const vol = bars.map((b, i) => { const hgt = (b.v || 0) / vmax * (VH - 6); return `<rect class="${b.c >= b.o ? "tr-vup" : "tr-vdown"}" x="${(i * step + step * 0.2).toFixed(1)}" y="${(H - 18 - hgt).toFixed(1)}" width="${volumeWidth}" height="${hgt.toFixed(1)}"/>`; }).join("");
   const ticks = [0, 1, 2, 3].map(k => lo + pad + (hi - lo - 2 * pad) * k / 3);
   const axis = ticks.map(v => `<line class="tr-grid" x1="0" x2="${plotW}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tr-axis" x="${plotW + 6}" y="${(y(v) + 4).toFixed(1)}">${trP(v)}</text>`).join("");

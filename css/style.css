@@ -1336,8 +1336,6 @@ body.tutor-open .tutor-hint, body.tutor-off .tutor-hint, body.gated .tutor-hint 
 .tr-chart rect.tr-down { fill: var(--px-down); }
 .tr-chart .tr-vup { fill: color-mix(in srgb, var(--px-up) 35%, transparent); }
 .tr-chart .tr-vdown { fill: color-mix(in srgb, var(--px-down) 35%, transparent); }
-.tr-chart .tr-line { fill: none; stroke: var(--primary); stroke-width: 1.8; stroke-linejoin: round; }
-.tr-chart .tr-area { fill: color-mix(in srgb, var(--primary) 10%, transparent); }
 .tr-chart .tr-refline { stroke: var(--px-ref); stroke-width: 1; stroke-dasharray: 4 4; }
 .tr-chart .tr-cross { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; }
 .tr-chart .tr-l-me { fill: none; stroke: var(--brass); stroke-width: 2.2; stroke-linejoin: round; }
