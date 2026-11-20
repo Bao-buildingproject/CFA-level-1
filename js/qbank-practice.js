@@ -351,7 +351,7 @@ async function qbImportPackages(files, onStep) {
   qbIndexReset();
   return report;
 }
-// One parsed pack (from a file or from the site's sealed packs) → this profile's Question Bank
+// One parsed pack (from a file or from the site's sealed packs) → the Question Bank shared by every account
 async function qbImportPackObject(pkg, name, report) {
   if (!pkg || pkg.kind !== "qbank-package" || !Array.isArray(pkg.sets)) { report.failed.push(`${name} — not a question pack`); return; }
   for (const rec of pkg.sets) {

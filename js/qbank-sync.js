@@ -3,12 +3,13 @@
 //
 // The sets are published only in encrypted form (qb/*.bin, AES-256-GCM).
 // Someone with the access key enters it once on a device; the site then
-// downloads, decrypts and stores the sets in this browser (IndexedDB, per
-// profile) and keeps them up to date. Without the key the files are unreadable.
+// downloads, decrypts and stores the sets in this browser (IndexedDB), where
+// every account on the device can answer them, and keeps them up to date.
+// Without the key the files are unreadable.
 // ============================================================
 
 const QBK_KEY = "cfaStudy_qbkey";        // the access key (device-wide)
-const QBK_MARKS = "cfaStudy_qbsync";     // { profileId: { packId: hash } } — what each profile already has
+const QBK_MARKS = "cfaStudy_qbsync";     // { packId: hash } — packs this device already has (the sets are shared by all accounts)
 let QBS = { running: false, step: null, error: null, manifest: null, checked: null, done: 0, total: 0 };
 
 function qbkGet() { try { return localStorage.getItem(QBK_KEY) || ""; } catch (e) { return ""; } }
@@ -37,15 +38,26 @@ async function qbkCheck(pass, m) {
   } catch (e) { return null; }
 }
 
-function qbkMarks() { try { return JSON.parse(localStorage.getItem(QBK_MARKS) || "{}"); } catch (e) { return {}; } }
-function qbkMark(pid, p) {
+function qbkMarks() {
+  let all = {};
+  try { all = JSON.parse(localStorage.getItem(QBK_MARKS) || "{}") || {}; } catch (e) { all = {}; }
+  // older format kept one map per account ({ accountId: { packId: hash } }); the packs now belong to the device
+  if (Object.values(all).some(v => v && typeof v === "object")) {
+    const flat = {};
+    Object.values(all).forEach(v => { if (v && typeof v === "object") Object.assign(flat, v); });
+    all = flat;
+    try { localStorage.setItem(QBK_MARKS, JSON.stringify(all)); } catch (e) { /* ignore */ }
+  }
+  return all;
+}
+function qbkMark(p) {
   const all = qbkMarks();
-  (all[pid] = all[pid] || {})[p.id] = p.hash;
+  all[p.id] = p.hash;
   try { localStorage.setItem(QBK_MARKS, JSON.stringify(all)); } catch (e) { /* ignore */ }
 }
-// Packs this profile still needs: new or changed on the site, or sets missing from this browser
+// Packs this device still needs: new or changed on the site, or sets missing from this browser
 function qbkTodo(m) {
-  const have = qbkMarks()[PROFILES.active] || {};
+  const have = qbkMarks();
   return m.packs.filter(p => have[p.id] !== p.hash || p.sets.some(id => !QBI[id]));
 }
 const qbkMB = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0);
@@ -89,9 +101,8 @@ async function qbkSync(opts = {}) {
         QBS.step = { i: i + 1, n: todo.length, title: p.title };
         qbkPaint(true);
         const pkg = JSON.parse(await qbkGunzip(await qbkDecrypt(key, await qbkFetch(p))));
-        if (PROFILES.active !== pid) throw new Error("profile");
-        await qbImportPackObject(pkg, p.title, report);
-        qbkMark(pid, p);
+        await qbImportPackObject(pkg, p.title, report);      // shared sets: switching account meanwhile is fine
+        qbkMark(p);
       }
       saveData();
       qbIndexReset();
@@ -147,7 +158,7 @@ async function qbkUnlock(code) {
 async function qbkAsk() {
   const v = await promptDialog({
     title: "Question Bank access key",
-    message: `Enter the key you were given. It is saved on this device only. The question sets then download by themselves (${qbkSizeText()}, once) and stay in this browser.`,
+    message: `Enter the key you were given. It is saved on this device only, for every account on it. The question sets then download by themselves (${qbkSizeText()}, once) and stay in this browser.`,
     label: "Access key", maxlength: 40, confirmText: "Unlock",
     validate: x => qbkNorm(x).length >= 12 ? "" : "Enter the whole key"
   });

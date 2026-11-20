@@ -111,7 +111,7 @@ function renderQBank(sub, fileId, mode) {
       <div class="qbt-grid">${tiles.map(qbTileHtml).join("")}</div>`
       : qbkGet() ? `<div class="card section">${emptyState("flag", "No question sets on this device yet", qbEmptyHint())}</div>` : ""}
     ${qbMockCardHtml()}
-    <p class="text-3 small section">The question sets are published only in encrypted form and open with the access key. Once loaded they stay in this browser; your marks are saved with your account.</p>`;
+    <p class="text-3 small section">The question sets are published only in encrypted form and open with the access key. Once loaded they stay in this browser and every account on it can answer them; each account keeps its own marks.</p>`;
 
   bindQBank();
 }
