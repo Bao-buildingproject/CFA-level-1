@@ -155,26 +155,46 @@ async function qbkUnlock(code) {
   qbkSync({ key, manifest: m });
   return true;
 }
+// the key as typed, or taken from a one-tap link pasted whole (…/#/qbank/key/XXXX-XXXX-XXXX-XXXX)
+function qbkFromInput(s) {
+  const t = String(s || "").trim(), m = t.match(/qbank\/key\/([^/?#\s]+)/i);
+  if (!m) return t;
+  try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+}
 async function qbkAsk() {
   const v = await promptDialog({
     title: "Question Bank access key",
-    message: `Enter the key you were given. It is saved on this device only, for every account on it. The question sets then download by themselves (${qbkSizeText()}, once) and stay in this browser.`,
-    label: "Access key", maxlength: 40, confirmText: "Unlock",
-    validate: x => qbkNorm(x).length >= 12 ? "" : "Enter the whole key"
+    message: `Paste the key you were given, or the whole one-tap link. It is saved on this device only, for every account on it. The question sets then download by themselves (${qbkSizeText()}, once) and stay in this browser.`,
+    label: "Access key or link", maxlength: 300, confirmText: "Unlock",
+    validate: x => qbkNorm(qbkFromInput(x)).length >= 12 ? "" : "Paste the whole key or link"
   });
-  if (v !== null) await qbkUnlock(v);
+  if (v !== null) await qbkUnlock(qbkFromInput(v));
 }
+// Step-by-step help shown under the buttons. The key itself never appears on the page: the site is public.
+function qbkGuideHtml() {
+  return `<div class="qbk-guide" id="qbk-guide">
+    <strong>How to get the question sets</strong>
+    <ol>
+      <li>Ask the person who runs this site for the <strong>access key</strong>. It looks like <span class="mono">XXXX-XXXX-XXXX-XXXX</span> and usually comes with a one-tap link.</li>
+      <li><strong>With the one-tap link:</strong> open it on this phone or computer and sign in. The sets download by themselves (${qbkSizeText()}, a few seconds on Wi-Fi). Nothing to type.</li>
+      <li><strong>With the key only:</strong> press <strong>Enter access key</strong> and paste the key, or paste the whole link.</li>
+      <li>Do it once per browser: every account in this browser can then answer the sets, each with its own marks. On another phone or browser, do it once there too.</li>
+    </ol>
+    <p class="text-3 small">Keep the key and the link private: anyone who has them can read the question sets.</p>
+  </div>`;
+}
+const qbkHelpBtn = () => `<button class="btn btn-ghost btn-sm" data-qbhelp aria-expanded="${!!QBS.help}" aria-controls="qbk-guide">${icon(QBS.help ? "x" : "flag", 15)} ${QBS.help ? "Hide the guide" : "How to get the key"}</button>`;
 
 // ---------- Status panel on the Question Bank page ----------
 function qbkStatusHtml() {
   if (!qbkSupported()) return `<div class="callout warning section">${icon("alert", 18)}<div><strong>This browser cannot load the Question Bank.</strong> Update it (Safari 16.4+, Chrome or Edge 80+, Firefox 113+) or use another browser.</div></div>`;
-  if (!qbkGet()) return `<div class="callout info section">${icon("play", 18)}<div style="flex:1"><strong>Load the question sets on this device.</strong> Enter the access key once — all sets download by themselves (${qbkSizeText()}) and open here with the full explanations, tables and figures.<div class="qbk-act"><button class="btn btn-primary btn-sm" data-qbkey>Enter access key</button></div></div></div>`;
+  if (!qbkGet()) return `<div class="callout info section">${icon("play", 18)}<div style="flex:1"><strong>Load the question sets on this device.</strong> Enter the access key once — all sets download by themselves (${qbkSizeText()}) and open here with the full explanations, tables and figures.<div class="qbk-act"><button class="btn btn-primary btn-sm" data-qbkey>Enter access key</button>${qbkHelpBtn()}</div>${QBS.help ? qbkGuideHtml() : ""}</div></div>`;
   if (QBS.running && QBS.step) {
     const p = QBS.total ? pct(QBS.done, QBS.total) : 0;
     return `<div class="callout info section">${icon("download", 18)}<div style="flex:1"><strong>Downloading the Question Bank</strong> · ${QBS.step.i} of ${QBS.step.n}: ${esc(QBS.step.title)}
       <div style="margin-top:8px">${progressBar(p)}</div><div class="text-3 small" style="margin-top:6px">${qbkMB(QBS.done)} of ${qbkMB(QBS.total)} MB · keep this page open</div></div></div>`;
   }
-  if (QBS.error === "bad-key") return `<div class="callout danger section">${icon("alert", 18)}<div style="flex:1"><strong>The saved access key no longer opens the question sets.</strong> Ask for the new key.<div class="qbk-act"><button class="btn btn-primary btn-sm" data-qbkey>Enter access key</button></div></div></div>`;
+  if (QBS.error === "bad-key") return `<div class="callout danger section">${icon("alert", 18)}<div style="flex:1"><strong>The saved access key no longer opens the question sets.</strong> Ask for the new key.<div class="qbk-act"><button class="btn btn-primary btn-sm" data-qbkey>Enter access key</button>${qbkHelpBtn()}</div>${QBS.help ? qbkGuideHtml() : ""}</div></div>`;
   if (QBS.error === "network") return `<div class="callout warning section">${icon("alert", 18)}<div style="flex:1"><strong>Could not download the question sets.</strong> Check your connection and try again.<div class="qbk-act"><button class="btn btn-secondary btn-sm" data-qbsync>Try again</button></div></div></div>`;
   const n = qbiQuestionCount();
   const current = QBS.manifest && !qbkTodo(QBS.manifest).length;
@@ -192,5 +212,6 @@ function qbkPaint(force, finished) {
 }
 function qbkBind(root) {
   root.querySelectorAll("[data-qbkey]").forEach(b => b.onclick = () => qbkAsk());
+  root.querySelectorAll("[data-qbhelp]").forEach(b => b.onclick = () => { QBS.help = !QBS.help; qbkPaint(true); });
   root.querySelectorAll("[data-qbsync]").forEach(b => b.onclick = () => { QBS.checked = null; QBS.error = null; qbkSync(); qbkPaint(true); });
 }
