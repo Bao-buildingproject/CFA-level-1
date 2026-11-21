@@ -415,3 +415,39 @@
   .fw-chk { grid-template-columns: 22px minmax(0, 1fr); }
   .fw-chk-s { grid-column: 2; }
 }
+
+/* ---------- Financial Empire: the investigation console (GDD §37 art direction) ----------
+   While a game page is open the whole page takes the game's palette: midnight navy, champagne gold.
+   Red marks risk, never fraud by itself. */
+:root:has(#view .fw-root, #view .fwi) {
+  --bg: #0B1726; --surface: #14243A; --surface-2: #1A2D47; --surface-3: #22395A;
+  --border: #263D5C; --border-strong: #345073;
+  --text: #F4F5F7; --text-2: #AAB5C2; --text-3: #8794A6;
+  --primary: #C7A46C; --primary-hover: #D6B67F; --primary-soft: #2B2A22; --primary-text: #0B1726; --ink-fill: #E6DCC6;
+  --brass: #C7A46C; --brass-ink: #D9BC88; --brass-soft: #2B2718; --accent: #D9BC88; --accent-soft: #2B2718;
+  --success: #67A897; --success-soft: #15302C; --danger: #C85B61; --danger-soft: #3A1E24; --warning: #D9A54E; --warning-soft: #33280F;
+  --fw-calc: #9DB8E6; --fw-calc-bg: #1B2B48;
+  --shadow: 0 14px 30px -20px rgba(0, 0, 0, 0.8); --shadow-lg: 0 30px 60px -26px rgba(0, 0, 0, 0.85);
+  color-scheme: dark;
+}
+:root:has(#view .fw-root, #view .fwi) body { background: var(--bg); }
+
+/* Story Mode */
+.fw-story-card .kicker { margin-bottom: 6px; }
+.fw-chapters { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.fw-ch { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); color: var(--text); background: var(--surface-2); }
+a.fw-ch:hover { text-decoration: none; border-color: var(--brass); }
+.fw-ch.off { opacity: 0.55; border-style: dashed; background: transparent; }
+.fw-ch-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 600 0.8rem/1 var(--mono); color: var(--brass-ink); border: 1px solid var(--brass); }
+.fw-ch-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.fw-ch-t strong { font-size: 0.92rem; }
+.fw-ch-t small { color: var(--text-3); font-size: 0.76rem; }
+.fw-ch-s { font-size: 0.72rem; font-weight: 600; color: var(--text-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.fw-ch-s.done { color: var(--success); }
+.fw-cast { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.fw-cast > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fw-cast strong { font-family: var(--serif); font-weight: 500; font-size: 1rem; }
+.fw-cast span { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--brass-ink); }
+.fw-cast small { color: var(--text-3); font-size: 0.78rem; }
+.fw-board { margin: 4px 0 6px; font-weight: 600; color: var(--brass-ink); }
+@media (max-width: 900px) { .fw-chapters { grid-template-columns: minmax(0, 1fr); } .fw-cast { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

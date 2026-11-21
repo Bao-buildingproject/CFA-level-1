@@ -1,5 +1,5 @@
 // ============================================================
-// js/game/missions.js — mission rules of "Financial World: Evidence of Value"
+// js/game/missions.js — mission rules of "Financial Empire: Beyond the Numbers"
 //
 // A mission = one dataset × one archetype. Each archetype has four hypotheses;
 // each hypothesis lists the evidence cards that bear on it, and every card has a
@@ -48,11 +48,18 @@
     CONTRADICTED: { en: "CONTRADICTED", vi: "Bị bác bỏ" },
     UNTESTED: { en: "NOT ENOUGH EVIDENCE", vi: "Chưa đủ bằng chứng" }
   };
+  // career at Aurora Capital (GDD §25): one level per 20 Reputation, ranks at levels 1, 5, 10, 15, 20, 30, 40, 50
+  const XP_PER_LEVEL = 20, MAX_LEVEL = 50;
   const RANKS = [
-    { xp: 0, name: "Analyst Intern" }, { xp: 80, name: "Junior Analyst" }, { xp: 160, name: "Analyst" },
-    { xp: 260, name: "Senior Analyst" }, { xp: 380, name: "Head of Research" }, { xp: 520, name: "Portfolio Manager" },
-    { xp: 700, name: "Chief Investment Officer" }
-  ];
+    { level: 1, name: "Junior Analyst", unlock: "Báo cáo tài chính cơ bản" },
+    { level: 5, name: "Financial Analyst", unlock: "Bảng chỉ số" },
+    { level: 10, name: "Senior Analyst", unlock: "Điều tra dòng tiền" },
+    { level: 15, name: "Research Associate", unlock: "So sánh doanh nghiệp cùng ngành" },
+    { level: 20, name: "Head of Research", unlock: "Vụ án rủi ro nâng cao" },
+    { level: 30, name: "Portfolio Manager", unlock: "Thử thách danh mục" },
+    { level: 40, name: "Investment Director", unlock: "M&A và định giá" },
+    { level: 50, name: "Fund Founder", unlock: "Kịch bản cuối" }
+  ].map(r => ({ ...r, xp: (r.level - 1) * XP_PER_LEVEL }));
 
   // ---------- Number formatting (Vietnamese: 1.234,5) ----------
   const NF = {};
@@ -360,7 +367,7 @@
     LIQ: {
       id: "LIQ", code: "LIQ-01", title: "The Liquidity Clock", vi: "Đồng hồ thanh khoản", requires: "EQ",
       question: "Rủi ro thanh khoản trong 12 tháng tới ở mức nào, và quỹ nên làm gì?",
-      memo: c => `Bộ phận quản trị rủi ro của Axiom Capital cần đánh giá ${c.ds.company.name} trước kỳ đáo hạn nợ: doanh nghiệp có đủ tiền cho nghĩa vụ ngắn hạn không, nợ vay đang tăng ở đâu, và lợi nhuận có đủ trả lãi không. Dữ liệu: ${c.firstYear}–${c.lastYear}.`,
+      memo: c => `Daniel Ross, Chief Risk Officer của Aurora Capital, cần đánh giá ${c.ds.company.name} trước kỳ đáo hạn nợ: doanh nghiệp có đủ tiền cho nghĩa vụ ngắn hạn không, nợ vay đang tăng ở đâu, và lợi nhuận có đủ trả lãi không. Dữ liệu: ${c.firstYear}–${c.lastYear}.`,
       los: ["fat", "bal", "cf2"],
       workpapers: ["cur", "de", "int_cov", "quick", "cash_r", "d_a"],
       hyps: [
@@ -544,16 +551,16 @@
     const r1 = x => Math.round(x * 10) / 10;
     const parts = [];
 
-    // A. Data accuracy: the three workpapers
-    const per = 25 / Math.max(cs.workpapers.length, 1);
+    // GDD §11 rubric. 1. Data and formula accuracy (20): the three workpapers
+    const per = 20 / Math.max(cs.workpapers.length, 1);
     const accItems = cs.workpapers.map(wp => {
       const a = (st.wp || {})[wp.id];
       const g = a && a.checked ? gradeWorkpaper(wp, a.input) : { frac: 0, err: null };
       return { label: `${wp.title} (${wp.year})`, score: r1(per * g.frac), raw: per * g.frac, max: r1(per), note: a && a.checked ? `Bạn: ${wpFmt(wp, a.input)} · Engine: ${wpFmt(wp, shownValue(wp))}` : "Chưa làm" };
     });
-    parts.push({ id: "accuracy", name: "Data Accuracy", vi: "Độ chính xác số liệu", max: 25, items: accItems });
+    parts.push({ id: "accuracy", name: "Data & Formula Accuracy", vi: "Độ chính xác dữ liệu và công thức", max: 20, items: accItems });
 
-    // B. Evidence quality: coverage of the key evidence (15) + relevance of what was pinned (10)
+    // 2. Finding the key risks (20): the decisive evidence of each hypothesis, linked the right way
     let target = 0, found = 0;
     const missed = [];
     cs.hyps.forEach(h => {
@@ -564,63 +571,68 @@
       if (hits < tgt) key.filter(r => !links.some(l => l.h === h.id && l.c === r.card && linkCheck(cs, l).ok)).slice(0, tgt - hits).forEach(r => missed.push({ h: h.id, card: r.card, t: r.t, why: r.why }));
     });
     const coverage = target ? found / target : (links.length ? 1 : 0);
-    const relevant = pins.filter(p => cs.cards[p]).length;
-    const relevance = pins.length ? relevant / pins.length : 0;
-    parts.push({ id: "evidence", name: "Evidence Quality", vi: "Chất lượng bằng chứng", max: 25, items: [
-      { label: "Độ phủ bằng chứng then chốt", score: r1(15 * coverage), raw: 15 * coverage, max: 15, note: `${found}/${target} bằng chứng then chốt được gắn đúng (tối đa 3 cho mỗi giả thuyết)` },
-      { label: "Độ liên quan của bằng chứng đã ghim", score: r1(10 * relevance), raw: 10 * relevance, max: 10, note: `${relevant}/${pins.length} thẻ đã ghim có liên quan đến nhiệm vụ` }
+    parts.push({ id: "risk", name: "Key Risk Detection", vi: "Phát hiện rủi ro quan trọng", max: 20, items: [
+      { label: "Bằng chứng then chốt được tìm ra và gắn đúng", score: r1(20 * coverage), raw: 20 * coverage, max: 20, note: `${found}/${target} bằng chứng then chốt (tối đa 3 cho mỗi giả thuyết)` }
     ] });
 
-    // C. Reasoning: link validity (8) + verdicts on the hypotheses (6) + committee question 1 (6) + question 2 (5)
+    // 3. Evidence quality (20): links that match the data, relevant pins, checks and sources looked at
     const checked = links.map(l => ({ link: l, res: linkCheck(cs, l) }));
     const validN = checked.filter(x => x.res.ok).length;
     const validity = links.length ? validN / links.length : 0;
+    const relevant = pins.filter(p => cs.cards[p]).length;
+    const relevance = pins.length ? relevant / pins.length : 0;
+    const insp = (st.inspected || []).length;
+    const lineage = insp >= 2 ? 3 : insp === 1 ? 2 : st.viewedSource ? 1 : 0;
+    parts.push({ id: "evidence", name: "Evidence Quality", vi: "Chất lượng bằng chứng", max: 20, items: [
+      { label: "Liên kết bằng chứng hợp lệ", score: r1(8 * validity), raw: 8 * validity, max: 8, note: `${validN}/${links.length} liên kết khớp với dữ liệu` },
+      { label: "Độ liên quan của bằng chứng đã ghim", score: r1(6 * relevance), raw: 6 * relevance, max: 6, note: `${relevant}/${pins.length} thẻ đã ghim có liên quan đến nhiệm vụ` },
+      { label: "Đã xem các kiểm tra dữ liệu", score: st.viewedChecks ? 3 : 0, max: 3, note: st.viewedChecks ? "Đã mở tab Kiểm tra" : "Chưa mở tab Kiểm tra" },
+      { label: "Đã truy nguồn con số", score: lineage, max: 3, note: `${insp} con số được mở trong Formula Inspector` }
+    ] });
+
+    // 4. Alternative hypotheses (15): a verdict on every hypothesis, and the strongest counter-evidence
     const mineStatuses = playerStatuses(cs, st);
     const exactN = cs.hyps.filter(h => mineStatuses[h.id] === h.refStatus).length;
-    const verdicts = 6 * cs.hyps.reduce((s, h) => s + verdictPoints(mineStatuses[h.id], h.refStatus), 0) / cs.hyps.length;
+    const verdicts = 9 * cs.hyps.reduce((s, h) => s + verdictPoints(mineStatuses[h.id], h.refStatus), 0) / cs.hyps.length;
     const dp = st.decision ? DECISIONS[st.decision].pol : 0;
     const cardOf = id => cs.cards[id] || { pol: 0, s: 0, decisive: false };
-    const c1 = (st.c1 || []).slice(0, 3).reduce((s, id) => {
+    const counterSet = Object.values(cs.cards).filter(e => e.decisive && (dp !== 0 ? e.pol === -dp : e.s >= 2));
+    let c2 = 0;
+    if (st.c2) {
+      if (counterSet.length) c2 = st.c2 === "none" ? 0 : counterSet.some(e => e.id === st.c2) ? (cardOf(st.c2).s >= 2 ? 6 : 3.6) : 1.2;
+      else c2 = st.c2 === "none" ? 6 : cardOf(st.c2).decisive ? 0 : 2.4;
+    }
+    parts.push({ id: "alternatives", name: "Alternative Hypotheses", vi: "Xem xét giả thuyết thay thế", max: 15, items: [
+      { label: "Kết luận cho từng giả thuyết", score: r1(verdicts), raw: verdicts, max: 9, note: `${exactN}/${cs.hyps.length} kết luận khớp góc nhìn tham chiếu` },
+      { label: "Committee 2: bằng chứng ngược chiều", score: r1(c2), raw: c2, max: 6, note: !st.c2 ? "Chưa trả lời" : st.c2 === "none" ? "Bạn trả lời: không có" : "Đã chọn một thẻ" }
+    ] });
+
+    // 5. Financial impact (15): what the evidence means for the fund, and the evidence that carries it
+    const rec = st.decision ? REC_POINTS[cs.reference.decision][st.decision] * 8 / 5 : 0;
+    const c1raw = (st.c1 || []).slice(0, 3).reduce((s, id) => {
       const e = cardOf(id);
       if (!e.decisive) return s;
       if (dp !== 0) return s + (e.pol === dp ? (e.s >= 2 ? 2 : 1) : 0);
       return s + (e.s >= 2 ? 2 : 1);
     }, 0);
-    const counterSet = Object.values(cs.cards).filter(e => e.decisive && (dp !== 0 ? e.pol === -dp : e.s >= 2));
-    let c2 = 0;
-    if (st.c2) {
-      if (counterSet.length) c2 = st.c2 === "none" ? 0 : counterSet.some(e => e.id === st.c2) ? (cardOf(st.c2).s >= 2 ? 5 : 3) : 1;
-      else c2 = st.c2 === "none" ? 5 : cardOf(st.c2).decisive ? 0 : 2;
-    }
-    parts.push({ id: "reasoning", name: "Analytical Reasoning", vi: "Lập luận phân tích", max: 25, items: [
-      { label: "Liên kết bằng chứng hợp lệ", score: r1(8 * validity), raw: 8 * validity, max: 8, note: `${validN}/${links.length} liên kết khớp với dữ liệu` },
-      { label: "Kết luận cho từng giả thuyết", score: r1(verdicts), raw: verdicts, max: 6, note: `${exactN}/${cs.hyps.length} kết luận khớp góc nhìn tham chiếu` },
-      { label: "Committee 1: ba bằng chứng mạnh nhất", score: c1, max: 6, note: (st.c1 || []).length ? `${(st.c1 || []).length} thẻ được chọn` : "Chưa trả lời" },
-      { label: "Committee 2: bằng chứng ngược chiều", score: c2, max: 5, note: !st.c2 ? "Chưa trả lời" : st.c2 === "none" ? "Bạn trả lời: không có" : "Đã chọn một thẻ" }
+    const c1 = c1raw * 7 / 6;
+    parts.push({ id: "impact", name: "Financial Impact", vi: "Đánh giá tác động tài chính", max: 15, items: [
+      { label: "Khuyến nghị so với góc nhìn tham chiếu", score: r1(rec), raw: rec, max: 8, note: `Tham chiếu: ${DECISIONS[cs.reference.decision].en}` },
+      { label: "Committee 1: ba bằng chứng mạnh nhất", score: r1(c1), raw: c1, max: 7, note: (st.c1 || []).length ? `${(st.c1 || []).length} thẻ được chọn` : "Chưa trả lời" }
     ] });
 
-    // D. Discipline: consistency with your own verdicts (6) + recommendation (5) + calibration (4)
+    // 6. Decision and presentation (10): consistent with your own verdicts, calibrated, honest about limits
     const implied = decide(cs.arch, mineStatuses).decision;
-    const consistency = !st.decision ? 0 : st.decision === implied ? 6 : REC_POINTS[implied][st.decision] >= 3 ? 3 : 0;
-    const rec = st.decision ? REC_POINTS[cs.reference.decision][st.decision] : 0;
+    const consistency = !st.decision ? 0 : st.decision === implied ? 4 : REC_POINTS[implied][st.decision] >= 3 ? 2 : 0;
     const confGap = st.confidence ? Math.abs(CONF_ORDER.indexOf(st.confidence) - CONF_ORDER.indexOf(cs.reference.confidence)) : 2;
-    const calib = st.confidence ? [4, 2, 0][confGap] : 0;
-    parts.push({ id: "discipline", name: "Decision Discipline", vi: "Kỷ luật quyết định", max: 15, items: [
-      { label: "Quyết định nhất quán với kết luận của chính bạn", score: consistency, max: 6, note: `Các kết luận của bạn dẫn tới: ${DECISIONS[implied].en}` },
-      { label: "Khuyến nghị so với góc nhìn tham chiếu", score: rec, max: 5, note: `Tham chiếu: ${DECISIONS[cs.reference.decision].en}` },
-      { label: "Mức tự tin tương xứng với bằng chứng", score: calib, max: 4, note: `Tham chiếu: ${CONFIDENCE[cs.reference.confidence]}` }
-    ] });
-
-    // E. Source awareness: checks viewed (3) + lineage inspected (3) + committee question 3 (4)
-    const insp = (st.inspected || []).length;
-    const lineage = insp >= 2 ? 3 : insp === 1 ? 2 : st.viewedSource ? 1 : 0;
+    const calib = st.confidence ? [3, 1.5, 0][confGap] : 0;
     const truths = cs.limits.filter(o => o.truth).map(o => o.id), picked = st.c3 || [];
     const tp = picked.filter(id => truths.includes(id)).length, fp = picked.length - tp;
-    const c3 = truths.length ? Math.max(0, 4 * (tp - fp) / truths.length) : 0;
-    parts.push({ id: "source", name: "Source Awareness", vi: "Ý thức về nguồn", max: 10, items: [
-      { label: "Đã xem các kiểm tra dữ liệu", score: st.viewedChecks ? 3 : 0, max: 3, note: st.viewedChecks ? "Đã mở tab Kiểm tra" : "Chưa mở tab Kiểm tra" },
-      { label: "Đã truy nguồn con số", score: lineage, max: 3, note: `${insp} con số được mở trong Inspector` },
-      { label: "Committee 3: giới hạn của dữ liệu", score: r1(c3), raw: c3, max: 4, note: `${tp} đúng, ${fp} sai trên ${truths.length} giới hạn có thật` }
+    const c3 = truths.length ? Math.max(0, 3 * (tp - fp) / truths.length) : 0;
+    parts.push({ id: "decision", name: "Decision & Presentation", vi: "Quyết định và cách trình bày", max: 10, items: [
+      { label: "Quyết định nhất quán với kết luận của chính bạn", score: consistency, max: 4, note: `Các kết luận của bạn dẫn tới: ${DECISIONS[implied].en}` },
+      { label: "Mức tự tin tương xứng với bằng chứng", score: calib, max: 3, note: `Tham chiếu: ${CONFIDENCE[cs.reference.confidence]}` },
+      { label: "Committee 3: giới hạn của dữ liệu", score: r1(c3), raw: c3, max: 3, note: `${tp} đúng, ${fp} sai trên ${truths.length} giới hạn có thật` }
     ] });
 
     // parts add the unrounded item scores, so a perfect part shows 25/25 and not 24.9
@@ -634,8 +646,8 @@
   function rankOf(xp) {
     let i = 0;
     RANKS.forEach((r, k) => { if (xp >= r.xp) i = k; });
-    const next = RANKS[i + 1] || null;
-    return { idx: i, name: RANKS[i].name, xp, next, progress: next ? (xp - RANKS[i].xp) / (next.xp - RANKS[i].xp) : 1 };
+    const next = RANKS[i + 1] || null, level = Math.min(MAX_LEVEL, 1 + Math.floor(xp / XP_PER_LEVEL));
+    return { idx: i, name: RANKS[i].name, level, xp, next, progress: next ? (xp - RANKS[i].xp) / (next.xp - RANKS[i].xp) : 1 };
   }
   const caseKey = (dsId, archId) => `${dsId}|${archId}`;
   function unlocked(archId, best) {

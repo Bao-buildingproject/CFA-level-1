@@ -1,6 +1,6 @@
 // ============================================================
 // playground.js — the Playground: app-style tiles for the site's games
-// (Financial World, the stock simulator), shown on the Dashboard and on More.
+// (Financial Empire, the stock simulator), shown on the Dashboard and on More.
 // Each tile has its own icon, drawn here as inline SVG. The game's tile opens
 // its introduction (what the game is, the rules) before the game itself.
 // ============================================================
@@ -8,7 +8,7 @@
 let PLAY_ICON_N = 0;   // every icon on a page needs its own gradient ids
 
 const PLAY_ICONS = {
-  // Financial World: a magnifier over a rising chart, in a night sky
+  // Financial Empire: a magnifier over a rising chart, in a night sky
   fw: p => `<defs>
       <linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3653a6"/><stop offset=".5" stop-color="#1a2a62"/><stop offset="1" stop-color="#0a1230"/></linearGradient>
       <radialGradient id="${p}g" cx="28" cy="28" r="25" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffd978" stop-opacity=".5"/><stop offset="1" stop-color="#ffd978" stop-opacity="0"/></radialGradient>
@@ -56,8 +56,8 @@ function playIcon(kind, size = 56) {
 function playItems() {
   const fw = typeof fwSummary === "function" ? fwSummary() : null;
   return [
-    { id: "fw", href: "#/game/intro", name: "Financial World", sub: "game phân tích BCTC",
-      badge: !fw ? "" : fw.xp > 0 ? `${fw.xp} XP` : fw.seen ? "" : "MỚI" },
+    { id: "fw", href: "#/game/intro", name: "Financial Empire", sub: "điều tra BCTC, cốt truyện",
+      badge: !fw ? "" : fw.xp > 0 ? `${fw.xp} REP` : fw.seen ? "" : "MỚI" },
     { id: "trade", href: "#/trade", name: "Giả lập chứng khoán", sub: "tiền ảo, giá thật" }
   ];
 }

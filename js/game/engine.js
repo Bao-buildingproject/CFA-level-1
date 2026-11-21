@@ -1,5 +1,5 @@
 // ============================================================
-// js/game/engine.js — Financial Engine of "Financial World: Evidence of Value"
+// js/game/engine.js — Financial Engine of "Financial Empire: Beyond the Numbers"
 //
 // Pure functions: no DOM, no network. They check a dataset of financial
 // statements (accounting identities, cash reconciliation, units, periods,

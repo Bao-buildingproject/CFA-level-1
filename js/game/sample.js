@@ -63,7 +63,7 @@
       scope: { basis: "consolidated", framework: "Mô phỏng theo mẫu VAS", periodType: "annual", currency: "VND", unit: 1e6 },
       years: d.years.slice(), values, periodMeta,
       lineage: {},
-      source: { provider: "Financial World — bộ dữ liệu huấn luyện", version: "1.0.0", attribution: "Dữ liệu mô phỏng, doanh nghiệp hư cấu", license: "Thuộc trò chơi; không mô tả doanh nghiệp có thật.", note: "Sinh từ các tham số trong js/game/sample.js" },
+      source: { provider: "Financial Empire — bộ dữ liệu huấn luyện", version: "1.0.0", attribution: "Dữ liệu mô phỏng, doanh nghiệp hư cấu", license: "Thuộc trò chơi; không mô tả doanh nghiệp có thật.", note: "Sinh từ các tham số trong js/game/sample.js" },
       story: {
         brief: "Lotus Harvest công bố doanh thu và lợi nhuận tăng ba năm liền nhờ mở rộng kênh siêu thị. Ban điều hành nói tăng trưởng đến từ hoạt động cốt lõi.",
         epilogue: "Mười hai tháng sau (kịch bản mô phỏng): Lotus Harvest trích lập thêm 190 tỷ đồng dự phòng phải thu khó đòi từ hai chuỗi siêu thị chậm trả; lợi nhuận năm 2026 giảm gần một nửa và công ty phải gia hạn các khoản vay ngắn hạn."

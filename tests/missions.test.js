@@ -146,7 +146,7 @@ test("score: a careful analyst gets 100, an empty board gets 0", () => {
     const top = M.score(cs, perfectPlay(cs));
     assert.equal(top.total, 100, `${a}: ${top.parts.map(p => `${p.id} ${p.score}`).join(", ")}`);
     top.parts.forEach(p => assert.equal(p.score, p.max, p.id));
-    assert.deepEqual(top.parts.map(p => p.max), [25, 25, 25, 15, 10]);
+    assert.deepEqual(top.parts.map(p => p.max), [20, 20, 20, 15, 15, 10]);
     assert.equal(M.score(cs, {}).total, 0);
   }
 });
@@ -158,14 +158,14 @@ test("score: cherry-picking and an inconsistent decision cost points", () => {
   const cherry = { ...base, links: base.links.filter(l => l.h === "H4" && l.r === "supports"), verdicts: { H4: "SUPPORTED" }, decision: "INVEST", confidence: "high" };
   const s = M.score(cs, cherry);
   const part = id => s.parts.find(p => p.id === id);
-  assert.ok(part("evidence").items[0].score < 5, "coverage must drop");
-  assert.equal(part("discipline").items[1].score, 0, "INVEST against an AVOID reference");
+  assert.ok(part("risk").items[0].score < 20 / 3, "coverage must drop");
+  assert.equal(part("impact").items[0].score, 0, "INVEST against an AVOID reference");
   assert.ok(s.total < 70);
   assert.ok(s.missed.length > 0);
   // the right call, but against your own verdicts
   const inconsistent = M.score(cs, { ...base, verdicts: { H1: "CONTRADICTED", H2: "CONTRADICTED", H3: "CONTRADICTED", H4: "SUPPORTED" } });
   assert.equal(inconsistent.implied, "INVEST");
-  assert.equal(inconsistent.parts.find(p => p.id === "discipline").items[0].score, 0);
+  assert.equal(inconsistent.parts.find(p => p.id === "decision").items[0].score, 0);
   // a wrong link is listed with the reason from the data
   const wrong = M.score(cs, { ...base, links: [...base.links, { h: "H1", c: "m:dso", r: "contradicts" }] });
   assert.equal(wrong.invalid.length, 1);
@@ -175,10 +175,10 @@ test("score: cherry-picking and an inconsistent decision cost points", () => {
 test("committee 3: false limits cancel true ones", () => {
   const cs = M.buildCase(sample(), "EQ");
   const base = perfectPlay(cs);
-  const c3 = st => M.score(cs, { ...base, c3: st }).parts.find(p => p.id === "source").items[2].score;
+  const c3 = st => M.score(cs, { ...base, c3: st }).parts.find(p => p.id === "decision").items[2].score;
   const truths = cs.limits.filter(l => l.truth).map(l => l.id);
-  assert.equal(c3(truths), 4);
-  assert.ok(c3([...truths, "unbalanced"]) < 4);
+  assert.equal(c3(truths), 3);
+  assert.ok(c3([...truths, "unbalanced"]) < 3);
   assert.equal(c3(["unbalanced", "quarterly"]), 0);
 });
 
@@ -210,12 +210,15 @@ test("unaudited data lowers the reference confidence and shows up as a limit", (
 });
 
 test("ranks and unlocks", () => {
-  assert.equal(M.rankOf(0).name, "Analyst Intern");
-  assert.equal(M.rankOf(79).name, "Analyst Intern");
-  assert.equal(M.rankOf(80).name, "Junior Analyst");
-  assert.equal(M.rankOf(700).name, "Chief Investment Officer");
-  assert.equal(M.rankOf(700).next, null);
-  assert.equal(M.rankOf(120).progress, 0.5);
+  assert.equal(M.rankOf(0).name, "Junior Analyst");
+  assert.equal(M.rankOf(0).level, 1);
+  assert.equal(M.rankOf(79).name, "Junior Analyst");
+  assert.equal(M.rankOf(80).name, "Financial Analyst");
+  assert.equal(M.rankOf(80).level, 5);
+  assert.equal(M.rankOf(980).name, "Fund Founder");
+  assert.equal(M.rankOf(5000).level, 50);
+  assert.equal(M.rankOf(980).next, null);
+  assert.equal(M.rankOf(130).progress, 0.5);
   assert.equal(M.unlocked("EQ", {}), true);
   assert.equal(M.unlocked("LIQ", {}), false);
   assert.equal(M.unlocked("LIQ", { "sim-lotus-harvest|EQ": 40 }), true);

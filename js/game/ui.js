@@ -1,5 +1,5 @@
 // ============================================================
-// js/game/ui.js — "Financial World: Evidence of Value" (Game, under Learn)
+// js/game/ui.js — "Financial Empire: Beyond the Numbers" (Game, under Learn; codename Project Ledger)
 //
 // Intro (what the game is, the rules; opened from the Playground tile, and the first
 // time an account opens the game) → HQ (rank, company files, add a company) → a mission:
@@ -33,6 +33,28 @@
     fin: ["ACB", "BID", "CTG", "HDB", "LPB", "MBB", "SHB", "SSB", "SSI", "STB", "TCB", "TCX", "VCB", "VIB", "VPB"]
   };
   const G = { lib: null, all: null, cases: {}, tab: "fs", cur: null, saveT: 0 };
+  // Story Mode: The Black Ledger (GDD §5). A chapter is played on the training case; chapters without
+  // a mission yet are shown as being written.
+  const STORY_CASE = "sim-lotus-harvest";
+  const CHAPTERS = [
+    [1, "The First Red Flag", "Income Statement, Balance Sheet", "EQ", "Lợi nhuận tăng mạnh nhưng dòng tiền kinh doanh lại giảm. Dấu hiệu đầu tiên, hay chỉ là doanh nghiệp đang lớn?"],
+    [2, "Where Is the Cash?", "Cash Flow, Working Capital", null, ""],
+    [3, "The Debt Spiral", "Debt, Liquidity, Solvency", "LIQ", "Nợ ngắn hạn tăng, tiền mặt mỏng dần. Daniel Ross muốn biết đồng hồ thanh khoản còn bao lâu."],
+    [4, "The Inventory Mystery", "Inventory, Cost Accounting", null, ""],
+    [5, "The Earnings Illusion", "Earnings Quality, Accruals", null, ""],
+    [6, "The Hidden Commitments", "Notes, Contingencies, Related Parties", null, ""],
+    [7, "The Price of a Business", "Valuation, DCF, Multiples", null, ""],
+    [8, "The Investment Committee", "Thesis, Risk, Portfolio", null, ""],
+    [9, "The Market Shock", "Scenario Analysis, Stress Testing", null, ""],
+    [10, "The Black Ledger", "Integrated Financial Investigation", null, ""]
+  ];
+  const CAST = [
+    ["Maya Chen", "Head of Research", "Giao vụ án, đánh giá chất lượng lập luận."],
+    ["Daniel Ross", "Chief Risk Officer", "Đặt câu hỏi phản biện, đòi bằng chứng."],
+    ["Alex Morgan", "Portfolio Manager", "Chịu trách nhiệm quyết định đầu tư."],
+    ["EVA", "Research Assistant", "Giải thích công thức và nguồn của từng con số."],
+    ["The Board", "Hội đồng đầu tư", "Chấp nhận hay bác báo cáo của bạn."]
+  ];
 
   // ---------- storage ----------
   const libKey = () => "cfaStudy_fw_shared";                 // one library for every account on the device
@@ -96,15 +118,16 @@
   const cell = (v, unit) => unit === "vnd" ? M.num(v / 1e9, 1) : unit === "pct" ? M.fmt(v, "pct") : unit === "pp" ? `${v >= 0 ? "+" : "−"}${M.num(Math.abs(v * 100), 1)}` : unit === "x" ? M.num(v, 2) : unit === "days" ? M.num(v, 1) : M.num(v, 2);
   const nextBtn = (id, label) => `<div class="fw-next"><button class="btn btn-primary" data-go="${id}">${label} ${icon("next", 16)}</button></div>`;
   const pinBtn = (id, on) => `<button class="fw-pin ${on ? "on" : ""}" data-pin="${id}" aria-pressed="${on}" title="${on ? "Bỏ ghim" : "Ghim làm bằng chứng"}" aria-label="${on ? "Bỏ ghim" : "Ghim làm bằng chứng"}">${icon("pin", 15)}</button>`;
-  const requestText = (tk, has) => `${has ? "Cập nhật" : "Lấy"} BCTC hợp nhất năm (5 năm gần nhất) của ${tk} từ WiData cho game Financial World`;
+  const requestText = (tk, has) => `${has ? "Cập nhật" : "Lấy"} BCTC hợp nhất năm (5 năm gần nhất) của ${tk} từ WiData cho game Financial Empire`;
 
   // ================= HQ =================
   function renderHQ() {
     const list = datasets(), rank = M.rankOf(xpTotal()), best = prog().best;
     view.innerHTML = `<div class="fw-root" id="fw-root">
-      ${pageHeader("Financial World", "Axiom Capital Intelligence. Mỗi con số là một bằng chứng; mỗi quyết định có hậu quả.", `<a class="btn btn-secondary btn-sm" href="#/game/intro">${icon("book", 15)} Giới thiệu và luật chơi</a>`, "Game · Evidence of Value")}
+      ${pageHeader("Financial Empire", "Aurora Capital · Beyond the Numbers. Every number has a story. Every decision has a consequence.", `<a class="btn btn-secondary btn-sm" href="#/game/intro">${icon("book", 15)} Giới thiệu và luật chơi</a>`, "Game · Story Mode: The Black Ledger")}
       <div class="fw-hq">
         ${rankCard(rank)}
+        ${storyCard(best)}
         <section class="card fw-files">
           <div class="card-head fw-files-head"><div><h2>Hồ sơ doanh nghiệp</h2><p class="text-2 small">Chọn một công ty, rồi chọn nhiệm vụ. ${list.length - 1 ? `${list.length - 1} công ty thật trên thiết bị này, dùng chung cho mọi tài khoản.` : "Chưa có công ty thật: xem mục Thêm công ty."}</p></div>
             ${list.length > 4 ? `<label class="fw-search">${icon("search", 16)}<input id="fw-q" type="search" placeholder="Tìm mã hoặc tên công ty" aria-label="Tìm hồ sơ"></label>` : ""}</div>
@@ -120,16 +143,30 @@
   }
 
   function rankCard(r) {
-    const next = r.next ? `còn ${r.next.xp - r.xp} XP để lên <strong>${r.next.name}</strong>` : "cấp cao nhất";
+    const next = r.next ? `còn ${r.next.xp - r.xp} Reputation để lên <strong>${r.next.name}</strong> (cấp ${r.next.level})` : "cấp cao nhất";
     return `<section class="card fw-rank">
       <div class="fw-rank-main">
-        <div class="stat-label">Cấp bậc tại Axiom Capital</div>
+        <div class="stat-label">Sự nghiệp tại Aurora Capital · cấp ${r.level}</div>
         <div class="fw-rank-name">${r.name}</div>
-        <div class="text-2 small">${r.xp} XP · ${next}</div>
+        <div class="text-2 small">${r.xp} Reputation · ${next}</div>
         ${progressBar(r.progress * 100, "accent")}
-        <p class="text-3 small fw-rank-note">XP là tổng điểm cao nhất của từng nhiệm vụ; mỗi công ty × nhiệm vụ tối đa 100.</p>
+        <p class="text-3 small fw-rank-note">Reputation là tổng điểm cao nhất của từng vụ án (mỗi công ty × nhiệm vụ tối đa 100); 20 Reputation lên một cấp. Chơi lại không cộng thêm, chỉ giữ lần cao nhất. Đây là tiến trình trong game, không phải chứng nhận năng lực nghề nghiệp.</p>
       </div>
-      <ol class="fw-ladder">${M.RANKS.map((x, i) => `<li class="${i < r.idx ? "past" : i === r.idx ? "now" : ""}"><span>${x.name}</span><span class="mono">${x.xp}</span></li>`).join("")}</ol>
+      <ol class="fw-ladder">${M.RANKS.map((x, i) => `<li class="${i < r.idx ? "past" : i === r.idx ? "now" : ""}" title="${esc(x.unlock)}"><span>${x.name}</span><span class="mono">Lv ${x.level}</span></li>`).join("")}</ol>
+    </section>`;
+  }
+
+  function storyCard(best) {
+    return `<section class="card fw-story-card">
+      <div class="card-head"><div><div class="kicker">Story Mode</div><h2>The Black Ledger</h2>
+        <p class="text-2 small">Ngày đầu ở Aurora Capital, Maya Chen giao bạn hồ sơ một doanh nghiệp có lợi nhuận tăng nhanh. Một analyst khác đề xuất mua; Daniel Ross thấy dòng tiền đi xuống. Qua từng chương, bạn phải phân biệt biến động kinh doanh bình thường, vốn lưu động yếu và những trường hợp nghiêm trọng hơn. Công ty và nhân vật trong truyện là hư cấu.</p></div></div>
+      <ol class="fw-chapters">${CHAPTERS.map(([n, title, focus, arch, blurb]) => {
+        const key = arch && M.caseKey(STORY_CASE, arch), b = key && best[key], open = arch && M.unlocked(arch, best);
+        const status = !arch ? "Đang viết" : b ? `Hoàn thành · ${b.score}/100` : open ? "Mở" : `${icon("lock", 12)} Xong chương 1 trước`;
+        const inner = `<span class="fw-ch-n">${n}</span><span class="fw-ch-t"><strong>${title}</strong><small>${focus}${blurb ? ` · ${esc(blurb)}` : ""}</small></span><span class="fw-ch-s ${b ? "done" : ""}">${status}</span>`;
+        return `<li>${arch && open ? `<a class="fw-ch" href="#/game/m/${STORY_CASE}/${arch}">${inner}</a>` : `<div class="fw-ch off">${inner}</div>`}</li>`;
+      }).join("")}</ol>
+      <div class="fw-cast">${CAST.map(([n, r, d]) => `<div><strong>${n}</strong><span>${r}</span><small>${d}</small></div>`).join("")}</div>
     </section>`;
   }
 
@@ -302,7 +339,7 @@
   // ================= MISSION =================
   function renderMission(dsId, archId) {
     const e = findDs(dsId), arch = M.ARCHETYPES[archId];
-    const back = `<a class="back-link" href="#/game">${icon("back", 16)} Financial World</a>`;
+    const back = `<a class="back-link" href="#/game">${icon("back", 16)} Financial Empire</a>`;
     const fail = (title, text) => { G.cur = null; view.innerHTML = `<div class="fw-root">${back}${emptyState("alert", title, text, `<a class="btn btn-primary" href="#/game">Về HQ</a>`)}</div>`; };
     if (!e || !arch) return fail("Không tìm thấy hồ sơ", "Hồ sơ hoặc nhiệm vụ này không có trên thiết bị.");
     if (!e.val.publishable) return fail("NOT PUBLISHABLE", "Bộ dữ liệu này không qua kiểm tra bắt buộc nên không dùng để chơi.");
@@ -452,7 +489,7 @@
     const { cs, e } = G.cur, ds = e.ds, co = ds.company, man = cs.c.man;
     return `<div class="fw-grid-2">
       <section class="card fw-memo">
-        <div class="kicker">Memo · Investment Committee</div>
+        <div class="kicker">Memo · Maya Chen, Head of Research → bạn</div>
         <p class="fw-memo-text">${esc(cs.memo)}</p>
         ${ds.story && ds.story.brief ? `<p class="fw-story">${esc(ds.story.brief)} <span class="text-3 small">(kịch bản mô phỏng)</span></p>` : ""}
         <div class="fw-question"><div class="stat-label">Câu hỏi bạn phải trả lời</div><p>${esc(cs.question)}</p></div>
@@ -588,7 +625,7 @@
     const on = st.pins.includes(card);
     const { back, dr } = drawerEls();
     if (dr.hidden) G.lastFocus = document.activeElement;
-    dr.innerHTML = `<div class="fw-drawer-head"><span class="kicker">Inspector · lineage</span><button class="btn btn-ghost btn-sm" data-close aria-label="Đóng">${icon("x", 16)}</button></div>
+    dr.innerHTML = `<div class="fw-drawer-head"><span class="kicker">Formula Inspector · EVA</span><button class="btn btn-ghost btn-sm" data-close aria-label="Đóng">${icon("x", 16)}</button></div>
       <div class="fw-drawer-body">${body}</div>
       ${st.done ? "" : `<div class="fw-drawer-foot"><button class="btn btn-secondary btn-sm fw-pin-wide ${on ? "on" : ""}" data-pin="${card}" aria-pressed="${on}">${icon("pin", 15)} ${on ? "Đã ghim · bấm để bỏ" : "Ghim làm bằng chứng"}</button></div>`}`;
     dr.hidden = false; back.hidden = false;
@@ -723,7 +760,7 @@
         <ul class="fw-verdicts">${cs.hyps.map(h => `<li><span class="fw-hid">${h.id}</span><span class="fw-v-title">${esc(h.title)}</span>${st.verdicts[h.id] ? statusChip(mine[h.id]) : `<span class="text-3 small">Chưa kết luận</span>`}</li>`).join("")}</ul>
       </section>
       <section class="card section">
-        <div class="card-head"><h2>Quyết định của bạn</h2></div>
+        <div class="card-head"><div><h2>Quyết định của bạn</h2><p class="text-2 small">Alex Morgan, Portfolio Manager, sẽ hành động theo khuyến nghị này.</p></div></div>
         <div class="fw-decisions" role="radiogroup" aria-label="Quyết định">${M.DECISION_IDS.map(d => `<button class="fw-dec ${st.decision === d ? "on" : ""}" data-decision="${d}" role="radio" aria-checked="${st.decision === d}" ${ro ? "disabled" : ""}><strong>${M.DECISIONS[d].en}</strong><span>${M.DECISIONS[d].vi}</span><small>${DECISION_TEXT[d]}</small></button>`).join("")}</div>
         <div class="fw-conf"><span class="stat-label">Mức tự tin</span><div class="segmented" role="radiogroup" aria-label="Mức tự tin">${["high", "medium", "low"].map(c => `<button class="${st.confidence === c ? "active" : ""}" data-conf="${c}" role="radio" aria-checked="${st.confidence === c}" ${ro ? "disabled" : ""}>${M.CONFIDENCE[c]}</button>`).join("")}</div></div>
         <label class="field fw-thesis"><span class="field-label">Luận điểm của bạn (không bắt buộc, không chấm điểm)</span><textarea class="textarea" id="fw-thesis" rows="3" maxlength="600" ${ro ? "disabled" : ""} placeholder="Một hai câu: vì sao bạn chọn quyết định này?">${esc(st.thesis || "")}</textarea></label>
@@ -736,7 +773,7 @@
     const { cs, st } = G.cur, ro = st.done;
     const pinned = st.pins.map(id => ({ id, t: cardTitle(cs, id) }));
     const none = pinned.length ? "" : `<p class="text-3 small">Bạn chưa ghim bằng chứng nào.</p>`;
-    return `<p class="text-2 fw-lead">Quyết định của bạn: <strong>${M.DECISIONS[st.decision].en}</strong> · tự tin ${M.CONFIDENCE[st.confidence].toLowerCase()}. Committee hỏi ba câu trước khi duyệt.</p>
+    return `<p class="text-2 fw-lead">Quyết định của bạn: <strong>${M.DECISIONS[st.decision].en}</strong> · tự tin ${M.CONFIDENCE[st.confidence].toLowerCase()}. Daniel Ross, Chief Risk Officer, hỏi ba câu trước khi The Board duyệt.</p>
       <section class="card fw-q"><div class="fw-q-n">1</div><div><h3>Ba bằng chứng mạnh nhất cho quyết định của bạn là gì?</h3><p class="text-3 small">Chọn tối đa 3 trong các bằng chứng đã ghim (${st.c1.length}/3).</p>
         <div class="fw-chips">${pinned.map(p => `<button class="fw-chip ${st.c1.includes(p.id) ? "on" : ""}" data-c1="${p.id}" aria-pressed="${st.c1.includes(p.id)}" ${ro ? "disabled" : ""}>${p.t}</button>`).join("")}</div>${none}</div></section>
       <section class="card fw-q"><div class="fw-q-n">2</div><div><h3>Bằng chứng mạnh nhất đi ngược quyết định của bạn là gì?</h3><p class="text-3 small">Một analyst giỏi biết điều gì có thể làm mình sai.</p>
@@ -777,7 +814,9 @@
     return `<div class="fw-result">
       <section class="card fw-score-card">
         <div class="fw-score"><span class="fw-score-n">${sc.total}</span><span class="fw-score-of">/100</span></div>
-        <div class="fw-score-txt"><div class="fw-grade">${sc.grade}</div><p class="text-2 small">Cao nhất của nhiệm vụ: ${best ? best.score : sc.total} · Tổng XP: ${xpTotal()} · ${M.rankOf(xpTotal()).name}</p></div>
+        <div class="fw-score-txt"><div class="fw-grade">${sc.grade}</div>
+          <p class="fw-board">${sc.total >= 75 ? "The Board chấp nhận báo cáo của bạn." : sc.total >= 60 ? "The Board chấp nhận có điều kiện: cần bổ sung những điểm bên dưới." : "The Board trả báo cáo về: lập luận chưa đủ bằng chứng."}</p>
+          <p class="text-2 small">Cao nhất của vụ án: ${best ? best.score : sc.total} · Reputation: ${xpTotal()} · ${M.rankOf(xpTotal()).name}, cấp ${M.rankOf(xpTotal()).level}</p></div>
       </section>
       <section class="card section"><div class="card-head"><h2>Điểm theo tiêu chí</h2></div>
         <div class="fw-parts">${sc.parts.map(p => `<div class="fw-part"><div class="row-between"><div><strong>${p.name}</strong> <span class="text-3 small">${p.vi}</span></div><span class="mono">${n1(p.score)}/${p.max}</span></div>${progressBar(p.score / p.max * 100, tone(p.score / p.max))}
@@ -836,17 +875,20 @@
     };
     const PART_NOTE = {
       accuracy: "Ba workpaper: tự tính đúng chỉ số từ báo cáo.",
-      evidence: "Gắn đúng bằng chứng then chốt cho từng giả thuyết; chỉ ghim những gì liên quan.",
-      reasoning: "Liên kết khớp dữ liệu, kết luận đúng các giả thuyết, Committee câu 1 và 2.",
-      discipline: "Quyết định nhất quán với kết luận của chính bạn; mức tự tin tương xứng.",
-      source: "Mở tab Kiểm tra, truy nguồn con số trong Inspector, Committee câu 3."
+      risk: "Tìm ra và gắn đúng các bằng chứng then chốt của từng giả thuyết.",
+      evidence: "Liên kết khớp dữ liệu, chỉ ghim thứ liên quan, xem kiểm tra dữ liệu, truy nguồn con số.",
+      alternatives: "Kết luận cả những giả thuyết khác, kể cả giả thuyết tích cực; nêu bằng chứng ngược chiều.",
+      impact: "Khuyến nghị đầu tư và các bằng chứng mạnh nhất đỡ cho nó.",
+      decision: "Quyết định nhất quán với kết luận của bạn, mức tự tin tương xứng, nêu đúng giới hạn của dữ liệu."
     };
     const RULES = [
       "Một nhiệm vụ là một công ty với một loại vụ án; tối đa 100 điểm.",
       `${LIQ.code} mở khoá khi bạn hoàn thành ${EQ.code} ở một công ty bất kỳ.`,
       "Chơi lại không giới hạn; mỗi nhiệm vụ chỉ tính lần có điểm cao nhất.",
       "Ghim bừa không có lợi: thẻ không liên quan kéo điểm Evidence Quality xuống.",
-      "Quyết định phải đi ra từ kết luận của chính bạn; nói một đằng làm một nẻo bị trừ điểm Decision Discipline.",
+      "Quyết định phải đi ra từ kết luận của chính bạn; nói một đằng làm một nẻo bị trừ điểm Decision & Presentation.",
+      "Đoán trúng kết quả mà thiếu bằng chứng không đạt điểm điều tra cao: Evidence Before Judgment.",
+      "Một Red Flag không có nghĩa là gian lận hay sắp phá sản; game không kết luận gian lận.",
       "Committee câu 3: chọn sai một giới hạn bị trừ điểm.",
       "Hồ sơ không qua kiểm tra dữ liệu bắt buộc bị gắn NOT PUBLISHABLE và không chơi được.",
       "Điểm, tiến độ và cấp bậc là của riêng từng tài khoản; hồ sơ công ty dùng chung cho mọi tài khoản trên máy này."
@@ -856,16 +898,16 @@
       <section class="fwi-hero" aria-labelledby="fwi-title">
         <div class="fwi-icon">${playIcon("fw", 128)}</div>
         <div>
-          <div class="kicker">Playground · Game phân tích BCTC</div>
-          <h1 id="fwi-title">Financial World<span>Evidence of Value</span></h1>
-          <p class="fwi-tag">Bạn là chuyên viên phân tích của quỹ Axiom Capital. Mở hồ sơ một doanh nghiệp, đọc ba báo cáo tài chính, tìm bằng chứng, rồi bảo vệ quyết định đầu tư trước Investment Committee.</p>
+          <div class="kicker">Playground · Project Ledger</div>
+          <h1 id="fwi-title">Financial Empire<span>Beyond the Numbers</span></h1>
+          <p class="fwi-tag">Bạn là Junior Analyst ở Aurora Capital. Điều tra doanh nghiệp qua báo cáo tài chính: tìm dấu hiệu, lập giả thuyết, thu thập bằng chứng, tính toán, rồi bảo vệ quyết định trước The Board. Numbers tell a story. Your job is to find what they are hiding.</p>
           <div class="fwi-cta">${cta}</div>
         </div>
         <dl class="fwi-facts">
           <div><dt>Thể loại</dt><dd>Điều tra, phân tích BCTC</dd></div>
           <div><dt>Mỗi nhiệm vụ</dt><dd>${STEPS.length} bước · 100 điểm</dd></div>
           <div><dt>Hồ sơ trên máy này</dt><dd>${list.length} công ty</dd></div>
-          <div><dt>Cấp bậc của bạn</dt><dd>${r.name} · ${xp} XP</dd></div>
+          <div><dt>Cấp bậc của bạn</dt><dd>${r.name} · cấp ${r.level}</dd></div>
         </dl>
       </section>
 
@@ -893,9 +935,9 @@
             <p class="text-3 small fwi-grades">Xếp loại: từ 90 điểm là Xuất sắc, từ 75 là Tốt, từ 60 là Đạt, dưới 60 là Cần cải thiện.</p>
           </section>
           <section class="card">
-            <div class="card-head"><div><h2>Cấp bậc tại Axiom Capital</h2><p class="text-2 small">XP là tổng điểm cao nhất của mọi nhiệm vụ.</p></div></div>
-            <ol class="fw-ladder">${M.RANKS.map((x, i) => `<li class="${i < r.idx ? "past" : i === r.idx ? "now" : ""}"><span>${x.name}${i === r.idx ? `<em class="fwi-you">bạn</em>` : ""}</span><span class="mono">${x.xp} XP</span></li>`).join("")}</ol>
-            <p class="text-3 small fwi-note">Ví dụ: ba nhiệm vụ, mỗi nhiệm vụ 90 điểm, là 270 XP, đủ lên Senior Analyst.</p>
+            <div class="card-head"><div><h2>Sự nghiệp tại Aurora Capital</h2><p class="text-2 small">Reputation là tổng điểm cao nhất của mọi vụ án; 20 Reputation lên một cấp.</p></div></div>
+            <ol class="fw-ladder">${M.RANKS.map((x, i) => `<li class="${i < r.idx ? "past" : i === r.idx ? "now" : ""}"><span>${x.name}${i === r.idx ? `<em class="fwi-you">bạn</em>` : ""}</span><span class="mono">Lv ${x.level} · ${x.unlock}</span></li>`).join("")}</ol>
+            <p class="text-3 small fwi-note">Ví dụ: hai vụ án 90 điểm là 180 Reputation, lên cấp 10, Senior Analyst. Chơi nhanh không được cộng điểm; không thể farm vụ án đã xong.</p>
           </section>
         </div>
       </div>
@@ -932,7 +974,7 @@
 
       <section class="card fwi-end">
         <div><h2>${started ? "Quay lại bàn làm việc" : "Sẵn sàng nhận hồ sơ đầu tiên?"}</h2>
-          <p class="text-2">${started ? `${r.name} · ${xp} XP${r.next ? ` · còn ${r.next.xp - xp} XP để lên ${r.next.name}` : ""}` : `Bắt đầu với case huấn luyện ${esc(sample.ds.company.name)}: ${EQ.code}, ${EQ.title}.`}</p></div>
+          <p class="text-2">${started ? `${r.name} · cấp ${r.level} · ${xp} Reputation${r.next ? ` · còn ${r.next.xp - xp} để lên ${r.next.name}` : ""}` : `Bắt đầu với case huấn luyện ${esc(sample.ds.company.name)}: ${EQ.code}, ${EQ.title}.`}</p></div>
         <div class="fwi-cta">${cta}</div>
       </section>
     </div>`;
