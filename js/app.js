@@ -660,6 +660,8 @@ function renderGate() {
   let last = ""; try { last = localStorage.getItem("cfaStudy_last") || ""; } catch (e) { /* ignore */ }
   const setP = gate.tab === "setpw" ? PROFILES.list.find(p => p.id === gate.sel) : null;
   if (gate.tab === "setpw" && !setP) gate.tab = "signin";
+  const keep = gate.keep || {}; gate.keep = null;
+  const remembered = keep.remember !== undefined ? keep.remember : rememberPref();
 
   const err = gate.err ? `<div class="gate-err" role="alert">${esc(gate.err)}</div>` : "";
   let body;
@@ -668,10 +670,11 @@ function renderGate() {
       <h1 class="gate-serif gate-h">Sign Up</h1>
       <div class="gate-orn"><i></i><b></b><i></i></div>
       ${err}
-      ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username">`)}
+      ${gateField("user", `<input id="g-name" maxlength="30" placeholder="Username" autocomplete="username" aria-label="Username" value="${esc(keep.name || "")}">`)}
       ${gatePw("g-pw", "Password (4+ characters)", "new-password")}
-      <label class="gate-check"><input type="checkbox" id="g-hide" checked><span>Hide Practice and Mock exams</span></label>
-      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
+      ${gatePw("g-pw2", "Confirm password", "new-password")}
+      <label class="gate-check"><input type="checkbox" id="g-hide" ${keep.hide === false ? "" : "checked"}><span>Hide Practice and Mock exams</span></label>
+      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${remembered ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn gold" id="g-go">Sign Up</button>
       ${accts.length ? `<p class="gate-alt">Already have an account? <button class="gate-link" data-gtab="signin">Sign in</button></p>` : ""}`;
   } else if (gate.tab === "setpw") {
@@ -681,7 +684,8 @@ function renderGate() {
       <p class="gate-sub">Hi <strong>${esc(setP.name)}</strong> — your profile has no password yet. Choose one to protect it.</p>
       ${err}
       ${gatePw("g-pw", "New password (min. 4)", "new-password")}
-      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
+      ${gatePw("g-pw2", "Confirm new password", "new-password")}
+      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${remembered ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn navy" id="g-go">Save &amp; enter ${GATE_ICONS.arrow}</button>
       <p class="gate-alt"><button class="gate-link" data-gtab="signin">Back</button></p>`;
   } else {
@@ -689,9 +693,9 @@ function renderGate() {
       <div class="gate-laurel-row">${gateLaurel(false)}<h1 class="gate-serif gate-h gate-h1">Learning CFA Level 1</h1>${gateLaurel(true)}</div>
       <p class="gate-sub">Your Professional Learning Platform for CFA® Level I</p>
       ${err}
-      ${gateField("user", `<input id="g-id" placeholder="Username" autocomplete="username" value="${esc(last)}" aria-label="Username">`)}
+      ${gateField("user", `<input id="g-id" placeholder="Username" autocomplete="username" value="${esc(keep.id !== undefined ? keep.id : last)}" aria-label="Username">`)}
       ${gatePw("g-pw", "Password", "current-password")}
-      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${rememberPref() ? "checked" : ""}><span>Remember me</span></label>
+      <label class="gate-check gate-remember"><input type="checkbox" id="g-remember" ${remembered ? "checked" : ""}><span>Remember me</span></label>
       <button class="gate-btn navy" id="g-go">Sign In ${GATE_ICONS.arrow}</button>
       <div class="gate-or"><span>or</span></div>
       <button class="gate-btn outline" data-gtab="create">Create Account</button>`;
@@ -701,6 +705,8 @@ function renderGate() {
   view.innerHTML = `
     <div class="gate gate-${gate.tab}">
       <div class="gate-stage">
+        <aside class="gate-art" aria-hidden="true"><div class="gate-art-brand">${gateLogoSvg(62, "gla")}
+          <div class="gate-serif gate-art-name">CFA Study</div><div class="gate-art-sub">Level I · May 2027</div></div></aside>
         ${gate.tab === "create" ? `<div class="gate-ext">${brand}</div>` : ""}
         <div class="gate-card">
           ${gate.tab === "create" ? "" : brand}
@@ -716,10 +722,23 @@ function renderGate() {
     i.type = show ? "text" : "password"; b.innerHTML = show ? GATE_ICONS.eyeOff : GATE_ICONS.eye;
   });
   const go = document.getElementById("g-go");
-  view.querySelectorAll(".gate-field input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") go.click(); }));
-  const first = view.querySelector(".gate-field input:not([value=''])") ? null : view.querySelector(".gate-field input");
+  const fields = [...view.querySelectorAll(".gate-field input")];
+  fields.forEach((i, k) => i.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const next = fields.slice(k + 1).find(f => !f.value);
+    if (next && i.value) next.focus(); else go.click();
+  }));
+  const first = fields.find(f => !f.value);   // on a computer the cursor waits in the first empty box
   if (first && window.matchMedia("(min-width: 700px)").matches) first.focus();
-  const fail = msg => { gate.err = msg; renderGate(); };
+  const fail = (msg, focusId) => {
+    const val = id => { const el = document.getElementById(id); return el ? (el.type === "checkbox" ? el.checked : el.value) : undefined; };
+    gate.keep = { id: val("g-id"), name: val("g-name"), hide: val("g-hide"), remember: val("g-remember") };
+    gate.err = msg; renderGate();
+    const f = document.getElementById(focusId || "g-pw");
+    if (f && window.matchMedia("(min-width: 700px)").matches) f.focus();
+  };
+  const mismatch = () => { const two = document.getElementById("g-pw2"); return two && two.value !== document.getElementById("g-pw").value; };
   const waitMsg = () => `Too many attempts. Try again in ${gateWait()} seconds.`;
 
   go.onclick = async () => {
@@ -728,6 +747,7 @@ function renderGate() {
 
     if (gate.tab === "setpw") {
       if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
+      if (mismatch()) return fail("The two passwords do not match. Type the same password in both boxes.");
       setP.pinHash = await hashPin(pw); saveProfiles(); return gateEnter(setP.id);
     }
     if (gate.tab === "signin") {
@@ -740,9 +760,10 @@ function renderGate() {
     }
     // create account
     const name = document.getElementById("g-name").value.trim();
-    if (!name || !nameKey(name)) return fail("Enter a username (letters or numbers).");
-    if (nameTaken(name)) return fail(`The username “${name}” is already taken. Choose another, or sign in if it is yours.`);
+    if (!name || !nameKey(name)) return fail("Enter a username (letters or numbers).", "g-name");
+    if (nameTaken(name)) return fail(`The username “${name}” is already taken. Choose another, or sign in if it is yours.`, "g-name");
     if (PIN_RULE(pw)) return fail(PIN_RULE(pw));
+    if (mismatch()) return fail("The two passwords do not match. Type the same password in both boxes.");
     const hide = document.getElementById("g-hide").checked, ph = await hashPin(pw);
     let id;
     const firstP = PROFILES.list[0];

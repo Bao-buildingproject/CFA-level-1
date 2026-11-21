@@ -1106,32 +1106,61 @@ body.gated .main { padding: 0; max-width: none; }
 .gate-remember { margin-top: -.2em; }
 .gate-foot { margin: 0; font-size: .78rem; color: #33405c; text-align: center; background: rgba(255, 255, 255, .85); padding: 4px 14px; border-radius: 999px; }
 
-/* Wide screens: the mockup is the background; the live card sits exactly over the card drawn in it */
-@media (min-width: 761px) and (min-aspect-ratio: 11/10) and (min-height: 601px) {
-  .gate { --sw: max(100vw, 177.68vh); display: block; padding: 0; height: 100vh; min-height: 0; overflow: hidden; background: #f4f5f6; }
-  @supports (height: 1dvh) { .gate { --sw: max(100vw, 177.68dvh); height: 100dvh; } }
-  .gate-stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: var(--sw); max-width: none; height: calc(var(--sw) / 1.7768); font-size: calc(var(--sw) * .00957); background-size: 100% 100%; background-repeat: no-repeat; }
-  .gate-signin .gate-stage, .gate-setpw .gate-stage { background-image: url(../img/gate-in.jpg); }
-  .gate-create .gate-stage { background-image: url(../img/gate-up.jpg); }
-  .gate-ext { display: none; }
-  .gate-card { position: absolute; border-radius: 3.5em; box-shadow: 0 2em 4.5em rgba(15, 35, 71, .16); }
-  .gate-signin .gate-card, .gate-setpw .gate-card { left: 27.5%; top: 7%; width: 47%; min-height: 86.2%; padding: .9em 5em 2.2em; display: flex; flex-direction: column; justify-content: center; }
-  .gate-create .gate-card { left: 27.3%; top: 23.4%; width: 45.6%; min-height: 68%; padding: 1.1em 4.4em 1.4em; display: flex; flex-direction: column; justify-content: center; }
-  .gate-brand { margin-bottom: 0; gap: .5em; }
-  .gate-logo { width: 6em; } .gate-name { font-size: 3.25em; }
-  .gate-h { font-size: 3.75em; } .gate-h1 { font-size: 2.8em; white-space: nowrap; } .gate-laurel { width: 2.3em; }
-  .gate-sub { font-size: 1.25em; margin: .5em 0 1.6em; white-space: nowrap; }
-  .gate-field { height: 4.35em; margin-bottom: 1.6em; padding: 0 2.3em; gap: 1.3em; }
-  .gate-create .gate-field { height: 4.1em; margin-bottom: 1em; }
-  .gate-field svg { width: 1.8em; height: 1.8em; } .gate-field input { font-size: 1.45em; }
-  .gate-btn { height: 2.35em; font-size: 2em; } .gate-create .gate-btn { height: 2.45em; font-size: 2.05em; margin-top: .1em; }
-  .gate-btn.outline { height: 2.3em; font-size: 1.6em; }
-  .gate-or { font-size: 1.3em; margin: 1em 3em; } .gate-alt { font-size: 1.3em; }
-  .gate-check { font-size: 1.35em; } .gate-signin .gate-remember { margin: -.4em .4em .9em; } .gate-err { font-size: 1.2em; }
-  .gate-orn { margin: .6em auto 1.6em; }
-  .gate-signin .gate-laurel-row, .gate-setpw .gate-laurel-row { margin-top: .9em; }
-  .gate-btn.navy, .gate-btn.outline { font-family: "Playfair Display", Georgia, serif; font-weight: 600; letter-spacing: .01em; }
-  .gate-foot { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); }
+/* Wide screens: one compact card, the art (img/gate-m.jpg) on its left and the form on its right.
+   Sizes are fixed, so the card stays the same comfortable size on a laptop and on a large monitor. */
+.gate-art { display: none; }
+@media (min-width: 820px) and (min-height: 600px) {
+  .gate {
+    display: flex; justify-content: center; gap: 16px; padding: 36px 24px 22px;
+    background: radial-gradient(60% 55% at 10% 6%, rgba(200, 150, 62, .13), transparent 62%),
+                radial-gradient(55% 55% at 94% 98%, rgba(15, 35, 71, .13), transparent 62%), #eef0f3;
+  }
+  .gate-stage {
+    display: grid; grid-template-columns: 300px minmax(0, 1fr); width: 790px; max-width: 100%; margin: auto 0 0; font-size: 15px;
+    background: #fdfcfa; border: 1px solid rgba(200, 150, 62, .45); border-radius: 26px; overflow: hidden;
+    box-shadow: 0 44px 80px -40px rgba(15, 35, 71, .5), 0 2px 8px rgba(15, 35, 71, .06);
+  }
+  .gate-art { display: block; position: relative; min-height: 600px; background: #f4f5f6 url(../img/gate-m.jpg) center bottom / cover no-repeat; border-right: 1px solid rgba(200, 150, 62, .3); }
+  .gate-art-brand { position: absolute; left: 0; right: 0; top: 41%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+  .gate-art-brand .gate-logo { width: 62px; margin-bottom: 4px; }
+  .gate-art-name { font-size: 31px; font-weight: 700; line-height: 1.1; }
+  .gate-art-sub { font-size: 10.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: #9a6b24; }
+  .gate-ext, .gate-card .gate-brand { display: none; }
+  .gate-card { display: flex; flex-direction: column; justify-content: center; padding: 40px 50px 36px; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+
+  .gate-laurel-row { margin-top: 0; gap: .35em; }
+  .gate-h1 { font-size: 1.7em; white-space: nowrap; }
+  .gate-laurel { width: 1.6em; }
+  .gate-sub { font-size: .9em; margin: .45em 0 1.7em; }
+  .gate-h { font-size: 2.5em; }
+  .gate-orn { width: 70%; margin: .2em auto 1.5em; }
+  .gate-field { height: 3.15em; padding: 0 1.1em 0 1.25em; gap: .75em; margin-bottom: .8em; }
+  .gate-field svg { width: 1.3em; height: 1.3em; }
+  .gate-field input { font-size: 1em; }
+  .gate-eye svg { width: 1.25em; height: 1.25em; }
+  .gate-check { font-size: .9em; margin: .1em .2em .75em; }
+  .gate-check input { width: 1.15em; height: 1.15em; }
+  .gate-signin .gate-remember, .gate-setpw .gate-remember { margin-bottom: 1.1em; }
+  .gate-btn { height: 2.95em; font-size: 1.05em; }
+  .gate-btn.navy, .gate-btn.outline, .gate-btn.gold { font-family: "Playfair Display", Georgia, serif; font-weight: 600; letter-spacing: .01em; }
+  .gate-create .gate-btn.gold { margin-top: .45em; }
+  .gate-btn.outline { width: 100%; height: 2.75em; font-size: 1em; }
+  .gate-or { margin: 1em 1.5em; font-size: .88em; }
+  .gate-alt { font-size: .9em; }
+  .gate-err { font-size: .88em; padding: .65em .9em; border-radius: .8em; }
+  .gate-foot { margin: 0 0 auto; background: none; padding: 0; color: #5d6780; font-size: .76rem; }
+}
+/* Large monitors: the same card, a touch larger */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .gate-stage { width: 860px; grid-template-columns: 325px minmax(0, 1fr); font-size: 16px; }
+  .gate-art { min-height: 650px; }
+  .gate-art-name { font-size: 33px; }
+}
+/* Short laptop screens: a little less air so the card fits without scrolling */
+@media (min-width: 820px) and (min-height: 600px) and (max-height: 700px) {
+  .gate { padding-top: 18px; padding-bottom: 14px; gap: 10px; }
+  .gate-art { min-height: 560px; }
+  .gate-card { padding-top: 26px; padding-bottom: 24px; }
 }
 
 /* Question Bank: verbatim formatted questions (tables, figures, sub/superscripts) */
