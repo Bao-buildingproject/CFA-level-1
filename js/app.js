@@ -332,6 +332,10 @@ function renderSettings() {
             : isOwner() ? `<button class="btn btn-secondary" id="btn-owner-lock">Lock</button><button class="btn btn-ghost" id="btn-owner-change">Change password</button>`
             : `<button class="btn btn-primary" id="btn-owner-unlock">Owner login</button>`}
         </div>
+        ${isOwner() ? `<div class="owner-reset">
+          <h3>Reset all accounts</h3>
+          <p class="text-2 small">Start over on this browser: every account (${PROFILES.list.length}) is removed with its data, and the site opens on Sign Up. Question Bank sets, the Tutor key, game company files and the owner password stay.</p>
+          <button class="btn btn-soft-danger" id="btn-reset-all">${icon("trash", 18)} Reset all accounts</button></div>` : ""}
       </div>
     </div>`;
 
@@ -367,6 +371,11 @@ function renderSettings() {
     view.querySelectorAll("[data-theme]").forEach(x => x.classList.toggle("active", x === b));
   });
 
+  if (ob("btn-reset-all")) ob("btn-reset-all").onclick = async () => {
+    const n = PROFILES.list.length;
+    if (!await confirmDialog({ title: "Reset all accounts?", message: `All ${n} account${n === 1 ? "" : "s"} on this browser are removed, with their progress, questions, flashcards, mock exams, game scores, stock simulator and Tutor chats. Question Bank sets, the Tutor key, game company files and the owner password stay. This cannot be undone: export backups first if you need them.`, confirmText: "Reset all accounts", danger: true, requireText: "RESET" })) return;
+    await resetAllAccounts();
+  };
   if (ob("btn-reset")) ob("btn-reset").onclick = async () => {
     if (!await confirmDialog({ title: "Delete all data?", message: "This erases this account's chapters, cards, questions and mock history on this device. Question Bank sets, game company files and the Tutor key are shared with every account and stay; remove them on their own pages. Export a backup first.", confirmText: "Delete everything", danger: true, requireText: "DELETE" })) return;
     DATA = upgrade({}); saveData(); if (typeof qbiClearProfile === "function") qbiClearProfile(PROFILES.active); if (typeof fwClearProfile === "function") fwClearProfile(PROFILES.active); applyTheme(); refreshShell(); renderSettings(); toast("All data deleted");
@@ -627,6 +636,22 @@ function signOut() {
   try { sessionStorage.removeItem(UNLOCK_KEY); localStorage.removeItem(REMEMBER_KEY); } catch (e) { /* ignore */ }
   if (typeof lockOwner === "function") lockOwner();
   location.hash = "#/dashboard"; router();
+}
+
+// Removes every account on this browser and its data, then reloads on Sign Up. What every account
+// shares (Question Bank sets and key, Tutor key, game company files, owner password) stays.
+async function resetAllAccounts() {
+  for (const p of PROFILES.list) {
+    try { ["profileKey", "tutorlog", "tutor"].forEach(k => localStorage.removeItem(k === "profileKey" ? profileKey(p.id) : `cfaStudy_${k}_${p.id}`)); } catch (e) { /* ignore */ }
+    if (typeof qbiClearProfile === "function") await qbiClearProfile(p.id);
+    if (typeof fwClearProfile === "function") fwClearProfile(p.id);
+  }
+  try {
+    [PROFILES_KEY, "cfaStudy_v1", "cfaStudy_last", REMEMBER_KEY].forEach(k => localStorage.removeItem(k));
+    sessionStorage.removeItem(UNLOCK_KEY);
+  } catch (e) { /* ignore */ }
+  location.hash = "#/dashboard";
+  location.reload();
 }
 
 function gateWait() { return Math.max(0, Math.ceil((gate.until - Date.now()) / 1000)); }
