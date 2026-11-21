@@ -7,7 +7,7 @@
 // memory on this device for every account (localStorage), until you reset it.
 // ============================================================
 
-const CALC_KEY = "cfaStudy_baii", CALC_POS = "cfaStudy_baii_pos";
+const CALC_KEY = "cfaStudy_baii", CALC_POS = "cfaStudy_baii_pos";   // memory; where the window was dragged to
 const CALC = { eng: null, tape: [], running: false, saveT: 0, mounted: false };
 
 function calcEng() {
@@ -41,8 +41,9 @@ function calcDeviceHtml(where) {
   }).join("")).join("");
   const head = where === "pop"
     ? `<div class="ba-head ba-drag" data-drag><span class="ba-name">BA II Plus</span>
-        <a class="ba-hbtn" href="#/calc" data-calcfull>${icon("expand", 14)}<span>Full page</span></a>
-        <button type="button" class="ba-hbtn ba-x" data-calcclose aria-label="Close the calculator">${icon("x", 16)}</button></div>`
+        <button type="button" class="ba-hbtn ba-x ba-fold" data-calcmini>${icon("chevron", 15)}</button>
+        <a class="ba-hbtn" href="#/calc" data-calcfull title="Open the full page">${icon("expand", 14)}<span>Full page</span></a>
+        <button type="button" class="ba-hbtn ba-x" data-calcclose aria-label="Close the calculator" title="Close">${icon("x", 16)}</button></div>`
     : `<div class="ba-head"><span class="ba-name">BA II Plus</span><span class="ba-sub">CFA exam keystrokes</span></div>`;
   return `<div class="ba" data-ba="${where}">
     ${head}
@@ -249,36 +250,59 @@ function renderCalc() {
 }
 
 // ---------- the floating calculator on other pages ----------
+// Like the CFA Tutor's owl: the button can be dragged anywhere and lands on the nearest side; the
+// calculator opens in a small window that can be moved around (on phones too) and folded down to
+// its display, and it stays open while you move from page to page.
+const CALC_FAB = "cfaStudy_baii_fab";      // { side: "left" | "right", y: share of the window height }
+const CALC_MINI = "cfaStudy_baii_mini";    // "1" when the window is folded down to its display
+const calcClamp = (v, a, b) => Math.min(Math.max(v, a), Math.max(a, b));
+function calcGet(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+function calcPut(k, v) { try { v ? localStorage.setItem(k, JSON.stringify(v)) : localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+const calcIsPhone = () => window.matchMedia("(max-width: 767px)").matches;
+
 function calcMount() {
   if (CALC.mounted) return;
   CALC.mounted = true;
   const fab = document.createElement("button");
   fab.className = "calc-fab"; fab.id = "calc-fab"; fab.type = "button";
-  fab.setAttribute("aria-label", "Open the BA II Plus calculator"); fab.title = "BA II Plus calculator";
+  fab.setAttribute("aria-label", "Open the BA II Plus calculator (drag to move)"); fab.title = "BA II Plus — drag to move";
   fab.innerHTML = icon("calc", 22);
   const pop = document.createElement("div");
   pop.className = "calc-pop"; pop.id = "calc-pop"; pop.hidden = true;
   pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "BA II Plus calculator");
   pop.innerHTML = calcDeviceHtml("pop");
+  pop.classList.toggle("mini", calcGet(CALC_MINI) === 1);
   document.body.append(fab, pop);
-  fab.onclick = calcOpen;
+  calcDragFab(fab);
   pop.querySelector("[data-calcclose]").onclick = calcClose;
   pop.querySelector("[data-calcfull]").onclick = () => calcClose();
+  pop.querySelector("[data-calcmini]").onclick = () => {
+    const mini = pop.classList.toggle("mini");
+    calcPut(CALC_MINI, mini ? 1 : null);
+    calcMiniLabel(pop);
+    calcPlace(pop);
+  };
+  calcMiniLabel(pop);
   calcDrag(pop);
   // one listener for every key of every calculator on the page
   document.addEventListener("click", e => {
-    const b = e.target.closest(".ba [data-k]");
-    if (!b || CALC.running) return;
-    calcPress(b.dataset.k);
+    const k = e.target.closest(".ba [data-k]");
+    if (!k || CALC.running) return;
+    calcPress(k.dataset.k);
   });
   document.addEventListener("keydown", calcOnKey);
-  window.addEventListener("resize", () => { if (!pop.hidden) calcPlace(pop); });
+  window.addEventListener("resize", () => { calcPlaceFab(); if (!pop.hidden) calcPlace(pop); });
+}
+function calcMiniLabel(pop) {
+  const b = pop.querySelector("[data-calcmini]"), mini = pop.classList.contains("mini");
+  b.setAttribute("aria-label", mini ? "Show the keys" : "Fold down to the display");
+  b.title = mini ? "Show the keys" : "Fold down to the display";
 }
 function calcOpen() {
   const pop = document.getElementById("calc-pop");
   pop.hidden = false; document.getElementById("calc-fab").hidden = true;
   calcPlace(pop); calcPaint();
-  pop.querySelector('[data-k="cpt"]').focus({ preventScroll: true });
+  if (!calcIsPhone()) pop.querySelector('[data-k="cpt"]').focus({ preventScroll: true });
 }
 function calcClose() {
   const pop = document.getElementById("calc-pop");
@@ -286,34 +310,101 @@ function calcClose() {
   pop.hidden = true;
   calcRoute();
 }
-const calcIsPhone = () => window.matchMedia("(max-width: 767px)").matches;
-// desktop: where it was dragged to (kept inside the window); phone: a sheet at the bottom
+
+// the button: where it was dragged to, kept clear of the phone's header and tab bar
+function calcPlaceFab() {
+  const fab = document.getElementById("calc-fab"), s = calcGet(CALC_FAB);
+  if (!fab) return;
+  if (!s) { fab.style.left = fab.style.top = fab.style.right = fab.style.bottom = ""; return; }
+  const ph = calcIsPhone(), w = fab.offsetWidth || 46, h = fab.offsetHeight || 46, m = ph ? 10 : 18;
+  fab.style.top = calcClamp(s.y * window.innerHeight, ph ? 64 : 12, window.innerHeight - (ph ? 84 : 12) - h) + "px";
+  fab.style.left = (s.side === "left" ? m : window.innerWidth - w - m) + "px";
+  fab.style.right = fab.style.bottom = "auto";
+}
+function calcDragFab(fab) {
+  let st = null;
+  fab.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const r = fab.getBoundingClientRect();
+    st = { x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId, moved: false };
+    try { fab.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  });
+  fab.addEventListener("pointermove", e => {
+    if (!st || e.pointerId !== st.id) return;
+    if (!st.moved) {
+      if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 6) return;
+      st.moved = true; fab.classList.add("dragging");
+    }
+    fab.style.left = calcClamp(e.clientX - st.dx, 4, window.innerWidth - fab.offsetWidth - 4) + "px";
+    fab.style.top = calcClamp(e.clientY - st.dy, 4, window.innerHeight - fab.offsetHeight - 4) + "px";
+    fab.style.right = fab.style.bottom = "auto";
+  });
+  const end = () => {
+    if (!st) return;
+    if (st.moved) {
+      fab.classList.remove("dragging");
+      fab._dragEnd = Date.now();
+      const r = fab.getBoundingClientRect();
+      calcPut(CALC_FAB, { side: r.left + r.width / 2 < window.innerWidth / 2 ? "left" : "right", y: +(r.top / window.innerHeight).toFixed(4) });
+      fab.classList.add("settling");
+      calcPlaceFab();
+      setTimeout(() => fab.classList.remove("settling"), 450);
+    }
+    st = null;
+  };
+  fab.addEventListener("pointerup", end);
+  fab.addEventListener("pointercancel", end);
+  fab.addEventListener("click", e => {
+    if (fab._dragEnd && Date.now() - fab._dragEnd < 500) { e.preventDefault(); return; }
+    calcOpen();
+  });
+}
+
+// the window: where it was last dragged to on this kind of screen, kept inside the window
 function calcPlace(pop) {
-  if (calcIsPhone()) { pop.style.left = pop.style.top = ""; return; }
-  let p = null;
-  try { p = JSON.parse(localStorage.getItem(CALC_POS) || "null"); } catch (e) { /* ignore */ }
-  if (!p) { pop.style.left = pop.style.top = ""; return; }
-  const w = pop.offsetWidth, h = pop.offsetHeight;
-  pop.style.left = `${Math.min(Math.max(8, p.x), window.innerWidth - w - 8)}px`;
-  pop.style.top = `${Math.min(Math.max(8, p.y), Math.max(8, window.innerHeight - h - 8))}px`;
-  pop.style.bottom = "auto";
+  const kind = calcIsPhone() ? "phone" : "desk", all = calcGet(CALC_POS) || {};
+  const p = all[kind] || (kind === "desk" && typeof all.x === "number" ? all : null);
+  pop.style.left = pop.style.top = pop.style.right = pop.style.bottom = "";
+  if (!p) {                                  // not moved yet: open on the button's side
+    const side = (calcGet(CALC_FAB) || {}).side;
+    if (side === "left" && kind === "phone") { pop.style.left = "8px"; pop.style.right = "auto"; }
+    if (side === "right" && kind === "desk") { pop.style.right = "24px"; pop.style.left = "auto"; }
+    return;
+  }
+  const r = pop.getBoundingClientRect();
+  pop.style.left = calcClamp(p.x, 4, window.innerWidth - r.width - 4) + "px";
+  pop.style.top = calcClamp(p.y, 4, window.innerHeight - r.height - 4) + "px";
+  pop.style.right = pop.style.bottom = "auto";
 }
 function calcDrag(pop) {
   const handle = pop.querySelector("[data-drag]");
   handle.addEventListener("pointerdown", e => {
-    if (calcIsPhone() || e.target.closest("a, button")) return;
+    if (e.button !== 0 || e.target.closest("a, button")) return;
     const r = pop.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
-    handle.setPointerCapture(e.pointerId); pop.classList.add("dragging");
+    try { handle.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    pop.classList.add("dragging");
     const move = ev => {
-      pop.style.left = `${Math.min(Math.max(8, ev.clientX - dx), window.innerWidth - r.width - 8)}px`;
-      pop.style.top = `${Math.min(Math.max(8, ev.clientY - dy), window.innerHeight - 60)}px`;
-      pop.style.bottom = "auto";
+      pop.style.left = calcClamp(ev.clientX - dx, 4, window.innerWidth - r.width - 4) + "px";
+      pop.style.top = calcClamp(ev.clientY - dy, 4, window.innerHeight - r.height - 4) + "px";
+      pop.style.right = pop.style.bottom = "auto";
     };
     const up = () => {
-      handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", up); pop.classList.remove("dragging");
-      try { localStorage.setItem(CALC_POS, JSON.stringify({ x: parseFloat(pop.style.left), y: parseFloat(pop.style.top) })); } catch (e) { /* ignore */ }
+      handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", up); handle.removeEventListener("pointercancel", up);
+      pop.classList.remove("dragging");
+      const rr = pop.getBoundingClientRect(), all = calcGet(CALC_POS) || {};
+      if (typeof all.x === "number") { all.desk = { x: all.x, y: all.y }; delete all.x; delete all.y; }
+      all[calcIsPhone() ? "phone" : "desk"] = { x: Math.round(rr.left), y: Math.round(rr.top) };
+      calcPut(CALC_POS, all);
     };
-    handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", up); handle.addEventListener("pointercancel", up);
+  });
+  // double-click the title bar: back to the starting corner
+  handle.addEventListener("dblclick", e => {
+    if (e.target.closest("a, button")) return;
+    const all = calcGet(CALC_POS) || {};
+    delete all[calcIsPhone() ? "phone" : "desk"]; delete all.x; delete all.y;
+    calcPut(CALC_POS, Object.keys(all).length ? all : null);
+    calcPlace(pop);
   });
 }
 
@@ -342,6 +433,7 @@ function calcRoute() {
   calcMount();
   const [route] = currentRoute(), gated = document.body.classList.contains("gated");
   const pop = document.getElementById("calc-pop"), fab = document.getElementById("calc-fab");
-  if (route === "calc" || route === "trade" || gated) pop.hidden = true;
-  fab.hidden = gated || route === "calc" || route === "trade" || !pop.hidden;
+  if (route === "calc" || gated) pop.hidden = true;
+  fab.hidden = gated || route === "calc" || !pop.hidden;
+  if (!fab.hidden) calcPlaceFab();
 }
