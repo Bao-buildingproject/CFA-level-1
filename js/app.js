@@ -432,6 +432,8 @@ function renderMore() {
 }
 
 function router() {
+  // the game is a console of its own: the study site's navigation steps aside on game pages
+  document.body.classList.toggle("fx-mode", currentRoute()[0] === "game" && !isLocked());
   if (isLocked()) { renderGate(); return; }
   document.body.classList.remove("gated");
   stopMockTimer();
