@@ -20,6 +20,8 @@ A personal study app for the CFA Level I exam (May 2027). Plain HTML, CSS and Ja
   - Every number is labelled **REAL** (from a data provider, with its column), **CALCULATED** (by the engine, with formula and inputs) or **SIMULATED** (the bundled training case, a fictional company). Missing inputs make a ratio "unavailable" with the reason; nothing is guessed
   - A company file must pass the blocking checks (assets = liabilities + equity, cash flow sections and cash roll-forward, cash ties to the balance sheet, three consecutive years, required lines, scope and label) or it is held in quarantine as NOT PUBLISHABLE
   - Company files are loaded once per browser and every account on it can play them; missions, scores and ranks stay per account
+  - An introduction page (what the game is, the seven steps, scoring, ranks, the two missions, the rules) opens from the Playground tile and the first time an account opens the game; the HQ links back to it
+- **Playground** (Dashboard and More) — app-style tiles with their own icons for the game and the stock simulator; the game's tile shows "MỚI" until the account has seen the introduction, then its XP
   - Real companies are added one at a time, when someone needs them: ask Claude with the WiData MCP for a company's annual consolidated statements, then load the file in the game (VN30 picker included; banks and securities firms use another statement format and are not supported yet). `tools/widata-fw.js` turns the WiData `fs_nonfin` rows into a game file. **WiData data is for personal use: the files stay in the browser of the person who loaded them and are never committed here**
 - **Backup** — export/import JSON; light/dark theme
 
@@ -60,7 +62,8 @@ js/mock.js           mock exams
 js/game/engine.js    game: checks on a dataset and the ratio registry (formula, inputs, conventions)
 js/game/missions.js  game: missions, hypotheses, data tests, reference view, score, ranks
 js/game/sample.js    game: the training case (simulated, fictional company)
-js/game/ui.js        game: HQ, mission steps, inspector, import and quarantine
+js/game/ui.js        game: intro, HQ, mission steps, inspector, import and quarantine
+js/playground.js     Playground tiles and their icons (Dashboard, More)
 css/game.css         game styles
 tools/widata-fw.js   WiData fs_nonfin rows → game file (mapping only, no data)
 tests/               node:test suites for the game

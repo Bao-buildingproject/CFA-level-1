@@ -254,6 +254,8 @@ function renderDashboard() {
     ${topicLedgerHtml()}
     <div class="ledger-foot">${STRIP_LEGEND}<a href="#/study" class="small" style="font-weight:600">Open the study plan →</a></div>
 
+    ${typeof playgroundHtml === "function" ? playgroundHtml() : ""}
+
     <div class="slips">
       <div class="card slip slip-wide">
         <div class="slip-ico">${icon("external", 19)}</div>
@@ -403,14 +405,13 @@ function renderMore() {
     ["qbank", "flag", "Question Bank", "Your question sets · answer them here"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
-    ["trade", "trend", "Giả lập chứng khoán", "Tiền ảo · giá thật cổ phiếu Việt Nam"],
-    ["game", "target", "Game", "Financial World · phân tích BCTC"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
     ["profiles", "user", "Account", activeProfile().name],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],
     ["signout", "logout", "Log out", "Sign out of this device"]
   ];
   view.innerHTML = `${pageHeader("More", "Everything else in your study kit")}
+    ${typeof playgroundHtml === "function" ? playgroundHtml("play-top") : ""}
     <div class="card"><div class="list more-list">${items.map(([r, ic, label, sub]) => `
       <a class="list-item" href="#/${r}"><span class="more-ico">${icon(ic, 18)}</span>
         <div class="list-main"><div class="list-title">${label}</div><div class="list-meta">${esc(sub)}</div></div>${icon("chevron", 18)}</a>`).join("")}</div></div>

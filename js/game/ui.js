@@ -1,7 +1,8 @@
 // ============================================================
 // js/game/ui.js — "Financial World: Evidence of Value" (Game, under Learn)
 //
-// HQ (rank, company files, add a company) → a mission:
+// Intro (what the game is, the rules; opened from the Playground tile, and the first
+// time an account opens the game) → HQ (rank, company files, add a company) → a mission:
 //   Hồ sơ → Terminal → Bằng chứng → Workpapers → Quyết định → Committee → Kết quả
 // Numbers come from engine.js, rules and score from missions.js; this file only
 // draws them and keeps the player's progress in DATA.game.
@@ -101,7 +102,7 @@
   function renderHQ() {
     const list = datasets(), rank = M.rankOf(xpTotal()), best = prog().best;
     view.innerHTML = `<div class="fw-root" id="fw-root">
-      ${pageHeader("Financial World", "Axiom Capital Intelligence. Mỗi con số là một bằng chứng; mỗi quyết định có hậu quả.", "", "Game · Evidence of Value")}
+      ${pageHeader("Financial World", "Axiom Capital Intelligence. Mỗi con số là một bằng chứng; mỗi quyết định có hậu quả.", `<a class="btn btn-secondary btn-sm" href="#/game/intro">${icon("book", 15)} Giới thiệu và luật chơi</a>`, "Game · Evidence of Value")}
       <div class="fw-hq">
         ${rankCard(rank)}
         <section class="card fw-files">
@@ -112,7 +113,6 @@
         </section>
         ${addCard(list)}
         ${quarantineCard()}
-        ${howCard()}
       </div>
       <input type="file" id="fw-file" accept=".json,application/json" multiple hidden>
     </div>`;
@@ -188,29 +188,6 @@
       <ul class="fw-quar-list">${q.slice().reverse().map(x => `<li><div class="fw-quar-h"><strong>${esc(x.company || x.name || "File")}</strong><span class="text-3 small">${esc(x.name || "")} · ${new Date(x.at).toLocaleString("vi-VN")}</span></div>
         <ul>${(x.errors || []).slice(0, 6).map(er => `<li>${esc(er)}</li>`).join("")}</ul></li>`).join("")}</ul>
     </section>`;
-  }
-
-  function howCard() {
-    return `<details class="card fw-how"><summary><h2>Cách chơi</h2><span class="text-3 small">Quy trình, nhãn dữ liệu, thang điểm</span>${icon("chevron", 16)}</summary>
-      <ol class="fw-how-steps">
-        <li><strong>Hồ sơ.</strong> Đọc yêu cầu của Investment Committee, phạm vi dữ liệu và bốn giả thuyết cần kiểm định.</li>
-        <li><strong>Terminal.</strong> Xem ba báo cáo, các chỉ số, kết quả kiểm tra dữ liệu và nguồn của từng con số. Ghim những gì bạn coi là bằng chứng.</li>
-        <li><strong>Bằng chứng.</strong> Gắn bằng chứng vào giả thuyết: Ủng hộ, Mâu thuẫn, Giải thích bối cảnh hoặc Cần thêm bằng chứng, rồi tự kết luận từng giả thuyết.</li>
-        <li><strong>Workpapers.</strong> Tự tính ba chỉ số của năm gần nhất từ báo cáo; game đối chiếu với số của engine.</li>
-        <li><strong>Quyết định.</strong> INVEST, HOLD, AVOID hoặc REQUEST MORE EVIDENCE, kèm mức tự tin.</li>
-        <li><strong>Investment Committee.</strong> Ba câu hỏi: bằng chứng mạnh nhất, bằng chứng ngược chiều, giới hạn của dữ liệu.</li>
-        <li><strong>Kết quả.</strong> Điểm theo năm tiêu chí, góc nhìn tham chiếu của bộ quy tắc và những gì bạn bỏ sót.</li>
-      </ol>
-      <div class="fw-how-grid">
-        <div><div class="stat-label">Nhãn của mỗi con số</div>
-          <p>${chip("REAL")} số từ nhà cung cấp dữ liệu, có cột nguồn.</p>
-          <p>${chip("CALCULATED")} số engine tính, có công thức và đầu vào.</p>
-          <p>${chip("SIMULATED")} số mô phỏng của doanh nghiệp hư cấu.</p></div>
-        <div><div class="stat-label">Thang điểm 100</div>
-          <p>Data Accuracy 25 · Evidence Quality 25 · Analytical Reasoning 25 · Decision Discipline 15 · Source Awareness 10</p>
-          <p class="text-3 small">Bất thường → dấu hiệu cảnh báo → giả thuyết → bằng chứng → kết luận có căn cứ. Game không kết luận gian lận, và góc nhìn tham chiếu không phải khuyến nghị đầu tư.</p></div>
-      </div>
-    </details>`;
   }
 
   function bindHQ() {
@@ -826,6 +803,141 @@
     </div>`;
   }
 
+  // ================= INTRO =================
+  // What the game is and how it is played. The Playground tile opens it, and an account
+  // that has never opened the game sees it before the HQ. Counts and names come from the
+  // rules (missions.js), so the page stays true when the rules change.
+  const introStarted = g => Object.keys((g && g.best) || {}).length > 0 ||
+    Object.values((g && g.runs) || {}).some(r => r && (r.done || (r.pins || []).length || (r.step && r.step !== "brief")));
+
+  function renderIntro() {
+    const g = prog(), xp = xpTotal(), r = M.rankOf(xp), list = datasets(), best = g.best;
+    const sample = list.find(e => e.builtin), realN = list.length - 1, started = introStarted(g);
+    if (!g.intro) { g.intro = Date.now(); save(); }
+    const EQ = M.ARCHETYPES.EQ, LIQ = M.ARCHETYPES.LIQ;
+    const first = `#/game/m/${esc(sample.ds.id)}/EQ`;
+    const parts = M.score(caseFor(sample, "EQ"), {}).parts;
+    const los = [...new Set(M.ARCHETYPE_IDS.flatMap(a => M.ARCHETYPES[a].los))].map(k => E.LOS[k]).filter(Boolean);
+    const cta = started
+      ? `<a class="btn btn-primary btn-lg" href="#/game">Tiếp tục chơi ${icon("next", 16)}</a>`
+      : `<a class="btn btn-primary btn-lg" href="${first}">${icon("play", 15)} Chơi nhiệm vụ đầu tiên</a><a class="btn btn-ghost btn-lg" href="#/game">Vào HQ</a>`;
+    const STEP_TEXT = {
+      brief: `<p>Đọc yêu cầu của Investment Committee, phạm vi dữ liệu và bốn giả thuyết cần kiểm định.</p>`,
+      terminal: `<p>Xem ba báo cáo, các chỉ số, kết quả kiểm tra dữ liệu và nguồn của từng con số. Bấm <span class="fwi-pin" aria-label="ghim">${icon("pin", 12)}</span> để ghim một con số làm bằng chứng; bấm vào con số để mở Inspector xem công thức và nguồn.</p>`,
+      board: `<p>Nối mỗi bằng chứng với một giả thuyết theo một trong bốn quan hệ:</p>
+        <div class="fwi-chips">${Object.keys(M.RELATIONS).map(relChip).join("")}</div>
+        <p style="margin-top:10px">Rồi tự kết luận từng giả thuyết:</p>
+        <ul class="fwi-defs">${Object.keys(M.STATUS).map(k => `<li>${statusChip(k)}<span>${M.STATUS[k].vi}</span></li>`).join("")}</ul>`,
+      work: `<p>Tự tính ba chỉ số của năm gần nhất từ báo cáo. Càng sát số của engine càng nhiều điểm; lệch ít vẫn được một phần điểm.</p>`,
+      decide: `<p>Chọn một trong bốn quyết định, kèm mức tự tin ${M.CONF_ORDER.map(c => M.CONFIDENCE[c].toLowerCase()).join(", ").replace(/, ([^,]*)$/, " hoặc $1")}:</p>
+        <ul class="fwi-defs">${M.DECISION_IDS.map(d => `<li><span class="fwi-dec">${M.DECISIONS[d].en}</span><span>${M.DECISIONS[d].vi}</span></li>`).join("")}</ul>`,
+      committee: `<p>Trả lời ba câu hỏi: ba bằng chứng mạnh nhất cho quyết định, bằng chứng mạnh nhất đi ngược quyết định, và những giới hạn của hồ sơ.</p>`,
+      result: `<p>Nhận điểm trên 100 theo năm tiêu chí, xem góc nhìn tham chiếu của bộ quy tắc và những bằng chứng bạn bỏ sót.</p>`
+    };
+    const PART_NOTE = {
+      accuracy: "Ba workpaper: tự tính đúng chỉ số từ báo cáo.",
+      evidence: "Gắn đúng bằng chứng then chốt cho từng giả thuyết; chỉ ghim những gì liên quan.",
+      reasoning: "Liên kết khớp dữ liệu, kết luận đúng các giả thuyết, Committee câu 1 và 2.",
+      discipline: "Quyết định nhất quán với kết luận của chính bạn; mức tự tin tương xứng.",
+      source: "Mở tab Kiểm tra, truy nguồn con số trong Inspector, Committee câu 3."
+    };
+    const RULES = [
+      "Một nhiệm vụ là một công ty với một loại vụ án; tối đa 100 điểm.",
+      `${LIQ.code} mở khoá khi bạn hoàn thành ${EQ.code} ở một công ty bất kỳ.`,
+      "Chơi lại không giới hạn; mỗi nhiệm vụ chỉ tính lần có điểm cao nhất.",
+      "Ghim bừa không có lợi: thẻ không liên quan kéo điểm Evidence Quality xuống.",
+      "Quyết định phải đi ra từ kết luận của chính bạn; nói một đằng làm một nẻo bị trừ điểm Decision Discipline.",
+      "Committee câu 3: chọn sai một giới hạn bị trừ điểm.",
+      "Hồ sơ không qua kiểm tra dữ liệu bắt buộc bị gắn NOT PUBLISHABLE và không chơi được.",
+      "Điểm, tiến độ và cấp bậc là của riêng từng tài khoản; hồ sơ công ty dùng chung cho mọi tài khoản trên máy này."
+    ];
+    const doneIn = a => Object.keys(best).filter(k => k.endsWith("|" + a)).length;
+    view.innerHTML = `<div class="fwi">
+      <section class="fwi-hero" aria-labelledby="fwi-title">
+        <div class="fwi-icon">${playIcon("fw", 128)}</div>
+        <div>
+          <div class="kicker">Playground · Game phân tích BCTC</div>
+          <h1 id="fwi-title">Financial World<span>Evidence of Value</span></h1>
+          <p class="fwi-tag">Bạn là chuyên viên phân tích của quỹ Axiom Capital. Mở hồ sơ một doanh nghiệp, đọc ba báo cáo tài chính, tìm bằng chứng, rồi bảo vệ quyết định đầu tư trước Investment Committee.</p>
+          <div class="fwi-cta">${cta}</div>
+        </div>
+        <dl class="fwi-facts">
+          <div><dt>Thể loại</dt><dd>Điều tra, phân tích BCTC</dd></div>
+          <div><dt>Mỗi nhiệm vụ</dt><dd>${STEPS.length} bước · 100 điểm</dd></div>
+          <div><dt>Hồ sơ trên máy này</dt><dd>${list.length} công ty</dd></div>
+          <div><dt>Cấp bậc của bạn</dt><dd>${r.name} · ${xp} XP</dd></div>
+        </dl>
+      </section>
+
+      <div class="fwi-what">
+        <article class="card"><span class="fwi-ico">${icon("search", 18)}</span><h3>Điều tra bằng số liệu</h3>
+          <p>Mỗi hồ sơ là một doanh nghiệp với ít nhất ba năm báo cáo: cân đối kế toán, kết quả kinh doanh và lưu chuyển tiền tệ. Con số nào cũng có nhãn và nguồn.</p></article>
+        <article class="card"><span class="fwi-ico">${icon("pin", 18)}</span><h3>Không có đáp án cho sẵn</h3>
+          <p>Bạn tự chọn con số làm bằng chứng, tự nối vào giả thuyết, tự kết luận và tự đưa ra quyết định đầu tư.</p></article>
+        <article class="card"><span class="fwi-ico">${icon("book", 18)}</span><h3>Luyện kiến thức CFA Level I</h3>
+          <p>Phần Financial Statement Analysis: ${los.join(", ")}.</p></article>
+      </div>
+
+      <div class="fwi-grid">
+        <section class="card">
+          <div class="card-head"><div><h2>Thể lệ: ${STEPS.length} bước của một nhiệm vụ</h2><p class="text-2 small">Đi qua lại giữa các bước tuỳ ý. Committee mở khi bạn đã có quyết định; Kết quả có sau khi nộp hồ sơ.</p></div></div>
+          <ol class="fwi-steps">${STEPS.map((x, i) => `<li><span class="fwi-n">${i + 1}</span><div><h3>${x.vi}</h3>${STEP_TEXT[x.id]}</div></li>`).join("")}</ol>
+        </section>
+        <div class="fwi-col">
+          <section class="card">
+            <div class="card-head"><div><h2>Tính điểm</h2><p class="text-2 small">100 điểm, chia cho năm tiêu chí.</p></div></div>
+            <ul class="fwi-score">${parts.map(x => `<li>
+              <div class="fwi-score-h"><strong>${x.name} <span>${x.vi}</span></strong><span class="mono">${x.max}</span></div>
+              <div class="fwi-bar"><i style="width:${x.max * 4}%"></i></div>
+              <p>${PART_NOTE[x.id] || ""}</p></li>`).join("")}</ul>
+            <p class="text-3 small fwi-grades">Xếp loại: từ 90 điểm là Xuất sắc, từ 75 là Tốt, từ 60 là Đạt, dưới 60 là Cần cải thiện.</p>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><h2>Cấp bậc tại Axiom Capital</h2><p class="text-2 small">XP là tổng điểm cao nhất của mọi nhiệm vụ.</p></div></div>
+            <ol class="fw-ladder">${M.RANKS.map((x, i) => `<li class="${i < r.idx ? "past" : i === r.idx ? "now" : ""}"><span>${x.name}${i === r.idx ? `<em class="fwi-you">bạn</em>` : ""}</span><span class="mono">${x.xp} XP</span></li>`).join("")}</ol>
+            <p class="text-3 small fwi-note">Ví dụ: ba nhiệm vụ, mỗi nhiệm vụ 90 điểm, là 270 XP, đủ lên Senior Analyst.</p>
+          </section>
+        </div>
+      </div>
+
+      <div class="fwi-grid">
+        <section class="card">
+          <div class="card-head"><div><h2>Hai loại nhiệm vụ</h2><p class="text-2 small">Mỗi công ty có cả hai.</p></div></div>
+          <div class="fwi-missions">${M.ARCHETYPE_IDS.map(a => {
+            const x = M.ARCHETYPES[a], open = M.unlocked(a, best), n = doneIn(a);
+            return `<article class="fwi-m ${open ? "" : "locked"}">
+              <div class="fwi-m-h"><span class="fw-code">${x.code}</span>${open ? "" : `<span class="fwi-lock">${icon("lock", 13)} Mở khi xong ${M.ARCHETYPES[x.requires].code}</span>`}</div>
+              <h3>${x.title}</h3><div class="text-3 small">${x.vi}</div>
+              <p>${esc(x.question)}</p>
+              <div class="fwi-los">${x.los.map(k => `<span>${E.LOS[k]}</span>`).join("")}</div>
+              <div class="text-3 small">${n ? `Bạn đã hoàn thành ở ${n} công ty.` : "Bạn chưa hoàn thành nhiệm vụ này."}</div>
+            </article>`;
+          }).join("")}</div>
+        </section>
+        <div class="fwi-col">
+          <section class="card">
+            <div class="card-head"><h2>Luật cần nhớ</h2></div>
+            <ul class="fwi-rules">${RULES.map(t => `<li>${icon("check", 16)}<span>${t}</span></li>`).join("")}</ul>
+          </section>
+          <section class="card fwi-data">
+            <div class="card-head"><h2>Dữ liệu trong game</h2></div>
+            <p>${chip("REAL")} Số từ nhà cung cấp dữ liệu, có nguồn.</p>
+            <p>${chip("CALCULATED")} Số engine tính, có công thức và đầu vào.</p>
+            <p>${chip("SIMULATED")} Số mô phỏng của doanh nghiệp hư cấu.</p>
+            <p class="text-3 small">Case huấn luyện ${esc(sample.ds.company.name)} là doanh nghiệp hư cấu, chơi được ngay. Công ty thật (VN30, phi tài chính) được thêm ở HQ, mục Thêm hoặc cập nhật công ty.${realN ? ` Máy này đang có ${realN} công ty thật.` : ""}</p>
+            <p class="text-3 small">Game không kết luận gian lận. Góc nhìn tham chiếu là của bộ quy tắc, không phải khuyến nghị đầu tư.</p>
+          </section>
+        </div>
+      </div>
+
+      <section class="card fwi-end">
+        <div><h2>${started ? "Quay lại bàn làm việc" : "Sẵn sàng nhận hồ sơ đầu tiên?"}</h2>
+          <p class="text-2">${started ? `${r.name} · ${xp} XP${r.next ? ` · còn ${r.next.xp - xp} XP để lên ${r.next.name}` : ""}` : `Bắt đầu với case huấn luyện ${esc(sample.ds.company.name)}: ${EQ.code}, ${EQ.title}.`}</p></div>
+        <div class="fwi-cta">${cta}</div>
+      </section>
+    </div>`;
+  }
+
   // ================= entry =================
   // Deleting an account (or its data) leaves the shared company files to the other accounts;
   // only a library that account kept before sharing is removed. Files are removed for everyone from the HQ.
@@ -833,9 +945,20 @@
     try { localStorage.removeItem(oldLibKey(pid)); } catch (e) { /* ignore */ }
     G.lib = null; G.all = null; G.cases = {};
   };
+  // For the Playground tile: this account's XP, and whether it has seen the intro (or already played)
+  window.fwSummary = function () {
+    const g = typeof DATA !== "undefined" && DATA && DATA.game && typeof DATA.game === "object" ? DATA.game : {};
+    const xp = Object.values(g.best || {}).reduce((s, b) => s + ((b && b.score) || 0), 0);
+    return { xp, seen: !!g.intro || introStarted(g) };
+  };
   window.renderGame = function (sub, a, b) {
     if (!E || !M || !SAMPLE) { G.cur = null; view.innerHTML = emptyState("alert", "Không tải được game", "Thiếu tệp của game. Tải lại trang.", ""); return; }
-    if (sub === "m") renderMission(a, b);
-    else { G.cur = null; renderHQ(); }
+    if (sub === "m") { renderMission(a, b); return; }
+    G.cur = null;
+    if (sub === "intro") { renderIntro(); return; }
+    // the first time an account opens the game, it sees what the game is and how it is played
+    const g = prog();
+    if (!g.intro && !introStarted(g)) { history.replaceState(null, "", "#/game/intro"); renderIntro(); return; }
+    renderHQ();
   };
 })();
