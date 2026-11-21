@@ -21,11 +21,12 @@ A personal study app for the CFA Level I exam (May 2027). Plain HTML, CSS and Ja
   - A company file must pass the blocking checks (assets = liabilities + equity, cash flow sections and cash roll-forward, cash ties to the balance sheet, three consecutive years, required lines, scope and label) or it is held in quarantine as NOT PUBLISHABLE
   - Company files are loaded once per browser and every account on it can play them; missions, scores and ranks stay per account
   - An introduction page (what the game is, the seven steps, scoring, ranks, the two missions, the rules) opens from the Playground tile and the first time an account opens the game; the HQ links back to it
+- **BA II Plus** (Test) — an on-screen financial calculator with the keystrokes of the calculator allowed in the CFA exam: chain or AOS arithmetic, parentheses, memories (STO, RCL, M0–M9), TVM with P/Y, C/Y, xP/Y and BGN/END, cash flows (CF, NPV, IRR), AMORT, ICONV, DATA and STAT (1-V, LIN, Ln, EXP, PWR), DATE, Δ%, PROFIT, BRKEVN, FORMAT, CLR WORK, QUIT and RESET, with the calculator's error numbers. BOND and DEPR are not included. The page shows the stored values, the keys you pressed and 12 worked CFA examples that press the keys for you; a calculator button on other pages opens it in a panel (dragged anywhere on a computer, a sheet on phones). Works from the keyboard. Like a real one, it keeps its memory on the device for every account
 - **Playground** (Dashboard and More) — app-style tiles with their own icons for the game and the stock simulator; the game's tile shows "MỚI" until the account has seen the introduction, then its XP
   - Real companies are added one at a time, when someone needs them: ask Claude with the WiData MCP for a company's annual consolidated statements, then load the file in the game (VN30 picker included; banks and securities firms use another statement format and are not supported yet). `tools/widata-fw.js` turns the WiData `fs_nonfin` rows into a game file. **WiData data is for personal use: the files stay in the browser of the person who loaded them and are never committed here**
 - **Backup** — export/import JSON; light/dark theme
 
-All data is stored in the browser (`localStorage`, and IndexedDB for Question Bank sets). Each account keeps its own progress; three things are entered once and shared by every account in the same browser: the Question Bank (access key and sets), game company files and the CFA Tutor key. Export a backup regularly.
+All data is stored in the browser (`localStorage`, and IndexedDB for Question Bank sets). Each account keeps its own progress; three things are entered once and shared by every account in the same browser: the Question Bank (access key and sets), game company files and the CFA Tutor key. The BA II Plus also keeps one memory per browser. Export a backup regularly. With owner mode unlocked, Settings → **Reset all accounts** removes every account on that browser (the shared items stay) and the site opens on Sign Up.
 
 ## Design
 "Charter" — the look of an engraved certificate: ivory paper, ink navy, brass details.
@@ -38,7 +39,7 @@ All data is stored in the browser (`localStorage`, and IndexedDB for Question Ba
 Open `index.html` in a browser (double-click), or use VS Code's Live Server.
 
 ## Tests
-The game's engine, rules and converter have tests (Node 18 or later, nothing to install):
+The game's engine, rules and converter, and the BA II Plus engine, have tests (Node 18 or later, nothing to install):
 ```
 node --test tests/*.test.js
 ```
@@ -64,6 +65,9 @@ js/game/missions.js  game: missions, hypotheses, data tests, reference view, sco
 js/game/sample.js    game: the training case (simulated, fictional company)
 js/game/ui.js        game: intro, HQ, mission steps, inspector, import and quarantine
 js/playground.js     Playground tiles and their icons (Dashboard, More)
+js/baii.js           BA II Plus engine: keys, worksheets, TVM, cash flows, statistics (no page code)
+js/calc.js           BA II Plus page, floating calculator, worked examples
+css/calc.css         calculator styles
 css/game.css         game styles
 tools/widata-fw.js   WiData fs_nonfin rows → game file (mapping only, no data)
 tests/               node:test suites for the game

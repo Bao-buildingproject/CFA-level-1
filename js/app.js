@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { route: "practice", label: "Practice", icon: "check", group: "Test" },
   { route: "qbank", label: "Question Bank", icon: "flag", group: "Test" },
   { route: "mock", label: "Mock exams", icon: "clock", group: "Test" },
+  { route: "calc", label: "BA II Plus", icon: "calc", group: "Test" },
   { route: "settings", label: "Settings", icon: "settings", group: "" }
 ];
 const MOBILE_NAV = ["dashboard", "study", "practice", "mock", "more"];
@@ -403,6 +404,7 @@ const ROUTES = {
   dist: renderDist,
   trade: (sub, sym) => renderTrade(sub, sym),
   game: (sub, a, b) => renderGame(sub, a, b),
+  calc: () => renderCalc(),
   profiles: renderProfiles
 };
 
@@ -412,6 +414,7 @@ function renderMore() {
     ["schweser", "book", "SchweserNotes", "4 books · reading checklist"],
     ["curriculum", "layers", "Curriculum", "102 learning modules · 10 volumes"],
     ["qbank", "flag", "Question Bank", "Your question sets · answer them here"],
+    ["calc", "calc", "BA II Plus", "Financial calculator · CFA exam keystrokes"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
@@ -443,6 +446,7 @@ function router() {
   refreshShell();
   if (typeof tutorRoute === "function") tutorRoute();   // CFA Tutor button (off during a timed mock)
   if (typeof qbkAuto === "function") qbkAuto();   // keep the Question Bank sets on this device current
+  if (typeof calcRoute === "function") calcRoute();   // the floating BA II Plus button
   window.scrollTo(0, 0);
   const mainEl = document.getElementById("main");
   if (mainEl) { mainEl.classList.remove("enter"); void mainEl.offsetWidth; mainEl.classList.add("enter"); }
