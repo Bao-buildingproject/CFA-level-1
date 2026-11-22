@@ -508,7 +508,8 @@ async function trRefresh(syms, quiet) {
 function trHeadActions() {
   const st = trStatus();
   return `<span class="tr-status tr-${st.code}"><i></i>${st.label}</span>
-    <button class="btn btn-secondary btn-sm" id="tr-refresh">${icon("pulse", 16)} Làm mới</button>`;
+    <button class="btn btn-secondary btn-sm" id="tr-refresh">${icon("pulse", 16)} Làm mới</button>
+    <a class="btn btn-secondary btn-sm" href="#/trading/derivatives">${icon("candles", 16)} Phái sinh</a>`;
 }
 function trUpdatedHtml() {
   return TRADE.at ? `Cập nhật ${new Date(TRADE.at).toLocaleTimeString("vi-VN")} · nguồn VPS và VNDirect · ${trStatus().code === "open" ? "tự cập nhật mỗi 10 giây" : "giá cuối phiên"}` : "";

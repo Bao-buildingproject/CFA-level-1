@@ -1,6 +1,6 @@
 // ============================================================
 // playground.js — the Playground: app-style tiles for the site's games
-// (Financial Empire, the stock simulator), shown on the Dashboard and on More.
+// (Financial Empire, the stock simulator, the derivatives Trading Arena), shown on the Dashboard and on More.
 // Each tile has its own icon, drawn here as inline SVG. The game's tile opens
 // its introduction (what the game is, the rules) before the game itself.
 // ============================================================
@@ -44,6 +44,19 @@ const PLAY_ICONS = {
     <rect x="39.5" y="14" width="7" height="11" rx="1.3" fill="#fff"/>
     <path d="M11 52 24 43l8 4 17-14" fill="none" stroke="url(#${p}a)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M41.5 33h8v8" fill="none" stroke="url(#${p}a)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect width="64" height="64" rx="15" fill="url(#${p}s)"/>`,
+  // Trading Arena: long and short candles on a terminal-dark tile
+  arena: p => `<defs>
+      <linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232C44"/><stop offset=".55" stop-color="#121829"/><stop offset="1" stop-color="#0B0F19"/></linearGradient>
+      <linearGradient id="${p}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="15" fill="url(#${p}b)"/>
+    <path d="M9 22h46M9 34h46M9 46h46" stroke="#fff" stroke-opacity=".07"/>
+    <path d="M18 14v34M32 18v32M46 12v26" stroke="#9AA4B8" stroke-width="1.6" stroke-linecap="round"/>
+    <rect x="14.5" y="20" width="7" height="18" rx="1.4" fill="#22C58B"/>
+    <rect x="28.5" y="27" width="7" height="16" rx="1.4" fill="#F0525C"/>
+    <rect x="42.5" y="16" width="7" height="14" rx="1.4" fill="#22C58B"/>
+    <circle cx="50" cy="48" r="6" fill="#E3B341"/><path d="M47.4 48h5.2M50 45.4v5.2" stroke="#0B0F19" stroke-width="1.8" stroke-linecap="round"/>
     <rect width="64" height="64" rx="15" fill="url(#${p}s)"/>`
 };
 
@@ -58,7 +71,8 @@ function playItems() {
   return [
     { id: "fw", href: "#/game/intro", name: "Financial Empire", sub: "điều tra BCTC, cốt truyện",
       badge: !fw ? "" : fw.xp > 0 ? `${fw.xp} REP` : fw.seen ? "" : "MỚI" },
-    { id: "trade", href: "#/trade", name: "Giả lập chứng khoán", sub: "tiền ảo, giá thật" }
+    { id: "trade", href: "#/trade", name: "Giả lập chứng khoán", sub: "tiền ảo, giá thật" },
+    { id: "arena", href: "#/trading/derivatives", name: "Trading Arena", sub: "phái sinh, Long/Short" }
   ];
 }
 
