@@ -52,10 +52,10 @@ function tutorErr(status, j) {
 }
 function tutorErrText(e, setup) {
   if (!e.status) return "Could not reach Google. Check your connection and try again.";
-  if (e.status === 400 && /api key/i.test(e.message)) return setup ? "Google says this key is not valid. Copy it again from AI Studio and paste the whole key." : "Google says this API key is not valid. Open Settings and paste the key again.";
+  if (e.status === 400 && /api key/i.test(e.message)) return setup ? "Google says this key is not valid. Copy it again from AI Studio and paste the whole key." : "Google says this API key is not valid. Create a new key at aistudio.google.com/apikey.";
   if (e.status === 401 || e.status === 403) return "This key is not allowed to use the Gemini API. Check it in Google AI Studio, or create a new key.";
-  if (e.status === 429) return "The free limit for this model is used up for now. Wait a minute (or until tomorrow), or pick another model in Settings (⚙).";
-  if (e.status === 404) return "This model is not available to your key. Pick another model in Settings (⚙).";
+  if (e.status === 429) return "The free limit for this model is used up for now. Wait a minute (or until tomorrow).";
+  if (e.status === 404) return "This model is not available to your key. Try again later.";
   if (e.status >= 500) return "Google's servers are busy. Try again in a moment.";
   return `Google returned an error: ${e.message}`;
 }
@@ -93,6 +93,11 @@ async function tutorFetchModels(key, auth) {
     .sort((a, b) => tutorRank(b.id) - tutorRank(a.id));
 }
 
+// Always the fastest family: the newest Flash this key can use (no settings to change it)
+function tutorModel(cfg) {
+  const f = (cfg.models || []).find(m => /flash/.test(m.id) && !/lite/.test(m.id));
+  return f ? f.id : /flash/.test(cfg.model || "") ? cfg.model : "gemini-2.5-flash";
+}
 function tutorSystem() {
   const c = countdownInfo();
   const weak = TOPICS.map(t => ({ t, s: typeof qbTopicStats === "function" ? qbTopicStats(t.id) : { done: 0 } }))
@@ -194,7 +199,8 @@ async function tutorSend(text, ctx) {
   // the chosen model first, then the next best ones if it is over its limit or missing
   // a model that just ran out of free requests is skipped for 10 minutes
   const now = Date.now(), cool = TUTOR.cool || (TUTOR.cool = {});
-  let tryList = [cfg.model, ...(cfg.models || []).map(m => m.id)].filter((x, i, a) => x && a.indexOf(x) === i);
+  const main = tutorModel(cfg);
+  let tryList = [main, ...(cfg.models || []).map(m => m.id)].filter((x, i, a) => x && a.indexOf(x) === i);
   if (tryList.some(m => !(cool[m] > now))) tryList = tryList.filter(m => !(cool[m] > now));
   tryList = tryList.slice(0, 3);
   if (!tryList.length) tryList.push("gemini-2.5-flash");
@@ -206,7 +212,7 @@ async function tutorSend(text, ctx) {
       reply.text = out.text;
       if (!out.text) { reply.error = true; reply.text = out.finish === "BLOCKED" || out.finish === "SAFETY" ? "Google blocked this answer. Try asking in a different way." : "No answer came back. Try again."; }
       else if (out.finish === "MAX_TOKENS") reply.text += "\n\n*(The answer was cut off — ask “tiếp tục” to continue.)*";
-      if (model !== cfg.model) TUTOR.note = `Answered with ${model} because ${cfg.model} was not available.`;
+      if (model !== main) TUTOR.note = `Answered with ${model} because ${main} was not available.`;
       lastErr = null;
       break;
     } catch (e) {
@@ -533,10 +539,9 @@ function tutorMsgHtml(m, i) {
 function tutorHeadHtml(sub) {
   const cfg = tutorCfg();
   return `<header class="tt-head">
-    <div class="tt-title"><span class="tt-mark">${tutorOwlSvg("owl-mini")}</span><div><strong>CFA Tutor</strong><span>${sub || (cfg.model ? esc(cfg.model) : "Gemini")}</span></div></div>
+    <div class="tt-title"><span class="tt-mark">${tutorOwlSvg("owl-mini")}</span><div><strong>CFA Tutor</strong><span>${sub || esc(tutorModel(cfg))}</span></div></div>
     <div class="tt-tools">
       ${TUTOR.view === "chat" && cfg.key ? `<button class="icon-btn" data-tt="new" title="New chat" aria-label="New chat">${icon("plus", 18)}</button>` : ""}
-      ${cfg.key ? `<button class="icon-btn" data-tt="${TUTOR.view === "settings" ? "chat" : "settings"}" title="Settings" aria-label="Settings">${icon(TUTOR.view === "settings" ? "back" : "settings", 18)}</button>` : ""}
       <button class="icon-btn" data-tt="close" title="Close" aria-label="Close">${icon("x", 18)}</button>
     </div>
   </header>`;
@@ -563,27 +568,6 @@ function tutorRender() {
         <button class="btn btn-primary btn-block" id="tt-key-save">Save and start</button>
         <p class="text-3 small">The key is saved only in this browser, and every account on it can use the tutor (each account keeps its own chat). Messages go from your browser straight to Google; the free tier has a daily limit.</p>
         <p class="text-3 small">Have the Question Bank access link? Open it in this browser: if the site's owner has shared the tutor key with it, the tutor sets itself up and you can skip this.</p>
-      </div>`;
-    tutorBind(p);
-    return;
-  }
-  if (TUTOR.view === "settings") {
-    const models = cfg.models || [];
-    p.innerHTML = `${tutorHeadHtml("Settings")}
-      <div class="tt-body tt-setup">
-        <label class="field"><span class="field-label">Model</span>
-          <select class="select" id="tt-model">${(models.length ? models : [{ id: cfg.model, name: cfg.model }]).map(m => `<option value="${esc(m.id)}" ${m.id === cfg.model ? "selected" : ""}>${esc(m.name)} · ${esc(m.id)}</option>`).join("")}</select></label>
-        <p class="text-3 small">Flash is fast and has the largest free allowance. Pro thinks harder but its free allowance is small; if it runs out, the tutor falls back to the next model.</p>
-        <label class="check-row"><input type="checkbox" id="tt-scope" ${cfg.scope === "all" ? "" : "checked"}><span><strong>Only CFA and finance</strong><br><span class="text-3 small">The tutor politely declines questions on other subjects.</span></span></label>
-        <div class="row-gap">
-          <button class="btn btn-secondary btn-sm" id="tt-refresh">${icon("pulse", 16)} Refresh model list</button>
-          <button class="btn btn-soft-danger btn-sm" id="tt-forget">${icon("trash", 16)} Remove key from this browser</button>
-        </div>
-        <p class="text-3 small">Key: <span class="mono">…${esc((cfg.key || "").slice(-4))}</span> · manage your keys at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a></p>
-        ${cfg.from ? `<p class="text-3 small">This key came with the Question Bank: every browser that unlocks the Question Bank sets up the tutor by itself.</p>`
-          : typeof qbkGet === "function" && qbkGet() ? `<div class="tt-share"><strong>Use this key on your other devices</strong>
-          <p class="text-3 small">Download the key sealed with the Question Bank access key and publish it with the question packs. Any browser that unlocks the Question Bank then sets up the tutor by itself, for every account in it. Anyone with the access key can then use this Gemini key.</p>
-          <button class="btn btn-secondary btn-sm" id="tt-seal">${icon("download", 16)} Download sealed key</button></div>` : ""}
       </div>`;
     tutorBind(p);
     return;
@@ -654,7 +638,6 @@ function tutorBind(p) {
   p.querySelectorAll("[data-tt]").forEach(b => b.onclick = async () => {
     const act = b.dataset.tt;
     if (act === "close") tutorClose();
-    else if (act === "settings" || act === "chat") { TUTOR.view = act; tutorRender(); }
     else if (act === "unctx") { TUTOR.ctx = null; tutorRender(); }
     else if (act === "stop") { if (TUTOR.abort) TUTOR.abort.abort(); }
     else if (act === "send") { const ta = document.getElementById("tt-input"); if (ta) tutorSend(ta.value, TUTOR.ctx); }
@@ -681,7 +664,7 @@ function tutorBind(p) {
     try {
       const { models, auth } = await tutorProbe(key);
       if (!models.length) return fail("This key works, but no chat models are available to it.");
-      tutorSaveCfg({ key, model: models[0].id, models, auth });
+      tutorSaveCfg({ key, model: tutorModel({ models }), models, auth });
       try { localStorage.removeItem("cfaStudy_tutor_skip"); } catch (e) { /* ignore */ }
       TUTOR.view = "chat"; toast("CFA Tutor is ready");
       tutorRender();
@@ -690,31 +673,4 @@ function tutorBind(p) {
   };
   const keyIn = document.getElementById("tt-key");
   if (keyIn) keyIn.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); save.click(); } };
-  const sc = document.getElementById("tt-scope");
-  if (sc) sc.onchange = () => { const c = tutorCfg(); c.scope = sc.checked ? "finance" : "all"; tutorSaveCfg(c); toast(sc.checked ? "The tutor now answers only CFA and finance questions" : "The tutor now answers any question"); };
-  const sel = document.getElementById("tt-model");
-  if (sel) sel.onchange = () => { const c = tutorCfg(); c.model = sel.value; tutorSaveCfg(c); TUTOR.note = ""; toast(`Model: ${sel.value}`); };
-  const ref = document.getElementById("tt-refresh");
-  if (ref) ref.onclick = async () => {
-    const c = tutorCfg();
-    try { const pr = await tutorProbe(c.key, c.auth); c.models = pr.models; c.auth = pr.auth; if (!c.models.some(m => m.id === c.model) && c.models.length) c.model = c.models[0].id; tutorSaveCfg(c); toast(`${c.models.length} models available`); tutorRender(); }
-    catch (e) { toast(tutorErrText(e), "error"); }
-  };
-  const fg = document.getElementById("tt-forget");
-  if (fg) fg.onclick = async () => {
-    if (!await confirmDialog({ title: "Remove the Gemini key?", message: "The tutor stops working for every account in this browser until a key is pasted again. Chats stay.", confirmText: "Remove", danger: true })) return;
-    const from = tutorCfg().from;
-    try { localStorage.removeItem(TUTOR_CFG()); if (from) localStorage.setItem("cfaStudy_tutor_skip", from); } catch (e) { /* ignore */ }
-    TUTOR.view = "setup"; tutorRender();
-  };
-  const seal = document.getElementById("tt-seal");
-  if (seal) seal.onclick = async () => {
-    seal.disabled = true;
-    try {
-      const out = await qbkSealTutor();
-      downloadFile("cfa-tutor-key.sealed.json", JSON.stringify(out, null, 1), "application/json");
-      toast("Sealed key downloaded: publish it with the question packs");
-    } catch (e) { toast(e.message === "bad-key" ? "The Question Bank access key on this browser is not valid" : "Could not seal the key — check your connection", "error"); }
-    seal.disabled = false;
-  };
 }
