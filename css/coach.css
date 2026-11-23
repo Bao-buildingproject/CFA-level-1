@@ -166,3 +166,17 @@
 .ht-notice a { white-space: nowrap; }
 .ht-notice-x { flex: none; margin: -4px -6px -4px 0; width: 32px; height: 32px; border: 0; border-radius: 999px; background: none; color: var(--text-3); font-size: 1.25rem; line-height: 1; cursor: pointer; }
 .ht-notice-x:hover, .ht-notice-x:focus-visible { color: var(--text); background: color-mix(in srgb, currentColor 10%, transparent); }
+.ht-months td, .ht-months th { white-space: nowrap; }
+.ht-months td:not(:first-child) { color: var(--text-2); }
+.ht-months td b { color: var(--text); font-weight: 600; }
+.ht-nw { white-space: nowrap; }
+/* grid items in Hoa Tiêu pages never grow past their column (wide tables scroll inside their card) */
+.co-page .grid > * { min-width: 0; }
+@media (max-width: 520px) {
+  .ht-sm-hide { display: none; }
+  .ht-topic-table th, .ht-topic-table td { padding-left: 5px; padding-right: 5px; }
+  .ht-topic-table .badge { white-space: normal; text-align: left; line-height: 1.3; }
+  .ht-months th, .ht-months td { padding-left: 5px; padding-right: 5px; }
+  .ht-months th { letter-spacing: 0.06em; }
+  .ht-months td { font-size: 0.85rem; }
+}

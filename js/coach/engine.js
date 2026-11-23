@@ -719,9 +719,10 @@
     const workDays = days.filter(d => d.minutes).length;
     const suggestedHours = deferredMinutes > 0 && workDays ? Math.ceil(((capacity + deferredMinutes * 1.1) / workDays) / 30) / 2 : null;
     if (deferredMinutes > 0) warnings.push(`Với ${vn(round(profile.hoursPerDay || 2, 1))} giờ/ngày, còn khoảng ${vn(round(deferredMinutes / 60, 1))} giờ nội dung cần học chưa xếp được vào lịch. Hãy tăng lên khoảng ${vn(suggestedHours)} giờ/ngày, thêm ngày học hoặc dời ngày thi; nếu không, các mục ưu tiên thấp nhất sẽ chưa được học.`);
-    const neededH = (learnTotal + practiceEst + mockNeed) / 60;
-    if (freeMinutes >= 600) notes.push(`Kế hoạch để trống khoảng ${round(freeMinutes / 60, 0)} giờ vì nhu cầu ước tính (${round(baseNeed / 60, 0)} giờ, mỗi module đã được học sâu hơn mức chuẩn) thấp hơn thời gian bạn có (${round(capacity / 60, 0)} giờ). Bạn có thể giảm số giờ mỗi ngày, hoặc dùng thời gian trống cho Question Bank.`);
-    if (capacity / 60 < neededH * 0.9) warnings.push(`Thời gian khả dụng (${round(capacity / 60, 0)} giờ) ít hơn nhu cầu ước tính (${round(neededH, 0)} giờ, dựa trên giả định khoảng ${CONFIG.recommendedHours} giờ cho cả chương trình Level I).`);
+    // the estimated need at the normal depth (first learning + module practice + mocks); the same figure everywhere
+    const neededH = baseNeed / 60;
+    if (freeMinutes >= 600) notes.push(`Kế hoạch để trống khoảng ${round(freeMinutes / 60, 0)} giờ: bạn có ${round(capacity / 60, 0)} giờ, trong khi học, luyện và thi thử ở mức chuẩn cần khoảng ${round(neededH, 0)} giờ; lịch đã cho mỗi module học sâu hơn và thêm ôn tập, kiểm tra. Bạn có thể giảm số giờ mỗi ngày, hoặc dùng thời gian trống cho Question Bank.`);
+    if (capacity / 60 < neededH * 0.9) warnings.push(`Thời gian khả dụng (${round(capacity / 60, 0)} giờ) ít hơn nhu cầu ước tính (${round(neededH, 0)} giờ cho học, luyện và thi thử, dựa trên giả định khoảng ${CONFIG.recommendedHours} giờ cho cả chương trình Level I).`);
     if (wantedQ - placedQ > 40) notes.push(`Ngân hàng câu hỏi tích hợp không còn đủ câu chưa làm cho một số module (thiếu khoảng ${wantedQ - placedQ} câu). Nạp các set Question Bank trên thiết bị này để kế hoạch có thêm câu luyện.`);
     const phaseNames = ["Nền tảng & lấp lỗ hổng", "Học nội dung chính", "Củng cố & luyện tập", "Thi thử & ôn cuối"];
     const phases = phaseNames.map((name, i) => { const ds = days.filter(d => d.phase === i && d.minutes); return { id: i + 1, name, from: ds.length ? ds[0].date : null, to: ds.length ? ds[ds.length - 1].date : null, minutes: sum(ds, d => d.minutes) }; });

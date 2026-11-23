@@ -18,7 +18,8 @@
   const UI = { tab: "today", topic: null, step: 1, qbTried: null, month: null, delegated: false };
   const today = () => HT.today();
   const dmy = s => s ? s.split("-").reverse().join("/") : "";
-  const fmtH = min => { const h = Math.round(min / 6) / 10; return `${String(h).replace(".", ",")} giờ`; };
+  const hNum = min => String(Math.round(min / 6) / 10).replace(".", ",");
+  const fmtH = min => `${hNum(min)} giờ`;
   const DOWS = [["1", "T2"], ["2", "T3"], ["3", "T4"], ["4", "T5"], ["5", "T6"], ["6", "T7"], ["0", "CN"]];
   const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
   const BAND = { strong: ["Vững", "success"], developing: ["Đang tiến bộ", "application"], needs: ["Cần cải thiện", "warning"], weak: ["Yếu", "danger"], unknown: ["Chưa đủ bằng chứng", ""] };
@@ -386,7 +387,7 @@
     const c = C(), plan = HT.plan(); if (!plan) return noPlan("Kế hoạch của bạn");
     const an = HT.analysis(), ver = c.ver[c.ver.length - 1] || {};
     const firstDays = plan.days.filter(d => d.date >= today()).slice(0, 7);
-    const byTopic = plan.summary.byTopic, totT = Object.values(byTopic).reduce((s, x) => s + x, 0) || 1;
+    const byTopic = plan.summary.byTopic, maxT = Math.max(1, ...Object.values(byTopic));
     const lastDiag = c.hist.filter(h => CE.DIAG_KINDS.includes(h.kind)).slice(-1)[0];
     const sure = t => !["insufficient", "low"].includes(an.topics[t].confidence);
     const weak = TOPICS.filter(t => ["weak", "needs"].includes(an.topics[t.id].band)).map(t => t.id);
@@ -409,7 +410,7 @@
     view.innerHTML = `${head(`Kế hoạch học của ${esc(c.profile.name || activeProfile().name)}`, `Phiên bản ${c.ver.length} · tạo ${dmy(plan.createdAt)} · ${esc(HT.REASON_LABEL[ver.reason] || "")} · thi ngày ${dmy(plan.examDate)}`, exportBtns(), "plan", { onPlan: true })}
       <div class="grid grid-stats">
         <div class="card stat"><span class="stat-label">Còn</span><span class="stat-value">${plan.daysLeft}<small> ngày</small></span><span class="stat-hint">${plan.days.filter(d => d.minutes).length} ngày học</span></div>
-        <div class="card stat"><span class="stat-label">Thời gian khả dụng</span><span class="stat-value">${fmtH(plan.capacity)}</span><span class="stat-hint">nhu cầu ước tính ${fmtH(plan.neededMinutes || 0)}</span></div>
+        <div class="card stat"><span class="stat-label">Thời gian khả dụng</span><span class="stat-value">${fmtH(plan.capacity)}</span><span class="stat-hint">cần ≈ ${fmtH(plan.neededMinutes || 0)} cho học, luyện, thi thử</span></div>
         <div class="card stat"><span class="stat-label">Đã xếp lịch</span><span class="stat-value">${fmtH(plan.placedMinutes)}</span><span class="stat-hint">${plan.freeMinutes >= 60 ? `${fmtH(plan.freeMinutes)} để trống` : "gần như dùng hết thời gian"}</span></div>
         <div class="card stat"><span class="stat-label">Thi thử 180 câu</span><span class="stat-value">${plan.mocks}</span><span class="stat-hint">${plan.deferredMinutes ? `${fmtH(plan.deferredMinutes)} chưa xếp được` : "đủ nội dung"}</span></div>
       </div>
@@ -417,13 +418,13 @@
       <section class="card section"><div class="card-head"><h2>Vì sao kế hoạch như vậy</h2></div><ul class="ht-why">${why.map(w => `<li>${esc(w)}</li>`).join("")}</ul>
         ${ver.diff && ver.diff.length && c.ver.length > 1 ? `<p class="text-2 small"><b>Thay đổi so với phiên bản trước:</b> ${ver.diff.map(esc).join(" ")}</p>` : ""}</section>
       <section class="card section"><div class="card-head"><h2>Bốn giai đoạn</h2></div><div class="ht-phases">${plan.phases.map((ph, i) => `<div class="ht-phase ${ph.from ? "" : "off"}">
-          <div class="ht-phase-head"><span class="ht-key ph${i + 1}"></span><b>${i + 1}. ${PHASE[i]}</b></div><span class="text-3 small">${ph.from ? `${dmy(ph.from)} → ${dmy(ph.to)} · ${fmtH(ph.minutes)}` : "không cần giai đoạn này"}</span><span class="text-2 small">${PHASE_TXT[i]}</span></div>`).join("")}</div>
+          <div class="ht-phase-head"><span class="ht-key ph${i + 1}"></span><b>${i + 1}. ${PHASE[i]}</b></div><span class="text-3 small">${ph.from ? `<span class="ht-nw">${dmy(ph.from)} → ${dmy(ph.to)}</span> · <span class="ht-nw">${fmtH(ph.minutes)}</span>` : "không cần giai đoạn này"}</span><span class="text-2 small">${PHASE_TXT[i]}</span></div>`).join("")}</div>
         <div class="ht-phase-strip">${plan.phases.map((ph, i) => ph.minutes ? `<i class="ph${i + 1}" style="flex-grow:${ph.minutes}" title="${PHASE[i]}"></i>` : "").join("")}</div></section>
       <div class="grid grid-2 section">
-        <section class="card"><div class="card-head"><h2>Thời gian theo topic</h2></div>${bars(TOPICS.map(t => ({ label: `${t.id} (đề ${t.weight})`, pct: 100 * (byTopic[t.id] || 0) / totT, text: fmtH(byTopic[t.id] || 0) })))}
+        <section class="card"><div class="card-head"><h2>Thời gian theo topic</h2></div>${bars(TOPICS.map(t => ({ label: `${t.id} (đề ${t.weight})`, pct: 100 * (byTopic[t.id] || 0) / maxT, text: fmtH(byTopic[t.id] || 0) })))}
           <p class="text-3 small">Theo tỷ trọng đề ${CURRICULUM_YEAR} và lỗ hổng của bạn; mọi môn đều có thời gian.</p></section>
-        <section class="card"><div class="card-head"><h2>Theo tháng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Tháng</th><th class="num">Tổng</th><th class="num">Học</th><th class="num">Luyện/KT</th><th class="num">Ôn</th><th class="num">Thi thử</th></tr></thead><tbody>
-          ${Object.entries(months).map(([k, v]) => `<tr><td>${k.slice(5)}/${k.slice(0, 4)}</td><td class="num">${fmtH(v.min)}</td><td class="num">${fmtH(v.learn)}</td><td class="num">${fmtH(v.practice)}</td><td class="num">${fmtH(v.review)}</td><td class="num">${fmtH(v.mock)}</td></tr>`).join("")}</tbody></table></div></section>
+        <section class="card"><div class="card-head"><h2>Theo tháng</h2><span class="text-3 small">đơn vị: giờ</span></div><div class="table-wrap"><table class="table ht-months"><thead><tr><th>Tháng</th><th class="num">Tổng</th><th class="num">Học</th><th class="num">Luyện/KT</th><th class="num">Ôn</th><th class="num">Thi thử</th></tr></thead><tbody>
+          ${Object.entries(months).map(([k, v]) => `<tr><td>${k.slice(5)}/${k.slice(0, 4)}</td>${[v.min, v.learn, v.practice, v.review, v.mock].map((m, j) => `<td class="num">${j === 0 ? "<b>" : ""}${hNum(m)}${j === 0 ? "</b>" : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>
       </div>
       <section class="card section"><div class="card-head"><h2>7 ngày tới</h2><a class="card-link" href="#/coach/plan">Theo ngày</a></div><div class="co-week">${firstDays.map(d => `<div class="co-daycard ${d.date === today() ? "now" : ""}"><b>${WD[CE.weekday(d.date)]} ${dmy(d.date).slice(0, 5)}</b><span class="text-3 small">${d.minutes ? `${d.tasks.reduce((s, t) => s + t.min, 0)} phút` : "nghỉ"}</span>${d.tasks.map(t => `<div class="co-mini co-type-${t.type} ${t.status !== "todo" ? "done" : ""}">${esc(HT.label(t))}</div>`).join("")}</div>`).join("")}</div></section>
       <section class="card section"><div class="card-head"><h2>Hôm nay · ${WD[CE.weekday(today())]} ${dmy(today())}</h2></div>${dayHtml(plan.days.find(d => d.date === today()))}</section>
