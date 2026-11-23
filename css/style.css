@@ -1068,10 +1068,13 @@ a.ag-row:hover .ag-label { color: var(--brass-ink); }
    The background art is the supplied mockup; the card is live HTML on top. */
 body.gated .sidebar, body.gated .mobile-header, body.gated .bottom-nav { display: none !important; }
 body.gated .app { display: block; }
+/* The sign-in page is exactly one screen: anything taller scrolls inside it, never past it into a blank band */
+body.gated { overflow: hidden; }
+body.gated .main-wrap, body.gated .main { height: 100dvh; overflow: hidden; }
 body.gated .main-wrap { margin: 0; padding: 0; width: 100%; max-width: none; }
 body.gated .main { padding: 0; max-width: none; }
 
-.gate { --navy: #0f2347; position: relative; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 6vh 16px 26px;
+.gate { --navy: #0f2347; position: relative; height: 100vh; height: 100dvh; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 6vh 16px 26px;
   background: #f4f5f6 url(../img/gate-m.jpg) center bottom / cover no-repeat; color: var(--navy); color-scheme: light; overflow-x: hidden; }
 .gate-stage { position: relative; width: 100%; max-width: 440px; font-size: 14px; }
 .gate-ext { text-align: center; margin-bottom: 14px; }
