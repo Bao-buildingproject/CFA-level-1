@@ -7,6 +7,7 @@ const view = document.getElementById("view");
 const NAV_ITEMS = [
   { route: "dashboard", label: "Dashboard", icon: "home", group: "Plan" },
   { route: "study", label: "Study plan", icon: "calendar", group: "Plan" },
+  { route: "coach", label: "Hoa tiêu · AI Coach", icon: "target", group: "Plan" },
   { route: "analysis", label: "Weak spots", icon: "pulse", group: "Plan" },
   { route: "schweser", label: "SchweserNotes", icon: "book", group: "Learn" },
   { route: "curriculum", label: "Curriculum", icon: "layers", group: "Learn" },
@@ -409,6 +410,7 @@ const ROUTES = {
   trading: (a, b, c) => renderArena(a, b, c),
   bond: (a, b, c) => renderBond(a, b, c),
   alt: (a, b, c) => renderAlt(a, b, c),
+  coach: (a, b, c) => renderCoach(a, b, c),
   game: (sub, a, b) => renderGame(sub, a, b),
   calc: () => renderCalc(),
   profiles: renderProfiles
@@ -424,6 +426,7 @@ function renderMore() {
     ["trading/derivatives", "candles", "Trading Arena · Phái sinh", "Long/Short hợp đồng tương lai · 100 triệu ₫ ảo"],
     ["bond", "layers", "Bond Empire · Trái phiếu", "Game Fixed Income: 7 chương, định giá, duration, tín dụng"],
     ["alt", "globe", "Alternative Empire · Đầu tư thay thế", "Game quản lý quỹ: PE, BĐS, hạ tầng, hedge fund, tài sản số"],
+    ["coach", "target", "Hoa tiêu · AI Coach", "Lộ trình học riêng: chẩn đoán, kế hoạch, ôn ngắt quãng"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
@@ -453,6 +456,8 @@ function router() {
   if (typeof arenaStop === "function") arenaStop();   // the derivatives market clock and chart
   if (typeof bondStop === "function") bondStop();     // Bond Empire's market clock
   if (typeof altStop === "function") altStop();       // Alternative Empire's open dialog
+  if (typeof coachStop === "function") coachStop();   // Hoa Tiêu exam clock
+  document.body.classList.remove("co-page"); window.onkeydown = null;
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();

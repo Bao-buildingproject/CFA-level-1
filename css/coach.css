@@ -1,0 +1,59 @@
+/* Hoa Tiêu · CFA Compass (route #/coach). Uses the site's tokens; nothing here changes other pages. */
+.co-subnav { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.co-subnav a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; font-size: 0.86rem; font-weight: 600; color: var(--text-2); border: 1px solid transparent; }
+.co-subnav a:hover { color: var(--text); background: var(--surface); }
+.co-subnav a.active { color: var(--primary-text); background: var(--primary); }
+.co-steps-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; font-size: 0.8rem; color: var(--text-3); }
+.co-steps-bar span { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); }
+.co-steps-bar span.on { color: var(--primary-text); background: var(--primary); border-color: var(--primary); font-weight: 600; }
+.co-steps-bar span.done { color: var(--success); border-color: var(--success); }
+.co-dows { display: flex; flex-wrap: wrap; gap: 8px; }
+.co-topics { display: grid; gap: 12px; margin-top: 12px; }
+.co-topic { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); }
+.co-topic-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+.co-topic-row > .select { flex: 1 1 220px; min-width: 0; }
+.co-rate { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-2); white-space: nowrap; }
+.co-rate .select { width: auto; }
+.co-det { margin-top: 8px; font-size: 0.86rem; }
+.co-det summary { cursor: pointer; color: var(--text-2); }
+.co-modrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--border); }
+.co-modrow .select { width: auto; max-width: 52%; }
+.co-assess { display: grid; gap: 10px; }
+.co-assess-card { display: grid; gap: 3px; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; background: var(--surface); }
+.co-assess-card input { position: absolute; opacity: 0; pointer-events: none; }
+.co-assess-card small { color: var(--text-2); }
+.co-assess-card.on { border-color: var(--primary); background: var(--primary-soft); }
+.co-ready { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.co-radar { width: 100%; max-width: 340px; display: block; margin: 0 auto; color: var(--text); }
+.co-radar-fill { fill: var(--primary); fill-opacity: 0.22; stroke: var(--primary); stroke-width: 1.6; }
+.co-recos { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.co-reco { box-shadow: none; }
+.co-steps { margin: 8px 0 0 18px; padding: 0; display: grid; gap: 4px; }
+.linklike { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); text-decoration: underline; cursor: pointer; }
+.co-tasks { display: grid; gap: 10px; }
+.co-task { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 13px; background: var(--surface); }
+.co-task.done { opacity: 0.72; border-style: dashed; }
+.co-task-main { display: flex; gap: 10px; align-items: flex-start; }
+.co-task-act { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.co-day { padding: 8px 0; border-top: 1px solid var(--border); }
+.co-day ul { margin: 4px 0 0 18px; padding: 0; font-size: 0.88rem; }
+.co-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.co-daycard { border: 1px solid var(--border); border-radius: var(--radius); padding: 9px; display: grid; gap: 5px; align-content: start; background: var(--surface); }
+.co-daycard.now { border-color: var(--primary); }
+.co-mini { font-size: 0.74rem; line-height: 1.3; padding: 4px 6px; border-radius: 4px; background: var(--primary-soft); }
+.co-mini.done { text-decoration: line-through; opacity: 0.6; }
+.co-phase { margin-bottom: 14px; }
+.co-hist { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 5px; align-items: end; height: 110px; }
+.co-hist-col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; align-items: center; gap: 4px; }
+.co-hist-col i { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--primary); display: block; }
+.co-hist-col span { font-size: 0.66rem; color: var(--text-3); }
+.co-sel td { background: var(--primary-soft); }
+.co-review { border-top: 1px solid var(--border); padding: 10px 0; }
+.co-review summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.callout.warn { border-color: var(--warning); background: var(--warning-soft); }
+@media (max-width: 760px) {
+  .co-week { grid-template-columns: 1fr; }
+  .co-recos { grid-template-columns: 1fr; }
+  .co-modrow { flex-direction: column; align-items: stretch; }
+  .co-modrow .select { max-width: none; }
+}
