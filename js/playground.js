@@ -57,6 +57,19 @@ const PLAY_ICONS = {
     <path d="M11 52h42" stroke="#1FA97A" stroke-width="2.4" stroke-linecap="round"/>
     <circle cx="28" cy="31" r="3.2" fill="#F1D58E"/><circle cx="53" cy="17" r="3.2" fill="#F1D58E"/>
     <rect width="64" height="64" rx="15" fill="url(#${p}s)"/>`,
+  // Alternative Empire: a gold capital "A" over a globe on deep navy
+  alt: p => `<defs>
+      <linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2846"/><stop offset=".6" stop-color="#101B30"/><stop offset="1" stop-color="#0B1220"/></linearGradient>
+      <linearGradient id="${p}g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#A98747"/><stop offset="1" stop-color="#EBD39E"/></linearGradient>
+      <linearGradient id="${p}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="15" fill="url(#${p}b)"/>
+    <circle cx="32" cy="34" r="19" fill="none" stroke="#F6F4F0" stroke-opacity=".12" stroke-width="1.4"/>
+    <path d="M13 34h38M32 15c-7 6-7 32 0 38M32 15c7 6 7 32 0 38" fill="none" stroke="#F6F4F0" stroke-opacity=".12" stroke-width="1.2"/>
+    <path d="M19 49 32 14l13 35" fill="none" stroke="url(#${p}g)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M24 38h16" stroke="#F6F4F0" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="32" cy="14" r="3.2" fill="#EBD39E"/><circle cx="48" cy="22" r="2.4" fill="#3CC48D"/>
+    <rect width="64" height="64" rx="15" fill="url(#${p}s)"/>`,
   // Trading Arena: long and short candles on a terminal-dark tile
   arena: p => `<defs>
       <linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232C44"/><stop offset=".55" stop-color="#121829"/><stop offset="1" stop-color="#0B0F19"/></linearGradient>
@@ -85,7 +98,8 @@ function playItems() {
       badge: !fw ? "" : fw.xp > 0 ? `${fw.xp} REP` : fw.seen ? "" : "MỚI" },
     { id: "trade", href: "#/trade", name: "Giả lập chứng khoán", sub: "tiền ảo, giá thật" },
     { id: "arena", href: "#/trading/derivatives", name: "Trading Arena", sub: "phái sinh, Long/Short" },
-    { id: "bond", href: "#/bond", name: "Bond Empire", sub: "trái phiếu, The Yield War" }
+    { id: "bond", href: "#/bond", name: "Bond Empire", sub: "trái phiếu, The Yield War" },
+    { id: "alt", href: "#/alt", name: "Alternative Empire", sub: "đầu tư thay thế, The Capital Game" }
   ];
 }
 
