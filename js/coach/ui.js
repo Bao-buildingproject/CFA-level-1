@@ -444,7 +444,7 @@
       <p>Hoa Tiêu · phiên bản ${c.ver.length} · tạo ${dmy(plan.createdAt)} · thi ngày ${dmy(plan.examDate)} · ${fmtH(plan.capacity)} khả dụng, ${fmtH(plan.placedMinutes)} đã xếp.</p>
       <table class="ht-ptable"><thead><tr><th>Giai đoạn</th><th>Từ</th><th>Đến</th><th>Giờ</th></tr></thead><tbody>${plan.phases.map((ph, i) => `<tr><td>${i + 1}. ${PHASE[i]}</td><td>${dmy(ph.from) || "—"}</td><td>${dmy(ph.to) || "—"}</td><td>${fmtH(ph.minutes)}</td></tr>`).join("")}</tbody></table>
       ${plan.warnings.map(w => `<p class="ht-pwarn">⚠ ${esc(w)}</p>`).join("")}
-      ${weeks.map(w => `<section class="ht-pweek"><h2>Tuần từ ${dmy(w.start)}</h2>${w.days.map(d => `<div class="ht-pday"><b>${WD[CE.weekday(d.date)]} ${dmy(d.date)}</b>${d.minutes ? CE.daySessions(d, prof).map(s => `<div class="ht-psess"><span>${s.start}–${s.end}</span><ul>${s.tasks.map(t => `<li>☐ ${esc(HT.label(t))} <i>(${t.min}′)</i></li>`).join("")}</ul></div>`).join("") : `<span class="text-3"> — nghỉ</span>`}</div>`).join("")}</section>`).join("")}
+      ${weeks.map(w => `<section class="ht-pweek"><h2>Tuần từ ${dmy(w.start)}</h2><div class="ht-pdays">${w.days.map(d => `<div class="ht-pday"><b>${WD[CE.weekday(d.date)]} ${dmy(d.date)}</b>${d.minutes ? CE.daySessions(d, prof).map(s => `<div class="ht-psess"><span>${s.start}–${s.end}</span><ul>${s.tasks.map(t => `<li>☐ ${esc(HT.label(t))} <i>(${t.min}′)</i></li>`).join("")}</ul></div>`).join("") : `<span class="text-3"> — nghỉ</span>`}</div>`).join("")}</div></section>`).join("")}
       <p class="text-3 small">Kế hoạch được tạo tự động từ dữ liệu học tập của bạn; Hoa Tiêu sẽ điều chỉnh khi có kết quả mới. Không phải tài liệu của CFA Institute.</p></div>`;
     document.getElementById("ht-print").onclick = () => window.print();
   }
