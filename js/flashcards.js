@@ -128,6 +128,7 @@ function renderFlashcards() {
 
   view.innerHTML = `
     ${pageHeader("Flashcards", "Leitner spaced repetition · weakest cards first")}
+    ${typeof flashTabs === "function" ? flashTabs("mine") : ""}
 
     <div class="grid grid-2">
       <div class="card">

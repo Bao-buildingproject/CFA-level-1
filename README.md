@@ -10,7 +10,7 @@ A personal study app for the CFA Level I exam (May 2027). Plain HTML, CSS and Ja
 - **SchweserNotes** and **Curriculum** pages — reading checklists per module (book PDFs stay private in Google Drive)
 - **Dashboard** — exam countdown with a guilloché progress seal and the 25-week roadmap, the next module to study, today's tasks, and a ledger of the ten topics (exam weight, module status strip, accuracy, completion)
 - **Study plan** — 10 topics, chapters with status (Not started → Learning → Done → Reviewed), CFA Learning Ecosystem score and mistake log
-- **Flashcards** — Leitner spaced repetition (5 boxes: 1/2/4/8/16 days), CSV import
+- **Flashcards** — two tabs. *My cards*: Leitner spaced repetition (5 boxes: 1/2/4/8/16 days), CSV import. *Financial English* (`#/cards/english`): 12 topics × 22 cards = 264 cards of English for finance at CFA Level I (Financial Fundamentals, Financial Statements, Corporate Finance, Equity, Fixed Income, Derivatives, Portfolio Management, Economics, Banking, Quantitative Methods, Risk Management, Academic Financial English), each topic from beginner to advanced with four card types — vocabulary (term, IPA, Vietnamese meaning, English definition, Vietnamese explanation, example, related terms, CFA application), definition (with formula and conventions), Vietnamese → English, and multiple choice (A–D, Submit, then right/wrong with explanations in English and Vietnamese; the answer is not in the page before Submit). Large card with a 3D flip, Previous / Next / Flip / Shuffle, I Know / Study Again / Next Card, Card x/22 with progress, known and to-review counts, Review Mistakes, Restart Deck, an end-of-deck screen, and a 10-question quiz per topic with score, explanations, best score and a list of missed questions. Progress, shuffled order and a quiz in progress are saved in the account and survive a reload; damaged saved data or a deck file that fails to load is reported without breaking the page. Docs: [docs/financial-english.md](docs/financial-english.md)
 - **Practice** — A/B/C questions with instant feedback (why correct, why not, exam trap, BA II Plus steps), mistake log, flags, CSV import
 - **Question Bank** — your own question sets (about 1,900 questions in 92 sets over the 10 topics), answered on the site with explanations, tables and figures; mark, redo and build mock tests from them. The sets are published only in encrypted form (`qb/*.bin`, AES-256-GCM, key derived with PBKDF2): enter the private access key once per browser and they download by themselves, for every account in that browser. Without the key the files cannot be read; the key is not in this repository
 - **Mock exams** — timed mocks built from your question bank, weighted by exam topic weights: Mini (30 Q / 45 min), Session (90 Q / 2h15), Full (180 Q, 2 sessions), Custom. Resume after reload, auto-submit at time-up, results by topic and answer review
@@ -60,6 +60,9 @@ js/storage.js        data model, save/load, backup
 js/components.js     icons, toast, dialog, rosette, roadmap, meters
 js/progress.js       study plan & topic pages
 js/flashcards.js     Leitner flashcards
+js/fe/engine.js      Financial English logic: card checks, study order, shuffle, marks, review list, quiz, saved progress
+js/fe/ui.js          Financial English pages (topics, study, quiz, results) inside Flashcards
+js/fe/data/*.js      Financial English decks, one file per topic (loaded when the page is first opened)
 js/quiz.js           question bank & practice
 js/qbank-*.js        Question Bank: topics and sets, answering, encrypted auto-load (qbank-sync.js)
 qb/                  encrypted Question Bank packs + manifest (unreadable without the access key)
@@ -98,6 +101,6 @@ js/calc.js           BA II Plus page, floating calculator, worked examples
 css/calc.css         calculator styles
 css/game.css         game styles
 tools/widata-fw.js   WiData fs_nonfin rows → game file (mapping only, no data)
-tests/               node:test suites (game, Trading Arena, Bond Empire, Alternative Empire, BA II Plus, Hoa Tiêu, storage)
+tests/               node:test suites (game, Trading Arena, Bond Empire, Alternative Empire, BA II Plus, Hoa Tiêu, Financial English, storage)
 js/app.js            navigation, dashboard, settings, router
 ```

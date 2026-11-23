@@ -411,7 +411,7 @@ const ROUTES = {
   module: id => renderModule(id),
   schweser: renderSchweser,
   curriculum: renderCurriculum,
-  cards: renderFlashcards,
+  cards: (a, b, c) => (a === "english" && typeof renderFinEnglish === "function" ? renderFinEnglish(b, c) : renderFlashcards()),   // #/cards/english… = Financial English
   flashcards: renderFlashcards,      // old link
   practice: renderQuestions,
   questions: renderQuestions,        // old link
@@ -445,7 +445,8 @@ function renderMore() {
     ["alt", "globe", "Alternative Empire · Đầu tư thay thế", "Game quản lý quỹ: PE, BĐS, hạ tầng, hedge fund, tài sản số"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
-    ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
+    ["cards", "cards", "Flashcards", `${todayQueue().length} to review today · your own cards`],
+    ["cards/english", "globe", "Financial English", "12 chủ đề tiếng Anh tài chính · lật thẻ, quiz A–D"],
     ["profiles", "user", "Account", activeProfile().name],
     ["settings", "settings", "Settings", "Backup, exam date, theme"],
     ["signout", "logout", "Log out", "Sign out of this device"]
@@ -473,7 +474,7 @@ function router() {
   if (typeof bondStop === "function") bondStop();     // Bond Empire's market clock
   if (typeof altStop === "function") altStop();       // Alternative Empire's open dialog
   if (typeof coachStop === "function") coachStop();   // Hoa Tiêu exam clock
-  document.body.classList.remove("co-page"); window.onkeydown = null;
+  document.body.classList.remove("co-page", "fe-page"); window.onkeydown = null;
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();
