@@ -45,6 +45,18 @@ const PLAY_ICONS = {
     <path d="M11 52 24 43l8 4 17-14" fill="none" stroke="url(#${p}a)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M41.5 33h8v8" fill="none" stroke="url(#${p}a)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
     <rect width="64" height="64" rx="15" fill="url(#${p}s)"/>`,
+  // Bond Empire: a gold yield curve over a navy tile
+  bond: p => `<defs>
+      <linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1B2C4F"/><stop offset=".6" stop-color="#0E1A33"/><stop offset="1" stop-color="#0A1324"/></linearGradient>
+      <linearGradient id="${p}g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#A9853D"/><stop offset="1" stop-color="#F1D58E"/></linearGradient>
+      <linearGradient id="${p}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="15" fill="url(#${p}b)"/>
+    <path d="M10 18h44M10 30h44M10 42h44" stroke="#fff" stroke-opacity=".07"/>
+    <path d="M11 46c8-1 13-7 17-14s9-13 25-15" fill="none" stroke="url(#${p}g)" stroke-width="3.6" stroke-linecap="round"/>
+    <path d="M11 52h42" stroke="#1FA97A" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="28" cy="31" r="3.2" fill="#F1D58E"/><circle cx="53" cy="17" r="3.2" fill="#F1D58E"/>
+    <rect width="64" height="64" rx="15" fill="url(#${p}s)"/>`,
   // Trading Arena: long and short candles on a terminal-dark tile
   arena: p => `<defs>
       <linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232C44"/><stop offset=".55" stop-color="#121829"/><stop offset="1" stop-color="#0B0F19"/></linearGradient>
@@ -72,7 +84,8 @@ function playItems() {
     { id: "fw", href: "#/game/intro", name: "Financial Empire", sub: "điều tra BCTC, cốt truyện",
       badge: !fw ? "" : fw.xp > 0 ? `${fw.xp} REP` : fw.seen ? "" : "MỚI" },
     { id: "trade", href: "#/trade", name: "Giả lập chứng khoán", sub: "tiền ảo, giá thật" },
-    { id: "arena", href: "#/trading/derivatives", name: "Trading Arena", sub: "phái sinh, Long/Short" }
+    { id: "arena", href: "#/trading/derivatives", name: "Trading Arena", sub: "phái sinh, Long/Short" },
+    { id: "bond", href: "#/bond", name: "Bond Empire", sub: "trái phiếu, The Yield War" }
   ];
 }
 

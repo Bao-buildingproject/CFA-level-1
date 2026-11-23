@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { route: "dist", label: "Distributions", icon: "curve", group: "Learn" },
   { route: "trade", label: "Giả lập chứng khoán", icon: "trend", group: "Learn" },
   { route: "trading", href: "#/trading/derivatives", label: "Phái sinh · Trading Arena", icon: "candles", group: "Learn" },
+  { route: "bond", label: "Bond Empire · Trái phiếu", icon: "layers", group: "Learn" },
   { route: "game", label: "Game", icon: "target", group: "Learn" },
   { route: "practice", label: "Practice", icon: "check", group: "Test" },
   { route: "qbank", label: "Question Bank", icon: "flag", group: "Test" },
@@ -405,6 +406,7 @@ const ROUTES = {
   dist: renderDist,
   trade: (sub, sym) => renderTrade(sub, sym),
   trading: (a, b, c) => renderArena(a, b, c),
+  bond: (a, b, c) => renderBond(a, b, c),
   game: (sub, a, b) => renderGame(sub, a, b),
   calc: () => renderCalc(),
   profiles: renderProfiles
@@ -418,6 +420,7 @@ function renderMore() {
     ["qbank", "flag", "Question Bank", "Your question sets · answer them here"],
     ["calc", "calc", "BA II Plus", "Financial calculator · CFA exam keystrokes"],
     ["trading/derivatives", "candles", "Trading Arena · Phái sinh", "Long/Short hợp đồng tương lai · 100 triệu ₫ ảo"],
+    ["bond", "layers", "Bond Empire · Trái phiếu", "Game Fixed Income: 7 chương, định giá, duration, tín dụng"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
@@ -438,11 +441,13 @@ function router() {
   // the game is a console of its own: the study site's navigation steps aside on game pages
   document.body.classList.toggle("fx-mode", currentRoute()[0] === "game" && !isLocked());
   document.body.classList.toggle("ta-mode", currentRoute()[0] === "trading" && !isLocked());   // the derivatives terminal, full screen
+  document.body.classList.toggle("be-mode", currentRoute()[0] === "bond" && !isLocked());      // Bond Empire, full screen
   if (isLocked()) { renderGate(); return; }
   document.body.classList.remove("gated");
   stopMockTimer();
   if (typeof tradeStop === "function") tradeStop();   // price refresh of the stock simulator
   if (typeof arenaStop === "function") arenaStop();   // the derivatives market clock and chart
+  if (typeof bondStop === "function") bondStop();     // Bond Empire's market clock
   session = null;   // leave any flashcard session
   quiz = null;      // leave any practice session
   const [route, a, b, c] = currentRoute();
@@ -657,6 +662,7 @@ async function resetAllAccounts() {
     if (typeof qbiClearProfile === "function") await qbiClearProfile(p.id);
     if (typeof fwClearProfile === "function") fwClearProfile(p.id);
     if (typeof arenaClearProfile === "function") arenaClearProfile(p.id);
+    if (typeof bondClearProfile === "function") bondClearProfile(p.id);
   }
   try {
     [PROFILES_KEY, "cfaStudy_v1", "cfaStudy_last", REMEMBER_KEY].forEach(k => localStorage.removeItem(k));

@@ -266,6 +266,7 @@ function deleteProfile(id) {
   if (typeof qbiClearProfile === "function") qbiClearProfile(id);
   if (typeof fwClearProfile === "function") fwClearProfile(id);
   if (typeof arenaClearProfile === "function") arenaClearProfile(id);
+  if (typeof bondClearProfile === "function") bondClearProfile(id);
   PROFILES.list = PROFILES.list.filter(p => p.id !== id);
   if (PROFILES.active === id) switchProfile(PROFILES.list[0].id);
   saveProfiles();
