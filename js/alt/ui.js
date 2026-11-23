@@ -18,7 +18,13 @@
   const fx = (x, d) => x == null || !isFinite(x) ? "—" : x.toFixed(d == null ? 2 : d);
   const tone = x => x > 0 ? "up" : x < 0 ? "down" : "";
   const chip = (t, cls, title) => `<span class="ae-chip ${cls || ""}"${title ? ` title="${esc(title)}"` : ""}>${t}</span>`;
-  const SIM = () => chip("MÔ PHỎNG", "amber", "Kinh tế, giá và doanh nghiệp đều do mô hình tạo ra; tên doanh nghiệp, quỹ và nhân vật là hư cấu. Không phải dữ liệu thị trường thật.");
+  const LQ = q => W.label(q, AE.G && AE.G.world ? AE.G.world.base : null);
+  const SIM = () => {
+    const rp = AE.G && AE.G.world && AE.G.world.rp;
+    if (!rp) return chip("MÔ PHỎNG", "amber", "Kinh tế, giá và doanh nghiệp đều do mô hình tạo ra; tên doanh nghiệp, quỹ và nhân vật là hư cấu. Không phải dữ liệu thị trường thật.");
+    const live = AE.G.world.q < rp.n - 1;
+    return chip(live ? "THỊ TRƯỜNG THẬT (WiData) + MÔ PHỎNG" : "ĐÃ HẾT DỮ LIỆU THẬT · MÔ PHỎNG", live ? "blue" : "amber", `Giá hàng hóa, lãi suất và lạm phát Mỹ, S&P 500 và VIX theo dữ liệu WiData bạn nhập (${rp.year} → ${rp.last}). Doanh nghiệp, dự án, bất động sản, tín dụng và sự kiện vẫn là mô phỏng.${(AE.G.world.gaps || []).length ? ` Quý vừa qua tệp không có số cho ${gapList(AE.G.world.gaps)}: phần này là số mô phỏng.` : ""}`);
+  };
   const EST = chip("ƯỚC TÍNH", "violet", "Không có giá quan sát được: giá trị theo mô hình/thẩm định (Level 3), chưa thực hiện");
   const MKT = chip("GIÁ THỊ TRƯỜNG MÔ PHỎNG", "blue", "Tài sản có giá giao dịch (mô phỏng)");
   const person = id => C.PEOPLE[id] || { name: id, role: "", color: "#888" };
@@ -70,7 +76,7 @@
     try { localStorage.setItem(KEY(AE.pid, AE.slot), G.serialize(g)); AE.stamp = g.updatedAt; return true; }
     catch (e) { toast("Không lưu được: bộ nhớ trình duyệt đầy. Xóa bớt một ô lưu.", "error"); return false; }
   }
-  window.altClearProfile = pid => { try { ["prefs", ...SLOTS].forEach(k => localStorage.removeItem(KEY(pid, k))); } catch (e) { /* ignore */ } if (AE.pid === pid) { AE.pid = null; AE.G = null; } };
+  window.altClearProfile = pid => { try { ["prefs", "records", ...SLOTS].forEach(k => localStorage.removeItem(KEY(pid, k))); } catch (e) { /* ignore */ } if (AE.pid === pid) { AE.pid = null; AE.G = null; } };
   window.altStop = function () { closeModal(); };
 
   // ---------- Sound (off by default) ----------
@@ -102,7 +108,7 @@
     const ch = C.CHAPTERS[g.chapter - 1], nav = F.nav(g.fund), cr = C.CAREER[g.career - 1];
     const ret = nav / g.fund.initial - 1;
     return `<header class="ae-top">
-      <div class="ae-when"><b>${W.label(g.q)}</b><span>Chương ${ch.n} · ${esc(ch.title)}</span></div>
+      <div class="ae-when"><b>${LQ(g.q)}</b><span>${esc(modeLine(g))}</span></div>
       <div class="ae-kpis"><div><small>${tip("NAV")}</small><b>${m$(nav)}</b><em class="${tone(ret)}">${ret >= 0 ? "+" : ""}${pct(ret, 1)}</em></div>
         <div class="hide-sm"><small>Tiền mặt</small><b>${m$(g.fund.cash)}</b></div>
         <div class="hide-sm"><small>${tip("Unfunded")}</small><b>${m$(F.unfunded(g.fund))}</b></div>
@@ -138,7 +144,7 @@
     let lo = Math.min(...all, o.zero ? 0 : Infinity), hi = Math.max(...all, o.zero ? 0 : -Infinity); if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
     const xs = series.flatMap(s => s.pts.map(p => p[0])), x0 = Math.min(...xs), x1 = Math.max(...xs, x0 + 1);
     const X = x => pl + (x - x0) / (x1 - x0) * (Wd - pl - pr), Y = y => pt + (hi - y) / (hi - lo) * (H - pt - pb);
-    const fy = o.fy || (v => fx(v)), fxl = o.fx || (x => W.label(x));
+    const fy = o.fy || (v => fx(v)), fxl = o.fx || (x => LQ(x));
     const ticks = [lo, (lo + hi) / 2, hi];
     return `<figure class="ae-chart"><svg viewBox="0 0 ${Wd} ${H}" role="img" aria-label="${esc(o.label || "Biểu đồ")}">
       ${ticks.map(t => `<line x1="${pl}" x2="${Wd - pr}" y1="${Y(t)}" y2="${Y(t)}" class="ae-gl"/><text x="${pl - 6}" y="${Y(t) + 4}" text-anchor="end" class="ae-axis">${esc(fy(t))}</text>`).join("")}
@@ -176,7 +182,7 @@
         <div class="ae-brand">${logo(64)}<div><p class="ae-kicker">Aurelion Capital · 2027</p><h1>ALTERNATIVE EMPIRE</h1><p class="ae-tag">THE CAPITAL GAME</p></div></div>
         <p class="ae-lead">Trò chơi quản lý quỹ đầu tư thay thế dựa trên 7 module Alternative Investments của CFA Level I (2027). 100 triệu USD vốn mô phỏng, bảy chương, năm năm thị trường — và một Hội đồng chấm cả lợi nhuận, rủi ro, thanh khoản lẫn hiểu biết.</p>
         <div class="ae-menu-btns">
-          ${g ? `<a class="ae-btn gold lg" href="#/alt/hq">${icon("play", 18)} Tiếp tục — ${esc(g.name)}, ${W.label(g.q)}, chương ${g.chapter}${g.status === "lost" ? " (đã kết thúc)" : ""}</a>` : ""}
+          ${g ? `<a class="ae-btn gold lg" href="#/alt/hq">${icon("play", 18)} Tiếp tục — ${esc(g.name)}, ${LQ(g.q)}, ${esc(G.modeName(g))}${g.status === "lost" ? " (đã kết thúc)" : g.status === "finished" ? " (đã xong)" : ""}</a>` : ""}
           <a class="ae-btn ${g ? "" : "gold"} lg" href="#/alt/new">${icon("plus", 18)} Ván mới</a>
           <a class="ae-btn lg" href="#/alt/saves">${icon("save", 18)} Tải game</a>
           <a class="ae-btn lg" href="#/alt/academy">${icon("book", 18)} Học viện</a>
@@ -188,32 +194,141 @@
   }
 
   // ======================= 2. New game =======================
+  function isoWeek(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())), day = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - day);
+    const y = d.getUTCFullYear(), w = Math.ceil(((d - Date.UTC(y, 0, 1)) / 86400000 + 1) / 7);
+    return { id: `${y}-W${String(w).padStart(2, "0")}`, seed: 700000 + y * 100 + w };
+  }
   function newGameScreen() {
     P();
+    const nf = AE.ui.nf || {};
     const seed = AE.ui.seed || (Math.floor(Math.random() * 900000) + 100000);
     AE.ui.seed = seed;
-    const used = SLOTS.map(k => ({ k, r: raw(k) }));
-    shell("", `${hd("Ván mới", "Nhận nhiệm vụ tại Aurelion Capital", "Chọn tên, độ khó và ô lưu. Cùng một mã ngẫu nhiên (seed) và cùng quyết định sẽ cho cùng kết quả.")}
-      <form class="ae-card ae-form" id="ae-newform">
-        <label><span>Tên người chơi</span><input name="name" maxlength="40" value="${esc(activeProfile().name || "Portfolio Manager")}" required></label>
-        <fieldset><legend>Độ khó</legend>${Object.entries(W.DIFFICULTY).map(([k, d], i) => `<label class="ae-radio"><input type="radio" name="diff" value="${k}" ${i === 1 ? "checked" : ""}><b>${esc(d.name)}</b><small>${k === "analyst" ? "Cú sốc nhẹ hơn, ít sự kiện" : k === "crisis" ? "Suy thoái và đình lạm nhiều hơn, sự kiện dày" : "Cân bằng"}</small></label>`).join("")}</fieldset>
-        <label><span>Seed (mã ngẫu nhiên)</span><input name="seed" inputmode="numeric" pattern="[0-9]{1,9}" value="${seed}"></label>
-        <fieldset><legend>Ô lưu</legend>${used.map(({ k, r }, i) => `<label class="ae-radio"><input type="radio" name="slot" value="${k}" ${k === ((used.find(x => !x.r) || used[0]).k) ? "checked" : ""}><b>Ô ${i + 1}</b><small>${r ? "Đang có ván — sẽ bị ghi đè" : "Trống"}</small></label>`).join("")}</fieldset>
+    const mode = nf.mode || "campaign", used = SLOTS.map(k => ({ k, r: raw(k) })), rpv = replayData(), wk = isoWeek(new Date());
+    const rec = readJSON(KEY(AE.pid, "records"), {});
+    const free = mode === "campaign" || mode === "sandbox";
+    shell("", `${hd("Ván mới", "Nhận nhiệm vụ tại Aurelion Capital", "Chọn chế độ, dữ liệu thị trường và ô lưu. Cùng seed và cùng quyết định sẽ cho cùng kết quả.")}
+      <form class="ae-card ae-form ae-wide" id="ae-newform">
+        <label><span>Tên người chơi</span><input name="name" maxlength="40" value="${esc(nf.name || activeProfile().name || "Portfolio Manager")}" required></label>
+        <fieldset><legend>Chế độ</legend><div class="ae-modes">${Object.entries(C.MODES).map(([k, m]) => `<label class="ae-modecard ${mode === k ? "on" : ""}"><input type="radio" name="mode" value="${k}" ${mode === k ? "checked" : ""}><b>${esc(m.name)}</b><small>${esc(k === "cup" ? `Tuần ${wk.id}. ${m.desc}` : m.desc)}</small></label>`).join("")}</div></fieldset>
+        ${mode === "challenge" ? `<fieldset><legend>Thử thách</legend><div class="ae-modes">${C.CHALLENGES.map((c, i) => { const r = rec["ch:" + c.id]; return `<label class="ae-modecard ${(nf.challenge || C.CHALLENGES[0].id) === c.id ? "on" : ""}"><input type="radio" name="challenge" value="${c.id}" ${(nf.challenge || C.CHALLENGES[0].id) === c.id ? "checked" : ""}><b>${esc(c.name)}</b><small>${esc(c.desc)}</small><small>${c.quarters} quý · ${esc(W.DIFFICULTY[c.difficulty].name)} · ôn ${c.lm.map(l => "LM" + l).join(", ")}${r ? ` · kỷ lục ${r.score}${r.pass ? " ✓" : ""}` : ""}</small><span class="ae-goalist">${c.goals.map(g => esc(g.l)).join(" · ")}</span></label>`; }).join("")}</div></fieldset>` : ""}
+        ${free ? `<fieldset><legend>Dữ liệu thị trường</legend>
+          <label class="ae-radio"><input type="radio" name="data" value="sim" ${nf.data !== "real" ? "checked" : ""}><b>Mô phỏng</b><small>Kinh tế theo mô hình, có seed</small></label>
+          <label class="ae-radio ${rpv ? "" : "ae-off"}"><input type="radio" name="data" value="real" ${nf.data === "real" && rpv ? "checked" : ""} ${rpv ? "" : "disabled"}><b>Replay thị trường thật (WiData)</b><small>${rpv ? `${esc(rpv.v.title)} · ${rpv.v.quarters[0]} → ${rpv.v.quarters[rpv.v.quarters.length - 1]}` : "Chưa có dữ liệu — nhập tệp ở trang Lưu/Tải"}</small></label>
+          ${rpv ? `<label><span>Năm bắt đầu replay</span><select name="year">${rpv.v.starts.map(y => `<option value="${y}" ${String(nf.year || 2019) === String(y) ? "selected" : ""}>${y}${y === 2019 ? " (qua COVID và đợt tăng lãi suất 2022)" : ""}</option>`).join("")}</select></label><p class="ae-muted">Chiến dịch cần khoảng 21–24 quý; khi hết dữ liệu thật, thị trường tiếp tục bằng mô phỏng và được ghi rõ.</p>` : ""}</fieldset>
+          <fieldset><legend>Độ khó</legend>${Object.entries(W.DIFFICULTY).map(([k, d]) => `<label class="ae-radio"><input type="radio" name="diff" value="${k}" ${(nf.diff || "standard") === k ? "checked" : ""}><b>${esc(d.name)}</b><small>${k === "analyst" ? "Cú sốc nhẹ hơn, ít sự kiện" : k === "crisis" ? "Suy thoái và đình lạm nhiều hơn, sự kiện dày" : "Cân bằng"}</small></label>`).join("")}</fieldset>
+          <label><span>Seed (mã ngẫu nhiên)</span><input name="seed" inputmode="numeric" pattern="[0-9]{1,9}" value="${esc(String(nf.seed || seed))}"></label>` : `<p class="ae-muted">${mode === "cup" ? `Giải đấu tuần dùng cùng seed cho mọi tài khoản trên máy này trong tuần ${wk.id}, độ khó Standard, thị trường mô phỏng.` : "Thử thách có seed, độ khó và kịch bản cố định để mọi người chơi cùng một bài toán."}</p>`}
+        <fieldset><legend>Ô lưu</legend>${used.map(({ k, r }, i) => `<label class="ae-radio"><input type="radio" name="slot" value="${k}" ${k === (nf.slot || (used.find(x => !x.r) || used[0]).k) ? "checked" : ""}><b>Ô ${i + 1}</b><small>${r ? "Đang có ván — sẽ bị ghi đè" : "Trống"}</small></label>`).join("")}</fieldset>
         <div class="ae-row"><button class="ae-btn gold" type="submit">${icon("play", 16)} Bắt đầu</button><a class="ae-btn" href="#/alt">Hủy</a></div>
       </form>`);
   }
   async function startGame(fd) {
-    const seed = parseInt(fd.get("seed"), 10), slot = fd.get("slot"), name = String(fd.get("name") || "").trim();
+    const mode = fd.get("mode") || "campaign", slot = fd.get("slot"), name = String(fd.get("name") || "").trim();
     if (!name) return toast("Hãy nhập tên", "error");
-    if (!(seed > 0 && seed < 1e9)) return toast("Seed là số nguyên dương tối đa 9 chữ số", "error");
     if (!SLOTS.includes(slot)) return toast("Chọn ô lưu", "error");
+    const o = { mode, name, now: Date.now() };
+    if (mode === "campaign" || mode === "sandbox") {
+      o.seed = parseInt(fd.get("seed"), 10); o.difficulty = fd.get("diff");
+      if (!(o.seed > 0 && o.seed < 1e9)) return toast("Seed là số nguyên dương tối đa 9 chữ số", "error");
+      if (fd.get("data") === "real") {
+        const rpv = replayData(); if (!rpv) return toast("Chưa có dữ liệu replay", "error");
+        try { o.replay = W.replayFrom(rpv.doc, parseInt(fd.get("year"), 10)); } catch (e) { return toast(e.message, "error"); }
+      }
+    } else if (mode === "challenge") o.challenge = fd.get("challenge") || C.CHALLENGES[0].id;
+    else if (mode === "cup") { const wk = isoWeek(new Date()); o.seed = wk.seed; o.week = wk.id; }
     if (raw(slot) && !(await confirmDialog({ title: "Ghi đè ô lưu?", message: "Ván đang có trong ô này sẽ bị thay thế.", confirmText: "Ghi đè", danger: true }))) return;
-    const g = G.newGame({ seed, difficulty: fd.get("diff"), name, now: Date.now() });
+    let g;
+    try { g = G.newGame(o); } catch (e) { return toast(e.message, "error"); }
     g.updatedAt = Date.now();
     AE.G = g; AE.slot = slot; AE.stamp = null; P().cur = slot; savePrefs();
     try { localStorage.removeItem(KEY(AE.pid, slot)); } catch (e) { /* ignore */ }
-    save(); AE.ui.seed = null; blip("good");
-    location.hash = "#/alt/intro";
+    save(); AE.ui.seed = null; AE.ui.nf = null; blip("good");
+    location.hash = mode === "campaign" ? "#/alt/intro" : "#/alt/hq";
+  }
+
+  // ---------- Modes, results, real-market data ----------
+  const BOARD_KEY = "cfaStudy_alt_board", DATA_KEY = "cfaStudy_alt_data";
+  function readJSON(k, d) { try { return JSON.parse(localStorage.getItem(k) || "null") || d; } catch (e) { return d; } }
+  const isCampaign = g => !g.mode || g.mode === "campaign";
+  function modeLine(g) {
+    if (isCampaign(g)) { const ch = C.CHAPTERS[g.chapter - 1]; return `Chương ${ch.n} · ${ch.title}${g.world.rp ? ` · replay ${g.world.rp.year}` : ""}`; }
+    return `${G.modeName(g)}${g.horizon ? ` · quý ${Math.min(g.q, g.horizon)}/${g.horizon}` : ""}${g.world.rp ? ` · replay ${g.world.rp.year}` : ""}`;
+  }
+  function goalList(goals) { return `<ul class="ae-goals">${goals.map(x => `<li class="${x.ok ? "ok" : "bad"}">${icon(x.ok ? "check" : "alert", 14)}<span>${esc(x.label)}</span><em>${esc(x.now)}</em></li>`).join("")}</ul>`; }
+  function goalsCard(g) {
+    const ch = g.mode === "challenge" ? C.CHALLENGES.find(x => x.id === g.modeId) : null, goals = G.goalStatus(g);
+    return `<article class="ae-card ae-chap"><p class="ae-kicker">${esc(C.MODES[g.mode].name)}</p><h2>${esc(ch ? ch.name : G.modeName(g))}</h2><p class="ae-muted">${esc(ch ? ch.desc : C.MODES[g.mode].desc)}</p>
+      ${g.horizon ? `<div class="ae-score"><span>Tiến độ</span>${bar(Math.min(g.q, g.horizon), g.horizon)}<b>${Math.min(g.q, g.horizon)}/${g.horizon}</b></div>` : ""}
+      ${goals.length ? `<h3>Điều kiện thắng (hiện tại)</h3>${goalList(goals)}` : ""}
+      ${ch ? `<p class="ae-muted">Kiến thức liên quan: ${ch.lm.map(l => `LM${l} ${esc(C.LMS[l].vi)}`).join("; ")} — xem <a href="#/alt/academy">Học viện</a>.</p>` : ""}
+      <a class="ae-btn gold" href="#/alt/deals">${icon("search", 16)} Deal Room</a></article>`;
+  }
+  function resultCard(g) {
+    const r = g.result; if (!r) return "";
+    return `<section class="ae-card ae-ending"><p class="ae-kicker">${esc(G.modeName(g))} · kết thúc</p><h2>${r.mode === "challenge" ? (r.pass ? "Hoàn thành thử thách" : "Chưa đạt điều kiện") : "Kết thúc giải đấu"} — ${r.score} điểm</h2>
+      ${r.goals.length ? goalList(r.goals) : `<p>NAV ${m$(r.nav)}</p>`}<div class="ae-row"><a class="ae-btn gold" href="#/alt/new">Ván mới</a><a class="ae-btn" href="#/alt/achievements">Bảng xếp hạng</a></div></section>`;
+  }
+  function recordResult(g, r) {
+    if (g.tampered) { toast("Ván này từng bị chỉnh sửa: không ghi kết quả", "error"); return; }
+    const rec = readJSON(KEY(AE.pid, "records"), {}), k = r.mode === "cup" ? `cup:${r.id}` : `ch:${r.id}`;
+    if (!rec[k] || r.score > rec[k].score) rec[k] = { score: r.score, pass: r.pass, at: Date.now() };
+    try { localStorage.setItem(KEY(AE.pid, "records"), JSON.stringify(rec)); } catch (e) { /* ignore */ }
+    if (r.mode !== "cup") return;
+    let b = readJSON(BOARD_KEY, []);
+    const mine = b.find(x => x.week === r.id && x.pid === AE.pid);
+    if (mine && mine.score >= r.score) return;
+    b = b.filter(x => !(x.week === r.id && x.pid === AE.pid));
+    b.push({ week: r.id, pid: AE.pid, name: activeProfile().name, score: r.score, nav: r.nav, at: Date.now() });
+    b.sort((x, y) => y.score - x.score);
+    try { localStorage.setItem(BOARD_KEY, JSON.stringify(b.slice(0, 300))); } catch (e) { /* ignore */ }
+  }
+  function boardCard() {
+    const wk = isoWeek(new Date()), b = readJSON(BOARD_KEY, []).filter(x => x.week === wk.id).slice(0, 10), rec = readJSON(KEY(AE.pid, "records"), {});
+    return `<section class="ae-grid ae-g2"><article class="ae-card"><h2>Giải đấu tuần ${wk.id}</h2><p class="ae-muted">Mọi tài khoản trên máy này chơi cùng một nền kinh tế trong tuần. ${esc(C.MODES.cup.desc)}</p>
+        ${b.length ? `<table class="ae-table"><thead><tr><th>#</th><th>Người chơi</th><th class="r">Điểm</th><th class="r">NAV</th></tr></thead><tbody>${b.map((x, i) => `<tr class="${x.pid === AE.pid ? "me" : ""}"><td>${i + 1}</td><td>${esc(x.name)}</td><td class="r">${x.score}</td><td class="r">${m$(x.nav)}</td></tr>`).join("")}</tbody></table>` : `<p class="ae-muted">Chưa có ai hoàn thành tuần này.</p>`}
+        <a class="ae-btn gold" href="#/alt/new" data-ae="presetmode" data-v="cup">${icon("play", 16)} Chơi giải đấu tuần</a></article>
+      <article class="ae-card"><h2>Thử thách danh mục</h2><ul class="ae-goals">${C.CHALLENGES.map(c => { const r = rec["ch:" + c.id]; return `<li class="${r && r.pass ? "ok" : ""}">${icon(r && r.pass ? "check" : "target", 14)}<span>${esc(c.name)}</span><em>${r ? `kỷ lục ${r.score}${r.pass ? " · đã hoàn thành" : ""}` : "chưa chơi"}</em></li>`; }).join("")}</ul>
+        <a class="ae-btn" href="#/alt/new" data-ae="presetmode" data-v="challenge">${icon("target", 16)} Chọn thử thách</a></article></section>`;
+  }
+  function replayData() {
+    let doc = null; try { doc = JSON.parse(localStorage.getItem(DATA_KEY) || "null"); } catch (e) { doc = null; }
+    if (!doc) return null;
+    const v = W.validateReplay(doc);
+    return v.ok ? { doc, v } : null;
+  }
+  function replayCard() {
+    const rpv = replayData();
+    return `<section class="ae-card"><h2>${icon("trend", 18)} Dữ liệu thị trường thật (Replay WiData)</h2>
+      <p class="ae-muted">Nhập tệp <code>alt-replay/1</code> (giá trị cuối quý của dầu Brent, vàng, đồng, ngô, gạo, khô đậu tương, gỗ xẻ, lãi suất EFFR và CPI Mỹ, S&P 500, VIX; quý nào không có số thì để <code>null</code>, game sẽ điền bằng mô phỏng). Tệp chỉ lưu trong trình duyệt này, dùng chung cho các tài khoản trên máy, không gửi đi đâu. Dữ liệu WiData chỉ dùng cá nhân.</p>
+      ${rpv ? `<dl class="ae-givens"><div><dt>Bộ dữ liệu</dt><dd>${esc(rpv.v.title)}</dd></div><div><dt>Giai đoạn</dt><dd>${rpv.v.quarters[0]} → ${rpv.v.quarters[rpv.v.quarters.length - 1]} (${rpv.v.quarters.length} quý)</dd></div><div><dt>Chuỗi</dt><dd>${rpv.v.keys.map(k => esc((rpv.doc.series[k] || {}).name || k)).join(" · ")}</dd></div><div><dt>Nguồn</dt><dd>${esc(rpv.v.source)}${rpv.v.fetched ? ` · lấy ngày ${esc(rpv.v.fetched)}` : ""}</dd></div>${Object.keys(rpv.v.gaps).length ? `<div><dt>Ô trống</dt><dd>${Object.entries(rpv.v.gaps).map(([k, n]) => `${esc((rpv.doc.series[k] || {}).name || k)}: ${n} quý`).join(" · ")} — game điền bằng số mô phỏng và ghi rõ là mô phỏng</dd></div>` : ""}</dl>` : `<p>Chưa có dữ liệu.</p>`}
+      <div class="ae-row"><label class="ae-btn sm">${icon("upload", 14)} ${rpv ? "Thay tệp" : "Nhập tệp"}<input type="file" accept="application/json,.json" data-ae-replay hidden></label>${rpv ? `<button type="button" class="ae-btn sm danger" data-ae="rpdel">Xóa dữ liệu</button><a class="ae-btn sm gold" href="#/alt/new" data-ae="presetmode" data-v="replay">Chơi với dữ liệu thật</a>` : ""}</div></section>`;
+  }
+  const GAP_NAMES = { eqRet: "S&P 500", rate: "lãi suất", infl: "lạm phát", vol: "VIX", energy: "dầu", gold: "vàng", metals: "đồng", ags: "nông sản", timber: "gỗ" };
+  const gapList = ks => ks.map(k => GAP_NAMES[k] || k).join(", ");
+  function replayInfo(g) {
+    const rp = g.world.rp; if (!rp) return "";
+    const live = g.world.q < rp.n - 1, gp = g.world.gaps || [];
+    const blanks = Object.values(rp.d).reduce((s, v) => s + v.filter(x => x == null).length, 0);
+    const simQ = (g.world.hist || []).filter(h => h.gaps && h.gaps.length).map(h => `${LQ(h.q - 1)} (${gapList(h.gaps)})`);
+    return `<section class="ae-card"><h2>Dữ liệu thật đang dùng ${live ? chip("ĐANG CHẠY", "blue") : chip("ĐÃ HẾT — MÔ PHỎNG", "amber")}</h2>
+      <p>${Object.values(rp.names).map(esc).join(" · ")}</p>
+      ${gp.length ? `<p>${chip("MÔ PHỎNG", "amber")} Quý vừa qua tệp không có số cho ${esc(gapList(gp))}: game điền bằng số mô phỏng, không phải số thật.</p>` : ""}
+      ${blanks ? `<p class="ae-muted">Tệp có ${blanks} ô trống từ ${rp.year}. Những quý đó dùng số mô phỏng cho biến bị thiếu${simQ.length ? `; đã gặp: ${esc(simQ.slice(-6).join(" · "))}` : ""}.</p>` : ""}
+      <p class="ae-muted">Nguồn: ${esc(rp.source)}. Giai đoạn ${rp.year} → ${esc(rp.last)}. Lãi suất, lạm phát và VIX lấy đúng mức cuối quý; giá hàng hóa và S&P 500 là chỉ số theo giá thật (= 100 ở quý bắt đầu), sau một quý trống thì quay về mức thật; trạng thái kinh tế suy ra từ dữ liệu (S&P 500, VIX, CPI). Quy ước của game: chỉ số gỗ dùng giá gỗ xẻ thật được nén biên độ (mũ 0,4) vì giá gỗ đứng ít biến động hơn hợp đồng gỗ xẻ; chỉ số nông sản là trung bình ngô, gạo, khô đậu tương (thiếu một loại thì cả quý dùng mô phỏng); lợi nhuận cổ phiếu là lợi nhuận giá của S&P 500 (không gồm cổ tức). Spread tín dụng, thanh khoản, bất động sản, giao thông và token vẫn mô phỏng.</p></section>`;
+  }
+  // a brief of the fund for the AI tutor (the context text it reads)
+  function fundBrief(g) {
+    const f = g.fund, nav = F.nav(f), b = g.board || G.scorecard(g), liq = F.liquidity(f), ex = F.exposure(f), w = g.world;
+    const hs = f.holdings.filter(h => h.status === "active").map(h => { const st = F.holdingStats(f, h, g.q), held = g.q - h.startQ; return `- ${h.name} (${A.TYPES[h.type].name}): giá trị ${m$(h.value)}${h.debt ? `, nợ ${m$(h.debt)}` : ""}${h.unfunded ? `, vốn cam kết chưa gọi ${m$(h.unfunded)}` : ""}, TVPI ${st.mult.tvpi != null ? fx(st.mult.tvpi) : "—"}${held >= 4 && st.irr && st.irr.status === "unique" ? `, IRR ${pct(st.irr.irr)}` : ""}${h.basis === "model" ? " (định giá ước tính)" : ""}`; });
+    return [`Trò chơi mô phỏng học CFA Level I Alternative Investments (Alternative Empire). ${G.modeName(g)}, ${LQ(g.q)}${w.rp ? `, thị trường theo dữ liệu thật từ ${w.rp.year}` : ", thị trường mô phỏng"}.`,
+      `NAV ${m$(nav)} (vốn ban đầu ${m$(f.initial)}); tiền mặt ${m$(f.cash)}; nợ cấp quỹ ${m$(f.debt)} / hạn mức ${m$(f.credit.limit)}; vốn cam kết chưa gọi ${m$(liq.unfunded)}; gọi vốn dự kiến 4 quý ${m$(liq.need)}; độ phủ thanh khoản ${isFinite(liq.coverage) ? fx(liq.coverage) : "∞"}×; tài sản kém thanh khoản ${pct(liq.illiquidPct, 0)} NAV.`,
+      `TWR từ đầu ${pct(b.d.twr)} so với chuẩn 60/40 ${pct(b.d.bench)}; sụt giảm tối đa ${pct(b.d.dd)}. Điểm Hội đồng ${Math.round(b.total)}/100 (hiệu quả ${Math.round(b.perf)}, rủi ro ${Math.round(b.risk)}, thanh khoản ${Math.round(b.liq)}, tuân thủ ${Math.round(b.comp)}, uy tín ${Math.round(b.rep)}, hiểu biết ${Math.round(b.know)}).`,
+      `Phân bổ: ${Object.entries(A.CLASSES).filter(([k]) => ex.by[k]).map(([k, c]) => `${c.name} ${pct(ex.pct[k], 0)}`).join(", ") || "chưa đầu tư"}; tiền mặt ròng ${pct(ex.pct.cash, 0)}.`,
+      `Khoản đầu tư:`, ...(hs.length ? hs : ["- (chưa có)"]),
+      `Vi phạm mandate: ${b.d.breaches.length ? b.d.breaches.join("; ") : "không"}. Giới hạn: một khoản ≤ 25% NAV, kém thanh khoản ≤ 80%, tài sản số ≤ 5%, nợ quỹ ≤ 20%.`,
+      `Kinh tế: ${W.REGIMES[w.regime].name}; lãi suất ${pct(w.rate)}, lạm phát ${pct(w.infl, 1)}, spread ${pct(w.spread)}, thanh khoản thị trường ${pct(w.liq, 0)}.`,
+      g.decisions.filter(d => !d.done).length ? `Quyết định đang chờ: ${g.decisions.filter(d => !d.done).map(d => d.title).join("; ")}.` : ""].filter(Boolean).join("\n");
   }
 
   // ======================= 3. Characters =======================
@@ -235,15 +350,15 @@
     const navPts = g.fund.navHist.map(r => [r.q, r.idx * 100]), bPts = g.fund.navHist.map(r => [r.q, (r.benchIdx || 1) * 100]);
     const lost = g.status === "lost", fin = g.status === "finished";
     const nextM = ms.find(m => !(g.missions[m.id] && g.missions[m.id].done) && G.missionOpen(g, m).ok);
-    shell("hq", `${hd(`Trụ sở · ${W.label(g.q)}`, `Xin chào, ${esc(g.name)}`, `${esc(C.CAREER[g.career - 1].name)} · Độ khó ${esc(W.DIFFICULTY[g.difficulty].name)} · seed ${g.seed}`, SIM())}
+    shell("hq", `${hd(`Trụ sở · ${LQ(g.q)}`, `Xin chào, ${esc(g.name)}`, `${esc(C.CAREER[g.career - 1].name)} · Độ khó ${esc(W.DIFFICULTY[g.difficulty].name)} · seed ${g.seed}`, SIM())}
       ${lost ? `<section class="ae-card ae-alert"><h2>${icon("alert", 18)} Ván chơi kết thúc</h2><p>${esc(g.lost.text)}</p><div class="ae-row"><a class="ae-btn gold" href="#/alt/new">Ván mới</a><a class="ae-btn" href="#/alt/saves">Tải ván đã lưu</a><a class="ae-btn" href="#/alt/report">Xem báo cáo</a></div></section>` : ""}
-      ${fin ? endingCard(g) : ""}
+      ${fin ? (isCampaign(g) ? endingCard(g) : resultCard(g)) : ""}
       ${open.length ? `<section class="ae-card ae-decisions"><h2>${icon("flag", 18)} Cần quyết định (${open.length})</h2>${open.map(decisionCard).join("")}</section>` : ""}
       <section class="ae-grid ae-g3">
-        <article class="ae-card ae-chap"><p class="ae-kicker">Chương ${ch.n} · LM${ch.lm}</p><h2>${esc(ch.title)}</h2><p class="ae-muted">${esc(ch.vi)} — ${esc(C.LMS[ch.lm].title)}</p>
+        ${!isCampaign(g) ? goalsCard(g) : `<article class="ae-card ae-chap"><p class="ae-kicker">Chương ${ch.n} · LM${ch.lm}</p><h2>${esc(ch.title)}</h2><p class="ae-muted">${esc(ch.vi)} — ${esc(C.LMS[ch.lm].title)}</p>
           <ul class="ae-mlist">${ms.map(m => { const s = g.missions[m.id], op = G.missionOpen(g, m); return `<li class="${s && s.done ? "done" : op.ok ? "" : "lock"}"><a href="#/alt/m/${m.id}">${icon(s && s.done ? "check" : op.ok ? "target" : "lock", 16)}<span>${esc(m.title)}</span>${s && s.done ? `<em>${Math.round(s.score * 100)}</em>` : op.ok ? "" : `<small>${esc(op.reason)}</small>`}</a></li>`; }).join("")}</ul>
           <p class="ae-muted">Thời gian trong chương: ${cr.qs}/${cr.minQ} quý tối thiểu. ${cr.left.length ? `Còn ${cr.left.length} nhiệm vụ.` : cr.qs < cr.minQ ? "Kết thúc thêm quý để Hội đồng họp." : "Hội đồng sẽ họp cuối quý này."}</p>
-          ${nextM ? `<a class="ae-btn gold" href="#/alt/m/${nextM.id}">${icon("play", 16)} ${esc(nextM.title)}</a>` : ""}</article>
+          ${nextM ? `<a class="ae-btn gold" href="#/alt/m/${nextM.id}">${icon("play", 16)} ${esc(nextM.title)}</a>` : ""}</article>`}
         <article class="ae-card"><p class="ae-kicker">Hội đồng quản trị</p><h2 class="ae-big">${Math.round(b.total)}<small>/100</small></h2>
           ${[["Hiệu quả (so với chuẩn 60/40)", b.perf], ["Rủi ro", b.risk], ["Thanh khoản", b.liq], ["Tuân thủ mandate", b.comp], ["Uy tín", b.rep], ["Hiểu biết CFA", b.know]].map(([l, v]) => `<div class="ae-score"><span>${l}</span>${bar(v, 100, v < 40 ? "var(--red)" : v < 60 ? "var(--amber)" : "")}<b>${Math.round(v)}</b></div>`).join("")}
           <p class="ae-muted">Niềm tin: ${Math.round(g.trust)} · Uy tín: ${g.rep} · Vay khẩn cấp: ${g.emergencies}/2</p>
@@ -255,7 +370,7 @@
           ${line([{ name: "Aurelion (TWR)", color: "#C9A86A", pts: navPts }, { name: "Chuẩn 60/40", color: "#7FA8E6", pts: bPts, dash: true }], { h: 150, fy: v => v.toFixed(0), label: "Chỉ số NAV" })}</article>
       </section>
       ${advisor(g, liq, b, nextM)}
-      <section class="ae-card"><h2>${icon("chat", 18)} Hộp thư</h2><ul class="ae-inbox">${g.inbox.slice(0, 10).map(m => `<li class="k-${m.kind}">${avatar(m.from, 30)}<div><b>${esc(m.title)}</b><small>${W.label(m.q)} · ${esc(person(m.from).name)}</small><p>${esc(m.text)}</p></div></li>`).join("")}</ul></section>`);
+      <section class="ae-card"><h2>${icon("chat", 18)} Hộp thư</h2><ul class="ae-inbox">${g.inbox.slice(0, 10).map(m => `<li class="k-${m.kind}">${avatar(m.from, 30)}<div><b>${esc(m.title)}</b><small>${LQ(m.q)} · ${esc(person(m.from).name)}</small><p>${esc(m.text)}</p></div></li>`).join("")}</ul></section>`);
   }
   // Adviser: rules over the current state (not AI); the CFA Tutor buttons in questions are the AI.
   function advisor(g, liq, b, nextM) {
@@ -269,11 +384,11 @@
     const weak = G.weaknesses(g).find(w => w.m < 0.6);
     if (weak) tips.push(["marcus", `Mức thành thạo LM${weak.lm} mới ${pct(weak.m, 0)}. Ôn trong Học viện trước khi Hội đồng đánh giá — kiến thức là điều kiện thăng chức.`, "#/alt/academy"]);
     if (g.chapter >= 2 && nav > 0 && f.cash / nav > 0.45) tips.push(["marcus", `Tiền mặt chiếm ${pct(f.cash / nav, 0)} NAV: lợi nhuận bị kéo xuống (cash drag). Cân nhắc cơ hội phù hợp mandate.`, "#/alt/deals"]);
-    const cr = G.chapterReady(g);
+    const cr = isCampaign(g) ? G.chapterReady(g) : { ready: true, qs: 0, minQ: 0 };
     if (nextM) tips.push(["marcus", `Việc tiếp theo: “${nextM.title}”.`, `#/alt/m/${nextM.id}`]);
     else if (!cr.ready && cr.qs < cr.minQ && g.status === "active") tips.push(["eleanor", `Nhiệm vụ chương đã xong. Hội đồng họp sau ${cr.minQ - cr.qs} quý nữa — hãy kết thúc quý.`, "#/alt/hq"]);
-    if (!tips.length) return "";
-    return `<section class="ae-card"><h2>${icon("target", 18)} Cố vấn <small>gợi ý theo quy tắc của game, không phải AI</small></h2><ul class="ae-inbox">${tips.slice(0, 5).map(([who, t, href]) => `<li>${avatar(who, 28)}<div><p>${esc(t)}</p><a href="${href}">Mở</a></div></li>`).join("")}</ul></section>`;
+    return `<section class="ae-card"><h2>${icon("target", 18)} Cố vấn <small>gợi ý theo quy tắc của game, không phải AI</small></h2>${tips.length ? `<ul class="ae-inbox">${tips.slice(0, 5).map(([who, t, href]) => `<li>${avatar(who, 28)}<div><p>${esc(t)}</p><a href="${href}">Mở</a></div></li>`).join("")}</ul>` : `<p class="ae-muted">Không có cảnh báo nào lúc này.</p>`}
+      <div class="ae-row"><button type="button" class="ae-btn sm" data-ae="aiadvise">${icon("chat", 14)} Hỏi CFA Tutor (AI) phân tích danh mục</button><span class="ae-muted">AI đọc bản tóm tắt danh mục hiện tại; câu trả lời là tham khảo, có thể sai.</span></div></section>`;
   }
   function decisionCard(d) {
     return `<div class="ae-dec">${avatar(d.from, 34)}<div><b>${esc(d.title)}</b><p>${esc(d.text)}</p><div class="ae-opts">${d.options.map(o => `<button type="button" class="ae-opt" data-ae="decide" data-d="${esc(d.id)}" data-o="${esc(o.id)}"><b>${esc(o.label)}</b><small>${esc(o.desc)}</small>${o.id === d.def ? `<em>mặc định nếu không chọn</em>` : ""}</button>`).join("")}</div></div></div>`;
@@ -287,17 +402,19 @@
   async function endQuarter() {
     const g = AE.G; if (!g || g.status === "lost") return;
     const warn = G.preflight(g);
-    if (warn.length && P().confirmEnd && !(await confirmDialog({ title: `Kết thúc ${W.label(g.q)}?`, message: warn.map(esc).join("<br><br>"), confirmText: "Kết thúc quý" }))) return;
+    if (warn.length && P().confirmEnd && !(await confirmDialog({ title: `Kết thúc ${LQ(g.q)}?`, message: warn.map(esc).join("<br><br>"), confirmText: "Kết thúc quý" }))) return;
     const btn = document.querySelector('[data-ae="endq"]'); if (btn) { btn.disabled = true; btn.textContent = "Đang mô phỏng…"; }
     let r;
     try { r = G.endQuarter(g); } catch (e) { toast("Lỗi mô phỏng: " + e.message, "error"); if (btn) btn.disabled = false; return; }
     save();
+    if (r.result) recordResult(g, r.result);
     blip(r.nav && r.nav.ret >= 0 ? "good" : "bad");
     rerender();
     const b = r.board;
-    modal(`<p class="ae-kicker">Báo cáo quý ${W.label(r.q)}</p><h2>${m$(r.nav.nav)} <small class="${tone(r.nav.ret)}">${r.nav.ret >= 0 ? "+" : ""}${pct(r.nav.ret)}</small></h2>
+    modal(`<p class="ae-kicker">Báo cáo quý ${LQ(r.q - 1)}</p><h2>${m$(r.nav.nav)} <small class="${tone(r.nav.ret)}">${r.nav.ret >= 0 ? "+" : ""}${pct(r.nav.ret)}</small></h2>
       <p class="ae-muted">Chuẩn 60/40 quý này: ${pct(r.nav.bench)} · Điểm Hội đồng ${Math.round(b.total)} · Niềm tin ${Math.round(g.trust)} · Kinh tế: ${esc(W.REGIMES[g.world.regime].name)} ${SIM()}</p>
       ${r.review ? `<div class="ae-callout ${r.review.pass ? "ok" : "bad"}"><b>Đánh giá chương ${r.review.ch}: ${r.review.pass ? "Đạt" : "Cảnh cáo"}</b> — điểm ${Math.round(r.review.sc.total)}/100. ${r.review.pass ? `Chương ${r.review.ch + 1} đã mở.` : "Hai lần cảnh cáo liên tiếp sẽ bị thay thế."}</div>` : ""}
+      ${r.result ? `<div class="ae-callout ${r.result.pass ? "ok" : "bad"}"><b>${r.result.mode === "cup" ? "Kết thúc giải đấu" : r.result.pass ? "Hoàn thành thử thách" : "Chưa đạt điều kiện"} — ${r.result.score} điểm</b>${r.result.goals.length ? goalList(r.result.goals) : ""}</div>` : ""}
       ${g.status === "lost" ? `<div class="ae-callout bad"><b>Kết thúc:</b> ${esc(g.lost.text)}</div>` : ""}
       ${r.events.length ? `<h3>Sự kiện</h3>${r.events.map(e => `<div class="ae-say">${avatar(e.from, 32)}<div><b>${esc(e.title)}</b><p>${esc(e.text)}</p></div></div>`).join("")}` : `<p class="ae-muted">Không có sự kiện lớn trong quý.</p>`}
       ${r.auto.length ? `<h3>Áp dụng mặc định</h3><ul>${r.auto.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
@@ -310,6 +427,8 @@
   // ======================= Missions =======================
   function missions() {
     const g = AE.G;
+    if (!isCampaign(g)) return shell("missions", `${hd("Nhiệm vụ", "Không có nhiệm vụ cốt truyện", `${esc(G.modeName(g))} không có nhiệm vụ. Muốn học theo cốt truyện 7 chương, hãy bắt đầu ván Chiến dịch.`)}
+      <section class="ae-card"><p>Ôn kiến thức trong <a href="#/alt/academy">Học viện</a> hoặc thử công cụ trong <a href="#/alt/calc">Máy tính</a>.</p><a class="ae-btn gold" href="#/alt/new">Ván mới</a></section>`);
     shell("missions", `${hd("Nhiệm vụ", "Bảy chương, 30 nhiệm vụ", "Mỗi nhiệm vụ gắn với một Learning Module, một Learning Outcome và một khái niệm. Chương sau mở khi Hội đồng đánh giá chương trước.")}
       ${C.CHAPTERS.map(ch => `<section class="ae-card ${ch.n > g.chapter ? "ae-locked" : ""}"><div class="ae-split"><div><p class="ae-kicker">Chương ${ch.n} · LM${ch.lm} · ${esc(C.LMS[ch.lm].title)}</p><h2>${esc(ch.title)} <small>${esc(ch.vi)}</small></h2></div>${g.chapterDone[ch.n] != null ? chip("Hoàn thành", "green") : ch.n === g.chapter ? chip("Đang diễn ra", "gold") : ch.n > g.chapter ? chip("Chưa mở", "") : ""}</div>
         <div class="ae-mgrid">${C.MISSIONS.filter(m => m.ch === ch.n).map(m => { const s = g.missions[m.id], op = G.missionOpen(g, m); return `<a class="ae-mcard ${s && s.done ? "done" : op.ok ? "" : "lock"}" href="#/alt/m/${m.id}"><b>${esc(m.title)}</b><small>${esc(m.concept)}</small><span>${"★".repeat(m.diff)}${"☆".repeat(3 - m.diff)} ${s && s.done ? `· ${Math.round(s.score * 100)} điểm` : op.ok ? "· mở" : "· " + esc(op.reason)}</span></a>`; }).join("")}</div></section>`).join("")}`);
@@ -389,7 +508,7 @@
     shell("map", `${hd("Bản đồ đầu tư toàn cầu", "Thế giới của Aurelion", "Điểm sáng: cơ hội đang mở. Điểm lớn: tài sản bạn đang nắm giữ. Bản đồ và dự án đều hư cấu.", SIM())}
       <section class="ae-card ae-mapcard"><svg viewBox="0 0 100 60" class="ae-map" role="img" aria-label="Bản đồ dự án">${land.map(p => `<path d="${p}" class="ae-land"/>`).join("")}${ids.map(mk).join("")}</svg>
         <div class="ae-legend">${Object.entries(A.CLASSES).map(([k, c]) => `<span><i style="background:${c.color}"></i>${esc(c.name)}</span>`).join("")}</div></section>
-      <section class="ae-card"><h2>Các cơ hội chương ${g.chapter}</h2><div class="ae-dlist">${ids.filter(id => C.DEALS[id].ch === g.chapter || (G.dealState(g, id).ok)).map(id => dealRow(g, id)).join("") || `<p class="ae-muted">Không có cơ hội mới ở chương này.</p>`}</div></section>`);
+      <section class="ae-card"><h2>${isCampaign(g) ? `Các cơ hội chương ${g.chapter}` : "Các cơ hội đang mở"}</h2><div class="ae-dlist">${ids.filter(id => C.DEALS[id].ch === g.chapter || (G.dealState(g, id).ok)).map(id => dealRow(g, id)).join("") || `<p class="ae-muted">Không có cơ hội mới ở chương này.</p>`}</div></section>`);
   }
   function dealRow(g, id) {
     const d = C.DEALS[id], st = G.dealState(g, id), cls = A.CLASSES[d.cls];
@@ -478,7 +597,7 @@
       <section class="ae-grid ae-g2">
         <article class="ae-card"><h2>NAV và chuẩn 60/40</h2>${line([{ name: "NAV ($M)", color: "#C9A86A", pts: f.navHist.map(r => [r.q, r.nav / 1e8]) }, { name: "Nếu đầu tư 60/40 ($M)", color: "#7FA8E6", dash: true, pts: f.navHist.map(r => [r.q, f.initial / 1e8 * (r.benchIdx || 1)]) }], { fy: v => "$" + v.toFixed(0) + "M" })}</article>
         <article class="ae-card"><h2>Phân bổ theo lớp tài sản</h2>${hbars(Object.entries(A.CLASSES).map(([k, c]) => ({ l: c.name, v: ex.by[k], c: c.color })).concat([{ l: "Tiền mặt (ròng nợ quỹ)", v: ex.by.cash, c: "#9AA3B5" }]).filter(x => x.v), v => `${m$(v)} · ${pct(nav ? v / nav : 0, 1)}`)}
-          <h3>Gọi vốn dự kiến 4 quý tới</h3>${hbars(liq.calls.map((c, i) => ({ l: W.label(g.q + i + 1), v: c, c: "#E0A75C" })), m$)}</article></section>
+          <h3>Gọi vốn dự kiến 4 quý tới</h3>${hbars(liq.calls.map((c, i) => ({ l: LQ(g.q + i + 1), v: c, c: "#E0A75C" })), m$)}</article></section>
       <section class="ae-card"><h2>Khoản đầu tư đang nắm giữ (${act.length})</h2>${holdTable(g, act)}</section>
       ${jc}
       ${closed.length ? `<section class="ae-card"><h2>Đã đóng (${closed.length})</h2>${holdTable(g, closed)}</section>` : ""}`);
@@ -523,7 +642,7 @@
     const disc = T.liq === "illiquid" ? A.secondaryDiscount(h, w) : (A.SELL_COST[h.type] || 0);
     const exits = G.exitOptions(g, hid);
     const ir = s.irr;
-    shell("portfolio", `${hd(`${esc(A.CLASSES[h.cls].name)} · ${esc(T.name)}`, esc(h.name), `Mở từ ${W.label(h.startQ)} · ${esc({ active: "đang nắm giữ", exited: "đã thoái vốn", sold: "đã bán", written_off: "đã xóa sổ", lost: "đã mất" }[h.status])}`, h.basis === "market" ? MKT : EST)}
+    shell("portfolio", `${hd(`${esc(A.CLASSES[h.cls].name)} · ${esc(T.name)}`, esc(h.name), `Mở từ ${LQ(h.startQ)} · ${esc({ active: "đang nắm giữ", exited: "đã thoái vốn", sold: "đã bán", written_off: "đã xóa sổ", lost: "đã mất" }[h.status])}`, h.basis === "market" ? MKT : EST)}
       <section class="ae-grid ae-g3">
         <article class="ae-card"><h2 class="ae-big">${m$(h.value)}</h2><dl class="ae-dl">
           <div><dt>Vốn cam kết</dt><dd>${h.commit ? m$(h.commit) : "—"}</dd></div><div><dt>Đã góp (paid-in)</dt><dd>${m$(h.paidIn)}</dd></div>
@@ -540,12 +659,12 @@
         <article class="ae-card"><h2>Hành động</h2>${h.status !== "active" ? `<p class="ae-muted">Khoản đầu tư đã đóng.</p>` : holdActions(g, h, disc, exits)}</article></section>
       ${modelPanel(g, h, c)}
       <section class="ae-card"><h2>Giá trị theo quý</h2>${line([{ name: "Giá trị ($M)", color: A.CLASSES[h.cls].color, pts: vpts }], { fy: v => "$" + v.toFixed(2) + "M" })}</section>
-      <section class="ae-card"><h2>Sổ cái của khoản đầu tư (${posts.length} bút toán)</h2><div class="ae-tablewrap"><table class="ae-table sm"><thead><tr><th>Quý</th><th>Loại</th><th class="r">Tiền mặt</th><th class="r">Giá trị</th><th>Diễn giải</th></tr></thead><tbody>${posts.slice(-40).reverse().map(r => `<tr><td>${W.label(r.q)}</td><td>${esc(r.t)}</td><td class="r ${tone(r.c)}">${r.c ? m$(r.c) : ""}</td><td class="r ${tone(r.v)}">${r.v ? m$(r.v) : ""}</td><td>${esc(r.n)}</td></tr>`).join("")}</tbody></table></div></section>`);
+      <section class="ae-card"><h2>Sổ cái của khoản đầu tư (${posts.length} bút toán)</h2><div class="ae-tablewrap"><table class="ae-table sm"><thead><tr><th>Quý</th><th>Loại</th><th class="r">Tiền mặt</th><th class="r">Giá trị</th><th>Diễn giải</th></tr></thead><tbody>${posts.slice(-40).reverse().map(r => `<tr><td>${LQ(r.q)}</td><td>${esc(r.t)}</td><td class="r ${tone(r.c)}">${r.c ? m$(r.c) : ""}</td><td class="r ${tone(r.v)}">${r.v ? m$(r.v) : ""}</td><td>${esc(r.n)}</td></tr>`).join("")}</tbody></table></div></section>`);
   }
   function holdActions(g, h, disc, exits) {
     const T = A.TYPES[h.type], locked = h.lockUntil != null && g.q < h.lockUntil;
     let out = `<p>${T.liq === "illiquid" ? `Bán trên thị trường thứ cấp: chiết khấu ước tính <b>${pct(disc, 1)}</b>${h.unfunded ? "; bên mua nhận luôn phần vốn cam kết chưa gọi" : ""}.` : T.liq === "semi" ? "Rút vốn theo quý (khi thanh khoản thị trường cạn có thể chịu chi phí)." : `Bán theo giá thị trường, chi phí ${pct(disc, 1)}.`}</p>
-      ${locked ? `<p class="ae-warn">Đang khóa vốn tới ${W.label(h.lockUntil)}</p>` : `<div class="ae-row">${[0.25, 0.5, 1].map(fr => `<button type="button" class="ae-btn sm" data-ae="sell" data-h="${h.id}" data-f="${fr}">Bán ${fr * 100}%</button>`).join("")}</div>`}`;
+      ${locked ? `<p class="ae-warn">Đang khóa vốn tới ${LQ(h.lockUntil)}</p>` : `<div class="ae-row">${[0.25, 0.5, 1].map(fr => `<button type="button" class="ae-btn sm" data-ae="sell" data-h="${h.id}" data-f="${fr}">Bán ${fr * 100}%</button>`).join("")}</div>`}`;
     if (h.type === "farm" && h.terms.model === "operate") out += `<h3>Phòng hộ vụ tới</h3><p class="ae-muted">Bán futures khóa giá hiện tại cho một phần sản lượng kỳ vọng. Không bảo vệ khi sản lượng giảm.</p><div class="ae-row">${[0, 0.4, 0.8].map(x => `<button type="button" class="ae-btn sm ${Math.round((h.terms.hedgeTons || 0) / (h.terms.acres * h.terms.yieldPerAcre) * 10) / 10 === x ? "on" : ""}" data-ae="policy" data-h="${h.id}" data-k="hedge" data-v="${x}">${x * 100}%</button>`).join("")}</div>`;
     if (h.type === "timber") out += `<h3>Chính sách khai thác</h3><div class="ae-row">${[0, 0.04, 0.08, 0.12].map(x => `<button type="button" class="ae-btn sm ${h.terms.harvest === x ? "on" : ""}" data-ae="policy" data-h="${h.id}" data-k="harvest" data-v="${x}">${x * 100}%/năm</button>`).join("")}</div>`;
     if (h.type === "hf") out += `<h3>Đòn bẩy</h3><div class="ae-row">${[1, 1.5, 2, 3].map(x => `<button type="button" class="ae-btn sm ${h.terms.lev === x ? "on" : ""}" data-ae="policy" data-h="${h.id}" data-k="lev" data-v="${x}">${x}×</button>`).join("")}</div>`;
@@ -563,7 +682,7 @@
       ${c.kind === "distressed" ? `<div><dt>Giá trị doanh nghiệp / nợ</dt><dd>${pct(c.ev / c.face, 1)}</dd></div><div><dt>Thu hồi ước tính</dt><dd>${pct(c.recoveryEst, 1)}</dd></div><div><dt>Quyết định tái cấu trúc</dt><dd>${c.status === "resolved" ? esc(c.outcome) + " · " + pct(c.recovery, 1) : `sau ${Math.max(0, c.resolveAge - c.age)} quý`}</dd></div>` : ""}
       ${h.type === "loan" ? `<div><dt>Lãi suất</dt><dd>${pct(t.rate, 1)}</dd></div><div><dt>Thứ tự</dt><dd>${esc(t.seniority)}</dd></div><div><dt>Tỷ lệ sở hữu qua warrants</dt><dd>${pct(t.warrants, 2)}</dd></div>` : ""}
       ${h.type === "equity" ? `<div><dt>Tỷ lệ sở hữu</dt><dd>${pct(t.stake, 1)}</dd></div>` : ""}</dl></section>`;
-    if (h.type === "farm" && m.last) return `<section class="ae-card"><h2>Vụ thu hoạch gần nhất (${W.label(m.last.q)})</h2><dl class="ae-dl"><div><dt>Sản lượng</dt><dd>${Math.round(m.last.tons).toLocaleString("en-US")} tấn (thời tiết ${fx(m.last.weather)})</dd></div><div><dt>Giá</dt><dd>$${(m.last.cropPx / 100).toFixed(2)}/tấn</dd></div><div><dt>Doanh thu</dt><dd>${m$(m.last.rev)}</dd></div><div><dt>Lãi/lỗ phòng hộ</dt><dd>${m$(m.last.hedge)}</dd></div><div><dt>Chi phí</dt><dd>${m$(m.last.cost)}</dd></div></dl><p class="ae-muted">Ba nguồn lợi nhuận: sản lượng × giá (thu nhập khai thác), giá nông sản, và giá đất (định giá lại ở trên).</p></section>`;
+    if (h.type === "farm" && m.last) return `<section class="ae-card"><h2>Vụ thu hoạch gần nhất (${LQ(m.last.q)})</h2><dl class="ae-dl"><div><dt>Sản lượng</dt><dd>${Math.round(m.last.tons).toLocaleString("en-US")} tấn (thời tiết ${fx(m.last.weather)})</dd></div><div><dt>Giá</dt><dd>$${(m.last.cropPx / 100).toFixed(2)}/tấn</dd></div><div><dt>Doanh thu</dt><dd>${m$(m.last.rev)}</dd></div><div><dt>Lãi/lỗ phòng hộ</dt><dd>${m$(m.last.hedge)}</dd></div><div><dt>Chi phí</dt><dd>${m$(m.last.cost)}</dd></div></dl><p class="ae-muted">Ba nguồn lợi nhuận: sản lượng × giá (thu nhập khai thác), giá nông sản, và giá đất (định giá lại ở trên).</p></section>`;
     if (h.type === "timber" && m.parts) return `<section class="ae-card"><h2>Tách lợi nhuận rừng quý này</h2>${hbars([{ l: "Tăng trưởng sinh học", v: m.parts.growth, c: "#5CC9A7" }, { l: "Thay đổi giá gỗ", v: m.parts.price, c: "#E0A75C", tone: tone(m.parts.price) }, { l: "Thay đổi giá đất", v: m.parts.landChg, c: "#C9A86A", tone: tone(m.parts.landChg) }], m$)}<p class="ae-muted">Gỗ đứng ${Math.round(m.parts.vol).toLocaleString("en-US")} m³ · giá gỗ tròn $${(m.parts.px / 100).toFixed(0)}/m³ · đất ${m$(m.parts.land)}.</p></section>`;
     if (h.type === "futures" && m.parts) return `<section class="ae-card"><h2>Tách lợi nhuận futures quý này <small>mô hình của game</small></h2>${hbars([{ l: "Giá giao ngay", v: m.parts.spot, c: "#E0A75C", tone: tone(m.parts.spot) }, { l: "Roll (contango −, backwardation +)", v: m.parts.roll, c: "#B49AF0", tone: tone(m.parts.roll) }, { l: "Lãi tài sản ký quỹ", v: m.parts.collateral, c: "#5CC9A7" }], x => pct(x))}<p class="ae-muted">Đường cong hiện tại: năng lượng ${g.world.kE > 0 ? "contango" : "backwardation"}, kim loại ${g.world.kM > 0 ? "contango" : "backwardation"}, nông sản ${g.world.kA > 0 ? "contango" : "backwardation"}.</p></section>`;
     if (h.type === "hf") {
@@ -597,6 +716,7 @@
         <article class="ae-card"><h2>Thang thanh khoản</h2>${hbars([{ l: "Tiền mặt", v: liq.buckets.cash, c: "#9AA3B5" }, { l: "Thanh khoản cao", v: liq.buckets.liquid, c: "#5CC9A7" }, { l: "Theo quý (hedge fund, nợ khó đòi)", v: liq.buckets.semi, c: "#B49AF0" }, { l: "Kém thanh khoản", v: liq.buckets.illiquid, c: "#E0A75C" }], v => `${m$(v)} · ${pct(nav ? v / nav : 0, 0)}`)}
           <dl class="ae-dl"><div><dt>Gọi vốn dự kiến 4 quý</dt><dd>${m$(liq.need)}</dd></div><div><dt>Nguồn sẵn có</dt><dd>${m$(liq.avail)}</dd></div><div><dt>${tip("Coverage")}</dt><dd class="${liq.coverage < 1 ? "down" : "up"}">${isFinite(liq.coverage) ? fx(liq.coverage) + "×" : "∞"}</dd></div><div><dt>Vốn cam kết chưa gọi</dt><dd>${m$(liq.unfunded)}</dd></div></dl>
           <h3>Hạn mức tín dụng của quỹ</h3><p>Đã dùng ${m$(f.debt)} / ${m$(f.credit.limit)} · lãi ${pct(f.credit.rate)}</p>
+          <div class="ae-row">${[0, 10, 20].map(v => `<button type="button" class="ae-btn sm ${f.credit.limit === E.M(v) ? "on" : ""}" data-ae="creditline" data-v="${v}">Hạn mức $${v}M</button>`).join("")}</div>
           <div class="ae-row"><button type="button" class="ae-btn sm" data-ae="credit" data-op="draw" ${f.credit.limit - f.debt >= E.M(1) ? "" : "disabled"}>Rút $1M</button><button type="button" class="ae-btn sm" data-ae="credit" data-op="repay" ${f.debt > 0 ? "" : "disabled"}>Trả $1M</button></div></article></section>
       <section class="ae-grid ae-g2">
         <article class="ae-card"><h2>Kiểm tra sức chịu đựng <small>mô hình độ nhạy của game</small></h2>${hbars(stress.map(s => ({ l: s.l, v: s.v, tone: tone(s.v), c: s.v < 0 ? "#E07A6F" : "#5CC9A7" })), v => `${m$(v)} · ${pct(nav ? v / nav : 0, 1)}`)}<p class="ae-muted">Ước tính tác động tức thời lên giá trị tài sản theo độ nhạy giả định cho từng loại tài sản; không phải dự báo.</p></article>
@@ -609,11 +729,12 @@
     const g = AE.G, w = g.world, hs = w.hist;
     const s = (k, mult) => hs.map(r => [r.q, r[k] * (mult || 1)]);
     shell("events", `${hd("Market Events", `Kinh tế: ${esc(W.REGIMES[w.regime].name)}`, "Mọi biến kinh tế liên quan với nhau nhưng mỗi loại tài sản phản ứng khác nhau. Cùng seed và cùng sự kiện cho cùng diễn biến.", SIM())}
+      ${replayInfo(g)}
       <section class="ae-kgrid">${[["Tăng trưởng", pct(w.gdp, 1)], ["Lạm phát", pct(w.infl, 1)], ["Lãi suất chính sách", pct(w.rate)], ["Spread tín dụng", pct(w.spread)], ["Biến động", pct(w.vol, 0)], ["Thanh khoản", pct(w.liq, 0)], ["Cổ phiếu (chỉ số)", fx(w.eqIdx, 1)], ["Năng lượng", fx(w.energy, 1)], ["Kim loại", fx(w.metals, 1)], ["Nông sản", fx(w.ags, 1)], ["Văn phòng", fx(w.office, 1)], ["Nhà ở", fx(w.resi, 1)], ["Lưu lượng giao thông", fx(w.traffic, 1)], ["Giá gỗ", fx(w.timber, 1)], ["Giá đất", fx(w.land, 1)], ["Token", fx(w.token, 1)]].map(([l, v]) => `<div class="ae-k"><small>${l}</small><b>${v}</b></div>`).join("")}</section>
       <section class="ae-grid ae-g2">
         <article class="ae-card"><h2>Lãi suất, lạm phát, spread</h2>${line([{ name: "Lãi suất", color: "#C9A86A", pts: s("rate", 100) }, { name: "Lạm phát", color: "#E07A6F", pts: s("infl", 100) }, { name: "Spread", color: "#7FA8E6", pts: s("spread", 100) }], { fy: v => v.toFixed(1) + "%" })}</article>
         <article class="ae-card"><h2>Chỉ số tài sản (100 = đầu game)</h2>${line([{ name: "Cổ phiếu", color: "#7FA8E6", pts: s("eqIdx") }, { name: "Văn phòng", color: "#5CC9A7", pts: s("office") }, { name: "Năng lượng", color: "#E0A75C", pts: s("energy") }, { name: "Token", color: "#E57FB0", pts: s("token") }], { fy: v => v.toFixed(0) })}</article></section>
-      <section class="ae-card"><h2>Nhật ký sự kiện</h2>${g.events.length ? `<ul class="ae-inbox">${g.events.map(e => `<li class="k-event">${avatar((C.EVENTS[e.id] || {}).from || "marcus", 30)}<div><b>${esc(e.title)}</b><small>${W.label(e.q)}</small><p>${esc(e.text)}</p></div></li>`).join("")}</ul>` : `<p class="ae-muted">Chưa có sự kiện.</p>`}</section>`);
+      <section class="ae-card"><h2>Nhật ký sự kiện</h2>${g.events.length ? `<ul class="ae-inbox">${g.events.map(e => `<li class="k-event">${avatar((C.EVENTS[e.id] || {}).from || "marcus", 30)}<div><b>${esc(e.title)}</b><small>${LQ(e.q - 1)}</small><p>${esc(e.text)}</p></div></li>`).join("")}</ul>` : `<p class="ae-muted">Chưa có sự kiện.</p>`}</section>`);
   }
 
   // ======================= 14. Performance report =======================
@@ -625,7 +746,7 @@
     shell("report", `${hd("Performance Report", "Báo cáo hiệu quả", "Lợi nhuận gộp → phí → chi phí → lợi nhuận ròng. Mỗi con số cộng lại từ sổ cái đã đối soát.", SIM())}
       <div class="ae-tabs">${[["q", "Quý này"], ["y", "4 quý gần nhất"], ["all", "Từ đầu"]].map(([k, l]) => `<button type="button" class="${rng === k ? "on" : ""}" data-ae="tab" data-t="rep" data-v="${k}">${l}</button>`).join("")}<button type="button" data-ae="csv">${icon("download", 14)} Tải sổ cái CSV</button></div>
       <section class="ae-grid ae-g2">
-        <article class="ae-card"><h2>Từ gộp tới ròng (${rng === "all" ? "từ đầu" : W.label(q0) + " – " + W.label(g.q)})</h2>
+        <article class="ae-card"><h2>Từ gộp tới ròng (${rng === "all" ? "từ đầu" : LQ(q0) + " – " + LQ(g.q)})</h2>
           <table class="ae-table"><tbody>${[["income", 0], ["realized", 0], ["unrealized", 0]].map(([k]) => `<tr><td>${esc(F.CAT_NAME[k])}</td><td class="r ${tone(p[k])}">${m$(p[k])}</td></tr>`).join("")}
             <tr class="sum"><td>Lợi nhuận gộp từ tài sản</td><td class="r ${tone(gross)}">${m$(gross)}</td></tr>
             ${["mgmtFee", "perfFee"].map(k => `<tr><td>${esc(F.CAT_NAME[k])}</td><td class="r ${tone(p[k])}">${m$(p[k])}</td></tr>`).join("")}
@@ -637,14 +758,14 @@
           <div><dt>IRR của quỹ (theo tiền)</dt><dd>${fi && fi.status === "unique" ? pct(fi.irr) : "—"}</dd></div><div><dt>Sụt giảm tối đa</dt><dd class="down">${pct(b.d.dd)}</dd></div><div><dt>Biến động năm hóa</dt><dd>${pct(E.stdev(nh.slice(1).map(r => r.ret)) * 2)}</dd></div></dl>
           <h3>Đối soát</h3><p class="${v.ok ? "ae-ok" : "ae-warn"}">${icon(v.ok ? "check" : "alert", 14)} ${v.ok ? `Sổ cái khớp: ${f.ledger.length} bút toán, mã băm ${esc(f.hash)}. NAV = vốn ban đầu + tổng các khoản = ${m$(v.nav)}.` : esc(v.errors.slice(0, 3).join("; "))}</p>
           ${g.tampered ? `<p class="ae-warn">${icon("alert", 14)} Ván này từng được tải từ tệp không khớp mã kiểm tra.</p>` : ""}</article></section>
-      <section class="ae-card"><h2>Theo quý</h2><div class="ae-tablewrap"><table class="ae-table sm"><thead><tr><th>Quý</th><th class="r">NAV</th><th class="r">Lợi nhuận</th><th class="r">Chuẩn 60/40</th><th class="r">Điểm HĐQT</th><th>Sự kiện</th></tr></thead><tbody>${g.reports.map(r => `<tr><td>${W.label(r.q)}</td><td class="r">${m$(r.nav)}</td><td class="r ${tone(r.ret)}">${pct(r.ret)}</td><td class="r">${pct(r.bench)}</td><td class="r">${Math.round(r.total)}</td><td>${esc(r.events.join(", "))}${r.review ? ` · Đánh giá chương ${r.review.ch}: ${r.review.pass ? "đạt" : "cảnh cáo"}` : ""}</td></tr>`).join("") || `<tr><td colspan="6">Chưa có quý nào kết thúc.</td></tr>`}</tbody></table></div></section>
-      <section class="ae-card"><h2>Đánh giá chương</h2>${g.reviews.length ? `<table class="ae-table"><thead><tr><th>Chương</th><th>Quý</th><th class="r">Điểm</th><th>Kết quả</th></tr></thead><tbody>${g.reviews.map(r => `<tr><td>${r.ch}. ${esc(C.CHAPTERS[r.ch - 1].title)}</td><td>${W.label(r.q)}</td><td class="r">${Math.round(r.sc.total)}</td><td>${r.pass ? "Đạt" : "Cảnh cáo"}</td></tr>`).join("")}</tbody></table>` : `<p class="ae-muted">Chưa có.</p>`}</section>`);
+      <section class="ae-card"><h2>Theo quý</h2><div class="ae-tablewrap"><table class="ae-table sm"><thead><tr><th>Quý</th><th class="r">NAV</th><th class="r">Lợi nhuận</th><th class="r">Chuẩn 60/40</th><th class="r">Điểm HĐQT</th><th>Sự kiện</th></tr></thead><tbody>${g.reports.map(r => `<tr><td>${LQ(r.q - 1)}</td><td class="r">${m$(r.nav)}</td><td class="r ${tone(r.ret)}">${pct(r.ret)}</td><td class="r">${pct(r.bench)}</td><td class="r">${Math.round(r.total)}</td><td>${esc(r.events.join(", "))}${r.review ? ` · Đánh giá chương ${r.review.ch}: ${r.review.pass ? "đạt" : "cảnh cáo"}` : ""}</td></tr>`).join("") || `<tr><td colspan="6">Chưa có quý nào kết thúc.</td></tr>`}</tbody></table></div></section>
+      <section class="ae-card"><h2>Đánh giá chương</h2>${g.reviews.length ? `<table class="ae-table"><thead><tr><th>Chương</th><th>Quý</th><th class="r">Điểm</th><th>Kết quả</th></tr></thead><tbody>${g.reviews.map(r => `<tr><td>${r.ch}. ${esc(C.CHAPTERS[r.ch - 1].title)}</td><td>${LQ(r.q)}</td><td class="r">${Math.round(r.sc.total)}</td><td>${r.pass ? "Đạt" : "Cảnh cáo"}</td></tr>`).join("")}</tbody></table>` : `<p class="ae-muted">Chưa có.</p>`}</section>`);
   }
   function csv() {
     const g = AE.G; if (!g) return;
-    const rows = [["seq", "quarter", "type", "holding", "cash_usd", "value_usd", "debt_usd", "note"]].concat(g.fund.ledger.map(r => [r.s, W.label(r.q), r.t, r.h || "", (r.c / 100).toFixed(2), (r.v / 100).toFixed(2), ((r.d + r.fd) / 100).toFixed(2), `"${String(r.n).replace(/"/g, "'")}"`]));
+    const rows = [["seq", "quarter", "type", "holding", "cash_usd", "value_usd", "debt_usd", "note"]].concat(g.fund.ledger.map(r => [r.s, LQ(r.q), r.t, r.h || "", (r.c / 100).toFixed(2), (r.v / 100).toFixed(2), ((r.d + r.fd) / 100).toFixed(2), `"${String(r.n).replace(/"/g, "'")}"`]));
     const blob = new Blob([rows.map(r => r.join(",")).join("\n")], { type: "text/csv" }), a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = `alternative-empire-ledger-${W.label(g.q).replace("/", "-")}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    a.href = URL.createObjectURL(blob); a.download = `alternative-empire-ledger-${LQ(g.q).replace("/", "-")}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   // ======================= 13. Academy =======================
@@ -735,9 +856,10 @@
   function achievements() {
     const g = AE.G, nx = G.careerNext(g);
     shell("achievements", `${hd("Sự nghiệp & Thành tựu", esc(C.CAREER[g.career - 1].name), "Thăng chức dựa trên kiến thức, quản trị rủi ro và kết quả — không chỉ NAV.")}
+      ${boardCard()}
       <section class="ae-card"><h2>Bậc thang sự nghiệp</h2><ol class="ae-ladder">${C.CAREER.map(c => `<li class="${c.lv <= g.career ? "on" : ""}"><b>${c.lv}. ${esc(c.name)}</b><small>${esc(c.need)}</small>${c.lv <= g.career ? chip("Đạt", "green") : c === nx ? chip("Tiếp theo", "gold") : ""}</li>`).join("")}</ol>
         <p class="ae-muted">Hiện tại: thành thạo trung bình ${pct(G.avgMastery(g), 0)} · uy tín ${g.rep} · niềm tin ${Math.round(g.trust)} · điểm rủi ro ${Math.round((g.board || G.scorecard(g)).risk)}${g.finalScore != null ? ` · điểm tổng kết ${g.finalScore}` : ""}</p></section>
-      <section class="ae-cards">${Object.entries(C.ACHIEVEMENTS).map(([id, [t, d]]) => `<article class="ae-card ae-ach ${g.ach[id] != null ? "on" : ""}">${icon(g.ach[id] != null ? "star" : "lock", 22)}<b>${esc(t)}</b><p>${esc(d)}</p>${g.ach[id] != null ? `<small>${W.label(g.ach[id])}</small>` : ""}</article>`).join("")}</section>`);
+      <section class="ae-cards">${Object.entries(C.ACHIEVEMENTS).map(([id, [t, d]]) => `<article class="ae-card ae-ach ${g.ach[id] != null ? "on" : ""}">${icon(g.ach[id] != null ? "star" : "lock", 22)}<b>${esc(t)}</b><p>${esc(d)}</p>${g.ach[id] != null ? `<small>${LQ(g.ach[id])}</small>` : ""}</article>`).join("")}</section>`);
   }
 
   // ======================= 16. Settings =======================
@@ -763,6 +885,7 @@
       return { k, i, s, err, size: r ? r.length : 0 };
     });
     shell("saves", `${hd("Save / Load", "Lưu và tải game", "Ván đang chơi tự lưu vào ô của nó sau mỗi hành động. Có thể lưu sang ô khác, xuất ra tệp JSON hoặc nhập lại.")}
+      ${replayCard()}
       <section class="ae-cards">${rows.map(({ k, i, s, err, size }) => `<article class="ae-card ae-slot ${AE.slot === k ? "cur" : ""}"><p class="ae-kicker">Ô ${i + 1}${AE.slot === k ? " · đang chơi" : ""}</p>
         ${s ? `<h3>${esc(s.name)}</h3><p>${s.label} · chương ${s.chapter} · ${m$(s.nav)}</p><p class="ae-muted">${esc(s.career)} · ${esc(W.DIFFICULTY[s.difficulty].name)} · seed ${s.seed} · ${s.at ? new Date(s.at).toLocaleString("vi-VN") : ""} · ${Math.round(size / 1024)} KB</p>${s.status !== "active" ? chip(s.status === "lost" ? "Đã thua" : "Đã kết thúc", "") : ""}${s.seal ? "" : chip("Không khớp mã kiểm tra", "red")}` : err ? `<p class="ae-warn">${esc(err)}</p>` : `<p class="ae-muted">Trống</p>`}
         <div class="ae-row">${s && AE.slot !== k ? `<button type="button" class="ae-btn sm gold" data-ae="load" data-k="${k}">Tải</button>` : ""}${AE.G && AE.slot !== k ? `<button type="button" class="ae-btn sm" data-ae="saveas" data-k="${k}">Lưu ván hiện tại vào đây</button>` : ""}
@@ -829,6 +952,21 @@
     if (act === "exit") { const r = G.exitHolding(g, b.dataset.h, b.dataset.r); if (!r.ok) return toast(r.msg, "error"); save(); toast(r.msg); return rerender(); }
     if (act === "credit") { const r = G.credit(g, b.dataset.op, E.M(1)); if (!r.ok) return toast(r.msg, "error"); save(); return rerender(); }
     if (act === "csv") return csv();
+    if (act === "aiadvise") {
+      if (typeof tutorOpen !== "function" || typeof TUTOR === "undefined") return toast("CFA Tutor chưa sẵn sàng trên trang này", "error");
+      TUTOR.ctx = { label: `Alternative Empire · ${LQ(g.q)}`, text: fundBrief(g) };
+      tutorOpen();
+      if (typeof tutorCfg === "function" && tutorCfg().key && !TUTOR.busy && typeof tutorSend === "function")
+        tutorSend("Bạn là CIO cố vấn trong một game học CFA Level I Alternative Investments. Dựa trên bản tóm tắt danh mục mô phỏng đính kèm: (1) nhận xét phân bổ, thanh khoản (gọi vốn, unfunded commitments), rủi ro tập trung và tác động của phí; (2) nêu khái niệm CFA liên quan; (3) đề xuất tối đa 3 hành động cụ thể cho quý tới. Trả lời ngắn gọn bằng tiếng Việt.", TUTOR.ctx);
+      return;
+    }
+    if (act === "creditline") { const r = G.setCreditLine(g, +b.dataset.v); if (!r.ok) return toast(r.msg, "error"); save(); toast(r.msg); return rerender(); }
+    if (act === "presetmode") { const v = b.dataset.v; AE.ui.nf = v === "replay" ? { mode: "campaign", data: "real" } : { mode: v }; return; }
+    if (act === "rpdel") {
+      if (!(await confirmDialog({ title: "Xóa dữ liệu replay?", message: "Các ván đang chơi giữ nguyên dữ liệu đã nạp; chỉ không tạo được ván replay mới.", confirmText: "Xóa", danger: true }))) return;
+      try { localStorage.removeItem(DATA_KEY); } catch (err) { /* ignore */ }
+      return rerender();
+    }
     if (act === "lm") { AE.ui.lm = +b.dataset.v; AE.ui.practiceQ = null; return rerender(); }
     if (act === "pnew") {
       const pool = C.QUESTIONS.filter(q => q.lm === (AE.ui.lm || 1)), pick = pool[Math.floor(Math.random() * pool.length)];
@@ -902,6 +1040,23 @@
   });
   document.addEventListener("change", e => {
     const f = e.target.form;
+    if (e.target.matches && e.target.matches("[data-ae-replay]")) {
+      const file = e.target.files && e.target.files[0]; if (!file) return;
+      if (file.size > 2e6) return toast("Tệp quá lớn", "error");
+      const rd = new FileReader();
+      rd.onload = () => {
+        let doc = null; try { doc = JSON.parse(String(rd.result)); } catch (err) { return toast("Không đọc được JSON", "error"); }
+        const v = W.validateReplay(doc);
+        if (!v.ok) return toast(v.errors.slice(0, 2).join("; "), "error");
+        try { localStorage.setItem(DATA_KEY, JSON.stringify(doc)); } catch (err) { return toast("Bộ nhớ trình duyệt đầy", "error"); }
+        const nb = Object.values(v.gaps).reduce((s, n) => s + n, 0);
+        toast(`Đã nhập ${v.quarters.length} quý dữ liệu thật${nb ? ` (${nb} ô trống sẽ dùng số mô phỏng)` : ""}`); rerender();
+      };
+      rd.readAsText(file); return;
+    }
+    if (f && f.id === "ae-newform" && ["mode", "data", "challenge"].includes(e.target.name)) {
+      AE.ui.nf = formVals(f); AE.ui.seed = AE.ui.nf.seed ? +AE.ui.nf.seed : AE.ui.seed; return rerender();
+    }
     if (e.target.matches && e.target.matches("[data-ae-import]")) {
       const k = e.target.dataset.aeImport, file = e.target.files && e.target.files[0]; if (!file) return;
       if (file.size > 3e6) return toast("Tệp quá lớn", "error");

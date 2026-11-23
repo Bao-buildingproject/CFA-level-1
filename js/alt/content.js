@@ -516,6 +516,27 @@
     ["q7-7", 7, 1, "Smart contract là:", ["Chương trình tự thực thi trên blockchain khi điều kiện được đáp ứng", "Hợp đồng giấy có công chứng", "Một loại stablecoin"], 0, ["Đúng.", "Sai.", "Sai."], "", "", ""],
     ["q7-8", 7, 2, "Vì sao định giá cryptocurrency khó?", ["Không có dòng tiền hay giá trị nội tại thống nhất", "Có cổ tức ổn định", "Do nhà nước định giá"], 0, ["Đúng.", "Sai.", "Sai."], "", "", ""],
     ["q7-9", 7, 1, "NFT khác cryptocurrency ở chỗ:", ["Mỗi token là duy nhất, không thể thay thế", "NFT do ngân hàng trung ương phát hành", "NFT luôn neo giá"], 0, ["Đúng.", "Sai.", "Sai."], "", "", ""]
+    ,
+    ["q1-10", 1, 1, "Vòng đời điển hình của một quỹ private equity khoảng:", ["10 năm", "1 năm", "Vô thời hạn"], 0, ["Đúng: vốn được gọi trong 3–5 năm đầu, sau đó là giai đoạn thu hoạch và thoái vốn.", "Sai: quá ngắn so với thời gian tạo giá trị và thoái vốn.", "Sai: quỹ PE thường là quỹ đóng có thời hạn."], "", "", ""],
+    ["q1-11", 1, 1, "Hedge fund và REIT thường tính phí quản lý trên:", ["Tài sản đang quản lý (AUM)", "Vốn cam kết (committed capital)", "Lợi nhuận thực hiện"], 0, ["Đúng.", "Sai: đó là cách phổ biến của quỹ PE.", "Sai: đó là cơ sở của phí hiệu suất."], "", "", "Nghĩ mọi quỹ thay thế đều tính phí quản lý trên cùng một cơ sở."],
+    ["q1-12", 1, 2, "Theo whole-of-fund (European) waterfall, GP bắt đầu nhận carried interest khi:", ["LP đã nhận lại vốn góp và preferred return trên toàn quỹ", "Ngay khi một thương vụ có lãi", "Trước khi LP nhận lại vốn"], 0, ["Đúng: carry tính trên tổng thể quỹ, nên có lợi cho LP.", "Sai: đó là deal-by-deal (American).", "Sai."], "", "", ""],
+    ["q2-11", 2, 2, "Tài sản Level 3 trong phân cấp giá trị hợp lý là tài sản:", ["Định giá bằng dữ liệu đầu vào không quan sát được", "Có giá niêm yết trên thị trường hoạt động", "Định giá bằng dữ liệu quan sát được gián tiếp"], 0, ["Đúng: phổ biến ở PE, bất động sản tư nhân, hạ tầng.", "Sai: Level 1.", "Sai: Level 2."], "", "", "Coi giá trị ước tính Level 3 như giá giao dịch thật."],
+    ["q2-12", 2, 3, "Lợi nhuận danh mục 4%, vốn chủ $100M, vay thêm $100M với lãi 6%. Lợi nhuận trên vốn chủ:", ["2,0%", "8,0%", "−2,0%"], 0, ["Đúng: 4% + (100/100)(4% − 6%) = 2%.", "Sai: bỏ qua chi phí vay (4% × 2).", "Sai: trừ thừa chi phí vay."], "rL = r + (Vb/Vc)(r − rb)", "0,04 + 1 × (0,04 − 0,06) = 0,02", "Đòn bẩy luôn làm tăng lợi nhuận — sai khi lãi vay cao hơn lợi nhuận tài sản."],
+    ["q3-10", 3, 2, "So với trái phiếu niêm yết, private debt thường:", ["Kém thanh khoản và rủi ro tín dụng cao hơn, bù lại bằng lãi suất cao hơn", "Được nhà nước bảo lãnh", "Không có rủi ro lãi suất"], 0, ["Đúng: nhà đầu tư nhận phần bù kém thanh khoản và tín dụng.", "Sai.", "Sai: khoản vay lãi cố định vẫn chịu rủi ro lãi suất; lãi thả nổi giảm bớt rủi ro này."], "", "", ""],
+    ["q3-11", 3, 2, "Growth equity (growth capital) thường là:", ["Đầu tư cổ phần thiểu số vào công ty đã trưởng thành hơn cần vốn mở rộng, ít dùng đòn bẩy", "Mua lại toàn bộ công ty bằng nợ vay", "Cho startup giai đoạn hạt giống vay"], 0, ["Đúng.", "Sai: đó là LBO.", "Sai: đó là venture debt / VC giai đoạn sớm."], "", "", ""],
+    ["q3-12", 3, 2, "Trong một LBO, tăng nợ vay/EBITDA từ 4× lên 6× thường làm:", ["Tăng lợi nhuận kỳ vọng trên vốn cổ phần và tăng rủi ro vỡ nợ", "Giảm rủi ro vỡ nợ", "Không đổi lợi nhuận và rủi ro"], 0, ["Đúng: đòn bẩy khuếch đại cả hai chiều; covenant dễ bị vi phạm hơn.", "Sai.", "Sai."], "", "", ""],
+    ["q4-10", 4, 1, "So với hạ tầng greenfield, đầu tư brownfield:", ["Có dòng tiền sớm và lịch sử hoạt động, rủi ro thấp hơn", "Chịu rủi ro xây dựng cao hơn", "Chưa có doanh thu"], 0, ["Đúng.", "Sai: đó là greenfield.", "Sai."], "", "", ""],
+    ["q4-11", 4, 1, "Đặc điểm điển hình của đầu tư hạ tầng:", ["Vốn lớn, thời gian dài, rào cản gia nhập cao, dòng tiền tương đối ổn định", "Thanh khoản cao như cổ phiếu niêm yết", "Thời gian nắm giữ dưới một năm"], 0, ["Đúng.", "Sai: hạ tầng trực tiếp kém thanh khoản.", "Sai."], "", "", ""],
+    ["q4-12", 4, 3, "Tài sản $40M, nợ vay $24M. Giá trị tài sản giảm 10% thì vốn chủ sở hữu giảm:", ["25%", "10%", "40%"], 0, ["Đúng: vốn chủ từ 16 xuống 36 − 24 = 12, giảm 4/16 = 25%.", "Sai: đó là mức giảm của tài sản, chưa tính đòn bẩy.", "Sai."], "Vốn chủ = tài sản − nợ", "Trước: 40 − 24 = 16; sau: 36 − 24 = 12; (12 − 16)/16 = −25%", "Quên rằng đòn bẩy (LTV 60%) khuếch đại biến động của vốn chủ."],
+    ["q5-10", 5, 2, "Convenience yield là:", ["Lợi ích phi tiền mặt khi nắm giữ hàng hóa vật chất, làm giảm giá kỳ hạn", "Chi phí lưu kho", "Lãi suất phi rủi ro"], 0, ["Đúng.", "Sai: chi phí lưu kho làm tăng giá kỳ hạn.", "Sai."], "F0(T) = S0 · e^{(r + c − i)T}", "", ""],
+    ["q5-11", 5, 1, "Đất thô (raw land) tạo lợi nhuận chủ yếu từ:", ["Thay đổi giá đất", "Thu hoạch mùa vụ", "Tăng trưởng sinh học của cây"], 0, ["Đúng.", "Sai: đó là đất nông nghiệp.", "Sai: đó là rừng trồng."], "", "", ""],
+    ["q5-12", 5, 2, "Theo quy tắc thông thường, contango kéo dài sẽ:", ["Làm giảm lợi nhuận của nhà đầu tư chỉ nắm vị thế long", "Làm tăng lợi nhuận của nhà đầu tư long", "Không ảnh hưởng tới nhà đầu tư"], 0, ["Đúng: hợp đồng mới đắt hơn hợp đồng sắp đáo hạn.", "Sai: đó là backwardation.", "Sai."], "", "", ""],
+    ["q6-10", 6, 2, "Chiến lược equity market neutral nhắm tới:", ["Net exposure gần 0, lợi nhuận đến từ chọn cổ phiếu", "Net exposure rất cao", "Chỉ nắm trái phiếu chính phủ"], 0, ["Đúng.", "Sai.", "Sai."], "", "", ""],
+    ["q6-11", 6, 2, "Khi nhiều nhà đầu tư rút vốn cùng lúc khỏi một hedge fund dùng đòn bẩy, rủi ro chính là:", ["Phải bán tài sản ở giá bất lợi, khuếch đại thua lỗ cho nhà đầu tư ở lại", "Lợi nhuận tăng nhờ ít nhà đầu tư hơn", "Phí quản lý giảm nên quỹ có lợi"], 0, ["Đúng: đó là lý do có notice period, lockup và gate.", "Sai.", "Sai."], "", "", ""],
+    ["q6-12", 6, 3, "Hedge fund: đầu năm $100M, cuối năm $120M trước phí; phí quản lý 2% trên giá trị cuối năm; phí hiệu suất 20% tính độc lập; high-water mark $115M. Phí hiệu suất:", ["$1,00M", "$4,00M", "$0,52M"], 0, ["Đúng: 20% × (120 − 115) = 1,0.", "Sai: bỏ qua high-water mark (20% × 20).", "Sai: đó là khi phí hiệu suất tính sau phí quản lý: 20% × (117,6 − 115)."], "Phí hiệu suất = p × max[0, P1 − HWM]", "0,2 × (120 − 115) = 1,0", "Tính phí hiệu suất trên toàn bộ lãi trong năm dù quỹ chưa vượt đỉnh cũ."],
+    ["q7-10", 7, 1, "Tokenization là:", ["Biểu diễn quyền sở hữu tài sản thực trên sổ cái phân tán", "Phát hành tiền giấy", "Chia tách cổ phiếu"], 0, ["Đúng: giúp xác minh quyền sở hữu và lịch sử giao dịch.", "Sai.", "Sai."], "", "", ""],
+    ["q7-11", 7, 2, "So với IPO, ICO (initial coin offering):", ["Ít quy định hơn, chi phí phát hành thấp hơn, rủi ro cho nhà đầu tư cao hơn", "Luôn được sở giao dịch giám sát chặt chẽ", "Chỉ dành cho ngân hàng"], 0, ["Đúng.", "Sai.", "Sai."], "", "", ""],
+    ["q7-12", 7, 1, "Memecoin thuộc nhóm:", ["Cryptocurrency (bên cạnh Bitcoin và altcoin)", "CBDC", "Security token"], 0, ["Đúng.", "Sai: CBDC do ngân hàng trung ương phát hành.", "Sai: security token số hóa chứng khoán."], "", "", ""]
   ];
   const QUESTIONS = Q.map(([id, lm, diff, q, opts, ans, why, formula, steps, mis]) => ({ id, lm, diff, q, opts, ans, why, formula, steps, mis }));
 
@@ -593,8 +614,38 @@
     { min: 50, id: "pm", title: "Portfolio Manager đáng tin cậy", text: "Hội đồng giữ bạn ở vị trí quản lý danh mục. Kết quả ổn nhưng chưa đủ thuyết phục để giao thêm quyền." },
     { min: 0, id: "replaced", title: "Bị thay thế", text: "Hội đồng quyết định thay người quản lý danh mục. Hãy xem lại báo cáo: thanh khoản, phí, rủi ro tập trung hay hiểu biết?" }
   ];
+  // ---------------- Game modes ----------------
+  const MODES = {
+    campaign: { name: "Chiến dịch 7 chương", short: "Chiến dịch", desc: "Cốt truyện đầy đủ: 30 nhiệm vụ, 7 Learning Module, thăng chức và 4 kết cục." },
+    sandbox: { name: "Sandbox", short: "Sandbox", desc: "Mọi thương vụ mở ngay từ đầu, không nhiệm vụ, không giới hạn thời gian. Thử chiến lược tự do." },
+    challenge: { name: "Thử thách danh mục", short: "Thử thách", desc: "Kịch bản cố định với danh mục ban đầu và điều kiện thắng riêng." },
+    cup: { name: "Giải đấu tuần", short: "Giải đấu", desc: "12 quý, cùng một nền kinh tế cho mọi tài khoản trên máy này trong tuần. Điểm = 50 + 300 × lợi nhuận năm vượt chuẩn 60/40, trừ điểm sụt giảm quá 10%, vi phạm mandate và vay khẩn cấp." }
+  };
+  // goal kinds: noEmergency · navMin (USD million) · realNav (NAV ÷ CPI ≥ v × initial) · illiqMax · illiqMin · beatBench · noBreach · ddMax
+  const CHALLENGES = [
+    { id: "winter", name: "Mùa đông thanh khoản", quarters: 8, difficulty: "crisis", seed: 27011, lm: [1, 2],
+      desc: "Người tiền nhiệm cam kết $65M vào hai quỹ PE và mua co-investment, rừng trồng, một tòa văn phòng vay 60% và cổ phần sân bay. Tiền mặt còn khoảng $40M, khủng hoảng thanh khoản sắp tới. Đi qua 8 quý mà không phải vay khẩn cấp.",
+      setup: [["d1-fund", { commit: 40 }], ["d3-vintage", { commit: 25 }], ["d1-coinv", { amount: 12, dd: "own" }], ["d5-timber", { harvest: "0.04" }], ["d4-office", { ltv: "0.6" }], ["d4-airport", { amount: 20 }]],
+      script: [{ q: 2, ev: "crunch" }, { q: 4, ev: "credit" }, { q: 5, ev: "crunch", decision: "redeem" }],
+      goals: [{ k: "noEmergency", l: "Không vay khẩn cấp" }, { k: "navMin", v: 85, l: "NAV cuối kỳ ≥ $85M" }] },
+    { id: "inflation", name: "Lá chắn lạm phát", quarters: 12, difficulty: "standard", seed: 27021, lm: [4, 5], world: { regime: "stag", infl: 0.05, rate: 0.045 },
+      desc: "Lạm phát cao kéo dài. Tăng sức mua của quỹ thêm 6% sau 3 năm (NAV chia chỉ số giá), mà không khóa quá nhiều vốn vào tài sản kém thanh khoản. Giữ tiền mặt là không đủ.",
+      setup: [], script: [{ q: 1, ev: "inflation" }, { q: 3, ev: "oil" }, { q: 5, ev: "inflation" }, { q: 8, ev: "inflation" }],
+      goals: [{ k: "realNav", v: 1.06, l: "NAV thực (chia CPI) ≥ 106% vốn ban đầu" }, { k: "illiqMax", v: 0.6, l: "Tài sản kém thanh khoản ≤ 60% NAV" }] },
+    { id: "endowment", name: "Mô hình Endowment", quarters: 16, difficulty: "standard", seed: 27040, lm: [2, 3, 4],
+      desc: "Một quỹ hiến tặng đại học muốn vượt danh mục 60/40 bằng tài sản thay thế, nhưng phải tuân thủ mandate.",
+      setup: [], script: [],
+      goals: [{ k: "beatBench", l: "TWR vượt chuẩn 60/40" }, { k: "illiqMin", v: 0.4, l: "Tài sản kém thanh khoản ≥ 40% NAV" }, { k: "noBreach", l: "Không vi phạm mandate khi kết thúc" }] },
+    { id: "hfstress", name: "Hedge fund dưới áp lực", quarters: 8, difficulty: "crisis", seed: 27041, lm: [6],
+      desc: "Bạn tiếp quản một hedge fund nội bộ đang dùng đòn bẩy 3× và một khoản fund of funds, ngay trước khi thị trường tín dụng căng thẳng.",
+      setup: [["d6-hf", { amount: 30, mix: "rv", lev: "3" }], ["d6-fof", { amount: 10 }]],
+      script: [{ q: 2, ev: "crunch", decision: "redeem" }, { q: 4, ev: "credit" }, { q: 6, ev: "crunch" }],
+      goals: [{ k: "ddMax", v: 0.15, l: "Sụt giảm tối đa ≤ 15%" }, { k: "noEmergency", l: "Không vay khẩn cấp" }] }
+  ];
+  const CUP = { quarters: 12, difficulty: "standard" };
+
   // Mandate limits checked every quarter (game rules, set by the Chief Risk Officer)
   const MANDATE = { single: 0.25, illiquid: 0.8, digital: 0.05, fundDebt: 0.2, minLiquid: 0.03, hfLev: 3 };
 
-  return { PEOPLE, LMS, CHAPTERS, DEALS, CLAUSES, EVENTS, SCRIPT, MISSIONS, QUESTIONS, CONCEPTS, CAREER, ACHIEVEMENTS, ENDINGS, MANDATE };
+  return { PEOPLE, LMS, CHAPTERS, DEALS, CLAUSES, EVENTS, SCRIPT, MISSIONS, QUESTIONS, CONCEPTS, CAREER, ACHIEVEMENTS, ENDINGS, MANDATE, MODES, CHALLENGES, CUP };
 });

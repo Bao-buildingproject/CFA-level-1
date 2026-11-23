@@ -103,3 +103,16 @@ Thiếu tiền mặt: rút hạn mức → bán tài sản thanh khoản (có ch
 ## 13. Hiệu quả và rủi ro
 
 TWR quý = (NAV cuối − NAV đầu − dòng vốn)/(NAV đầu + dòng vốn) (dòng vốn đầu quý), nối chuỗi. IRR của quỹ: vốn ban đầu, dòng vốn khách hàng, NAV hiện tại. Sụt giảm tối đa trên chỉ số TWR. Độ phủ thanh khoản = (tiền mặt + 97% tài sản thanh khoản + 50% tài sản theo quý + hạn mức còn lại)/gọi vốn dự kiến 4 quý. Stress test trên trang Rủi ro dùng độ nhạy giả định theo loại tài sản (mô hình của game, không phải dự báo). NAV của tài sản không có giá quan sát được luôn gắn nhãn “ƯỚC TÍNH” và tách khỏi giá trị đã thực hiện.
+
+## 14. Replay dữ liệu thật — `world.js`
+
+- `validateReplay(doc)`: schema `alt-replay/1`, ≥ 8 quý liên tục dạng `YYYYQn`, bắt buộc có `equity`, `rate`, `infl`; mỗi chuỗi đúng số quý; giá trị là số hữu hạn hoặc `null` (ô trống); không chuỗi nào trống quá nửa; giá phải dương; lãi suất trong [−5%, 30%]. Trả về các năm bắt đầu hợp lệ và số ô trống mỗi chuỗi.
+- `replayFrom(doc, năm)`: cắt tại quý 4 năm trước đó, nên chỉ số 0 là trạng thái đầu quý 1 của game.
+- `realAt(rp, i)`: lãi suất, lạm phát, VIX lấy đúng mức (đơn vị %); giá là chỉ số = 100 × giá trị / giá trị đầu tiên có số từ điểm cắt (gỗ: mũ 0,4; nông sản: trung bình ba loại, chỉ khi cả ba có số). `step()` đổi chỉ số S&P 500 thành lợi nhuận quý = chỉ số thật / chỉ số của game quý trước − 1, nên sau một quý trống chỉ số quay lại đúng mức thật.
+- Thứ tự trong `step()`: tính mô phỏng → ghi đè bằng số thật (lãi suất/lạm phát/VIX sau cú sốc vĩ mô; cổ phiếu và hàng hóa sau khi thị trường phản ứng) → cú sốc sự kiện chỉ áp lên biến không có số thật quý đó. `w.gaps` liệt kê biến được điền bằng mô phỏng trong quý; ảnh chụp lịch sử giữ danh sách này.
+- Kiểm tra với tệp riêng: Q1/2020 S&P 500 −20,00% đúng bằng số thật, VIX 54 → suy thoái; 2022 lạm phát 8,2–9,0%, EFFR 0,33% → 4,33%.
+
+## 15. Điểm chế độ chơi — `game.js` `finishMode`
+
+- Thử thách: đạt mọi điều kiện → round(50 + điểm Hội đồng/2), không đạt → round(điểm Hội đồng/3).
+- Giải đấu tuần: round(clamp(50 + 300 × (ann − annB) − 150 × max(0, |DD| − 0,10) − 15 × vi phạm − 20 × vay khẩn cấp, 0, 100)) với ann, annB là TWR năm hóa của quỹ và của chuẩn 60/40.

@@ -79,7 +79,7 @@ Tổng: **30 nhiệm vụ**, **25 thương vụ**, **64 câu hỏi A/B/C**, **13
 
 ## 7. Màn hình (17)
 
-1 Menu chính có chuyển động · 2 Ván mới (tên, độ khó, seed, ô lưu) · 3 Giới thiệu nhân vật · 4 Trụ sở (chương, Hội đồng, quỹ, quyết định, cố vấn, hộp thư) · 5 Bản đồ đầu tư toàn cầu · 6 Danh mục (NAV vs chuẩn, phân bổ, gọi vốn dự kiến, bảng khoản đầu tư, J-curve, trang chi tiết từng khoản với sổ cái riêng và hành động) · 7 Deal Room · 8 Máy tính tài chính (8 công cụ + BA II Plus) · 9 Đàm phán hợp đồng · 10 Nhiệm vụ · 11 Trung tâm rủi ro (mandate, thang thanh khoản, hạn mức, stress test, tập trung, exposure) · 12 Thị trường (macro, biểu đồ, nhật ký sự kiện) · 13 Học viện · 14 Báo cáo hiệu quả (từ gộp tới ròng, TWR, IRR quỹ, đối soát, CSV sổ cái) · 15 Thành tựu & sự nghiệp · 16 Cài đặt (âm thanh, chuyển động, xác nhận) · 17 Lưu/Tải (3 ô, xuất/nhập JSON).
+1 Menu chính có chuyển động · 2 Ván mới (tên, chế độ, nguồn dữ liệu thị trường, độ khó, seed, ô lưu) · 3 Giới thiệu nhân vật · 4 Trụ sở (chương, Hội đồng, quỹ, quyết định, cố vấn, hộp thư) · 5 Bản đồ đầu tư toàn cầu · 6 Danh mục (NAV vs chuẩn, phân bổ, gọi vốn dự kiến, bảng khoản đầu tư, J-curve, trang chi tiết từng khoản với sổ cái riêng và hành động) · 7 Deal Room · 8 Máy tính tài chính (8 công cụ + BA II Plus) · 9 Đàm phán hợp đồng · 10 Nhiệm vụ · 11 Trung tâm rủi ro (mandate, thang thanh khoản, hạn mức, stress test, tập trung, exposure) · 12 Thị trường (macro, biểu đồ, nhật ký sự kiện) · 13 Học viện · 14 Báo cáo hiệu quả (từ gộp tới ròng, TWR, IRR quỹ, đối soát, CSV sổ cái) · 15 Thành tựu & sự nghiệp (kèm bảng xếp hạng giải đấu tuần và kỷ lục thử thách) · 16 Cài đặt (âm thanh, chuyển động, xác nhận) · 17 Lưu/Tải (3 ô, xuất/nhập JSON, nhập dữ liệu thị trường thật).
 
 Thiết kế desktop-first, dùng được trên điện thoại (rail thành thanh ngang, lưới một cột, không tràn ngang). Màu: Deep Navy #0B1220, Midnight Blue #101B30, Champagne Gold #C9A86A, Ivory #F6F4F0; xanh/đỏ chỉ cho biến động tài chính. Tôn trọng “giảm chuyển động”.
 
@@ -87,16 +87,46 @@ Thiết kế desktop-first, dùng được trên điện thoại (rail thành th
 
 | LM | Learning outcomes (diễn giải) | Trong game |
 |---|---|---|
-| 1 Features, Methods, Structures | Nhóm tài sản thay thế; fund vs co-investment vs direct; cấu trúc sở hữu (GP/LP) và thù lao (phí QL trên committed capital, phí hiệu suất, hurdle hard/soft, catch-up, HWM, clawback, waterfall) | c1-brief (phân loại), c1-methods (phân loại + 3 thương vụ thật), đàm phán 7 điều khoản, c1-calls (capital call, unfunded), câu q1-1…q1-9, công cụ “Lợi nhuận GP” |
-| 2 Performance and Returns | Đánh giá hiệu quả (J-curve, IRR, MOIC, định giá Level 3/smoothing, đòn bẩy, thanh khoản, lockup/notice/gate, bias); tính lợi nhuận trước/sau phí | c2-fees, c2-waterfall, c2-dispute (HWM), c2-irr, c2-leverage → hạn mức thật; J-curve của chính quỹ người chơi; máy tính Phí/HWM/Waterfall/American vs European/IRR/Đòn bẩy/FoF; q2-1…q2-10 |
-| 3 Private Capital | PE (LBO, VC, growth; thoái vốn IPO/trade sale/SBO/recap/write-off; rủi ro-lợi nhuận), private debt (direct lending, unitranche, mezzanine, venture debt, distressed), đa dạng hóa, vintage | c3-cases (6 công cụ trên 3 doanh nghiệp, vòng đời nhiều quý), c3-exit, c3-vintage + Northgate VIII, quyết định down round/covenant/thoái vốn; q3-1…q3-9 |
-| 4 Real Estate and Infrastructure | Đặc điểm BĐS, hình thức, nguồn lợi nhuận (thu nhập + tăng giá), phổ core → opportunistic, LTV; hạ tầng kinh tế/xã hội, greenfield/secondary-stage/brownfield, PPP, BOT, availability vs usage payments | c4-map (6 dự án trên bản đồ), c4-toll (kịch bản nhu cầu, BOT), c4-spectrum; mô hình văn phòng/nhà ở/REIT/hạ tầng; q4-1…q4-9 |
-| 5 Natural Resources | Đất thô, farmland, timberland (nguồn lợi nhuận, nhà máy + kho); hàng hóa (forward = S·e^{(r+c−i)T}, contango/backwardation, không dòng tiền); rủi ro, đa dạng hóa, phòng vệ lạm phát | c5-land, c5-futures, c5-drought (tách nguồn lợi nhuận); trang trại, rừng, futures, vàng; q5-1…q5-9 |
-| 6 Hedge Funds | 4 nhóm chiến lược; hình thức (master-feeder, SMA, fund of one, FoF); rủi ro (đòn bẩy, thanh khoản, đuôi trái), đa dạng hóa | c6-launch, c6-fof, c6-redeem; quỹ nội bộ + FoF; khủng hoảng thanh khoản; q6-1…q6-9 |
-| 7 Digital Assets | DLT, PoW/PoS, permissioned/permissionless; loại tài sản số; hình thức trực tiếp/gián tiếp; rủi ro, đa dạng hóa | c7-classify, c7-dd, token/ETP/cổ phiếu; rủi ro lưu ký, staking; q7-1…q7-9 |
+| 1 Features, Methods, Structures | Nhóm tài sản thay thế; fund vs co-investment vs direct; cấu trúc sở hữu (GP/LP) và thù lao (phí QL trên committed capital, phí hiệu suất, hurdle hard/soft, catch-up, HWM, clawback, waterfall) | c1-brief (phân loại), c1-methods (phân loại + 3 thương vụ thật), đàm phán 7 điều khoản, c1-calls (capital call, unfunded), câu q1-1…q1-12, công cụ “Lợi nhuận GP” |
+| 2 Performance and Returns | Đánh giá hiệu quả (J-curve, IRR, MOIC, định giá Level 3/smoothing, đòn bẩy, thanh khoản, lockup/notice/gate, bias); tính lợi nhuận trước/sau phí | c2-fees, c2-waterfall, c2-dispute (HWM), c2-irr, c2-leverage → hạn mức thật; J-curve của chính quỹ người chơi; máy tính Phí/HWM/Waterfall/American vs European/IRR/Đòn bẩy/FoF; q2-1…q2-12 |
+| 3 Private Capital | PE (LBO, VC, growth; thoái vốn IPO/trade sale/SBO/recap/write-off; rủi ro-lợi nhuận), private debt (direct lending, unitranche, mezzanine, venture debt, distressed), đa dạng hóa, vintage | c3-cases (6 công cụ trên 3 doanh nghiệp, vòng đời nhiều quý), c3-exit, c3-vintage + Northgate VIII, quyết định down round/covenant/thoái vốn; q3-1…q3-12 |
+| 4 Real Estate and Infrastructure | Đặc điểm BĐS, hình thức, nguồn lợi nhuận (thu nhập + tăng giá), phổ core → opportunistic, LTV; hạ tầng kinh tế/xã hội, greenfield/secondary-stage/brownfield, PPP, BOT, availability vs usage payments | c4-map (6 dự án trên bản đồ), c4-toll (kịch bản nhu cầu, BOT), c4-spectrum; mô hình văn phòng/nhà ở/REIT/hạ tầng; q4-1…q4-12 |
+| 5 Natural Resources | Đất thô, farmland, timberland (nguồn lợi nhuận, nhà máy + kho); hàng hóa (forward = S·e^{(r+c−i)T}, contango/backwardation, không dòng tiền); rủi ro, đa dạng hóa, phòng vệ lạm phát | c5-land, c5-futures, c5-drought (tách nguồn lợi nhuận); trang trại, rừng, futures, vàng; q5-1…q5-12 |
+| 6 Hedge Funds | 4 nhóm chiến lược; hình thức (master-feeder, SMA, fund of one, FoF); rủi ro (đòn bẩy, thanh khoản, đuôi trái), đa dạng hóa | c6-launch, c6-fof, c6-redeem; quỹ nội bộ + FoF; khủng hoảng thanh khoản; q6-1…q6-12 |
+| 7 Digital Assets | DLT, PoW/PoS, permissioned/permissionless; loại tài sản số; hình thức trực tiếp/gián tiếp; rủi ro, đa dạng hóa | c7-classify, c7-dd, token/ETP/cổ phiếu; rủi ro lưu ký, staking; q7-1…q7-12 |
 
 ## 9. Điều giáo trình xác nhận và giả định riêng của game
 
 **Theo giáo trình (dạng công thức/khái niệm)**: phí quản lý trên AUM cuối kỳ, phí hiệu suất độc lập hoặc sau phí quản lý, hard hurdle trên P0(1 + rh), HWM tính sau phí; lợi nhuận GP có/không catch-up; waterfall soft/hard hurdle với preferred return tính đơn; deal-by-deal vs whole-of-fund và clawback; MOIC; IRR là thước đo chính cho tài sản dài hạn; J-curve; rL = r + (Vb/Vc)(r − rb); hai tầng phí FoF; F0(T) = S0·e^{(r+c−i)T}; quy tắc contango/backwardation; nguồn lợi nhuận farmland/timberland; phân loại hạ tầng; chiến lược và hình thức hedge fund; các loại tài sản số; survivorship/backfill bias; định giá Level 3 và smoothing; phí PE trên committed capital.
 
 **Giả định riêng của game (ghi nhãn “mô hình của game” trên màn hình)**: kết hợp hurdle với HWM = max(HWM, P0(1+rh)); preferred return của quỹ PE tính đơn trên từng lần góp theo thời gian; lịch thương vụ, giữ giá gốc 4 quý, định giá trễ 50%; carry tích lũy và clawback ước tính theo cơ sở thanh lý; chiết khấu thị trường thứ cấp; định giá BĐS bằng NOI/tỷ suất thu nhập (direct capitalization — không thuộc LOS 2027); PV hợp đồng nhượng quyền; tách lợi nhuận futures thành spot/roll/collateral (quy ước ngành, giáo trình 2027 không có); gross/net exposure (thước đo ngành, không thuộc LOS); mô hình nhân tố cho lợi nhuận chiến lược hedge fund; xác suất mất token theo hình thức lưu ký; các trạng thái kinh tế; trọng số Hội đồng; hạn mức mandate; điểm đàm phán; ngưỡng thăng chức; TWR với dòng vốn đầu quý; IRR theo dòng tiền quý; độ phủ thanh khoản.
+
+## 10. Chế độ chơi
+
+| Chế độ | Luật |
+|---|---|
+| Chiến dịch 7 chương | Như mục 3–6. Có thể chạy trên thị trường mô phỏng hoặc dữ liệu thật (mục 11). |
+| Sandbox | Mọi thương vụ mở từ đầu, không nhiệm vụ cốt truyện, không giới hạn thời gian; hạn mức tín dụng chọn ngay ($0/10/20M). Có thể dùng dữ liệu thật. |
+| Thử thách danh mục | Danh mục, seed, độ khó và kịch bản sự kiện cố định (không có sự kiện ngẫu nhiên), nên mọi người chơi giải cùng một bài toán. Đạt mọi điều kiện → 50 + điểm Hội đồng/2; không đạt → điểm Hội đồng/3. |
+| Giải đấu tuần | 12 quý, độ khó Standard, seed theo tuần ISO (700000 + năm×100 + tuần): mọi tài khoản trên máy cùng một nền kinh tế trong tuần. Điểm = 50 + 300 × (lợi nhuận năm hóa − chuẩn 60/40 năm hóa) − 150 × max(0, \|sụt giảm tối đa\| − 10%) − 15 × số vi phạm mandate − 20 × số lần vay khẩn cấp, giới hạn 0–100. Bảng xếp hạng lưu trên máy (không có server). |
+
+Bốn thử thách:
+
+1. **Mùa đông thanh khoản** (8 quý, Crisis, LM1–2): người tiền nhiệm đã cam kết $65M vào hai quỹ PE, mua co-investment, rừng trồng, tòa văn phòng vay 60% và cổ phần sân bay. Theo kịch bản: hai đợt khủng hoảng thanh khoản, một làn sóng vỡ nợ và một yêu cầu rút vốn của LP. Thắng: không vay khẩn cấp, NAV cuối ≥ $85M.
+2. **Lá chắn lạm phát** (12 quý, Standard, LM4–5): bắt đầu trong trạng thái lạm phát đình trệ (lạm phát 5%, lãi suất 4,5%) với các cú sốc lạm phát và giá dầu theo kịch bản. Thắng: NAV thực (chia CPI) ≥ 106% vốn ban đầu, tài sản kém thanh khoản ≤ 60% NAV.
+3. **Mô hình Endowment** (16 quý, Standard, LM2–4): TWR vượt chuẩn 60/40, tài sản kém thanh khoản ≥ 40% NAV, không vi phạm mandate khi kết thúc.
+4. **Hedge fund dưới áp lực** (8 quý, Crisis, LM6): quỹ nội bộ relative value đòn bẩy 3× và một fund of funds, ngay trước hai đợt khủng hoảng và một làn sóng vỡ nợ. Thắng: sụt giảm tối đa ≤ 15%, không vay khẩn cấp.
+
+Cân bằng đã kiểm tra bằng bot: ở cả bốn thử thách, không làm gì thì thua hoặc không đạt; một chiến lược hợp lý (mở hạn mức và bán co-investment trước mùa đông; tài sản thực + hàng hóa khi lạm phát; phân bổ kiểu endowment; giảm đòn bẩy hedge fund) thì đạt.
+
+## 11. Replay thị trường thật (WiData)
+
+Người chơi nhập một tệp `alt-replay/1` (giá trị cuối quý). Game thay biến mô phỏng bằng số thật: S&P 500 (lợi nhuận giá cổ phiếu), EFFR (lãi suất), CPI Mỹ so cùng kỳ (lạm phát), VIX (biến động), dầu Brent (năng lượng), vàng, đồng (kim loại), trung bình ngô–gạo–khô đậu tương (nông sản), giá gỗ xẻ nén biên độ mũ 0,4 (gỗ). Trạng thái kinh tế suy ra từ dữ liệu (VIX ≥ 30 hoặc S&P 500 giảm ≥ 12% trong quý → suy thoái; lạm phát ≥ 4,5% và cổ phiếu yếu → lạm phát đình trệ). Nhãn thời gian dùng năm thật. Sự kiện ngẫu nhiên tác động lên biến đang dùng số thật không được rút, và không sự kiện nào làm thay đổi một số thật. Spread tín dụng, thanh khoản, bất động sản, giao thông, token, doanh nghiệp và dự án vẫn là mô phỏng — màn hình luôn ghi “THỊ TRƯỜNG THẬT (WiData) + MÔ PHỎNG”.
+
+**Khi thiếu số liệu**: ô trống (`null`) trong tệp được game điền bằng số mô phỏng cho đúng biến và đúng quý đó, ghi nhãn “MÔ PHỎNG” trên trang Thị trường và trong tooltip; quý có số trở lại thì chỉ số quay về mức thật. Một chuỗi trống quá nửa số quý bị từ chối. Khi hết dữ liệu, toàn bộ thị trường tiếp tục bằng mô phỏng và được ghi rõ. Số mô phỏng không bao giờ được trình bày như số thật.
+
+Dữ liệu WiData chỉ dùng cá nhân: tệp chỉ nằm trong trình duyệt của người chơi và không có trong repository.
+
+## 12. Cố vấn AI
+
+Nút “Hỏi CFA Tutor (AI) phân tích danh mục” ở Trụ sở gửi cho trợ lý CFA Tutor có sẵn của website một bản tóm tắt danh mục hiện tại (NAV, tiền mặt, nợ, vốn cam kết chưa gọi, gọi vốn dự kiến, độ phủ thanh khoản, phân bổ, điểm Hội đồng, vi phạm mandate, từng khoản đầu tư) và yêu cầu nhận xét theo khái niệm CFA kèm tối đa ba hành động. Cố vấn theo quy tắc của game vẫn hiển thị riêng và ghi rõ “không phải AI”. Câu trả lời AI là tham khảo, có thể sai; game không lưu khóa API.

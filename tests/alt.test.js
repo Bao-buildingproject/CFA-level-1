@@ -370,3 +370,119 @@ test("game: reckless over-commitment ends in an emergency loan and replacement",
   assert.ok(g.emergencies >= 1, "the board had to lend");
   assert.ok(F.verify(g.fund).ok);
 });
+
+// ---------------- Round 2: modes and real-market replay ----------------
+// A synthetic replay file shaped like alt-replay/1 (made-up numbers, not market data)
+function fakeReplay() {
+  const quarters = [], n = 24;
+  for (let i = 0; i < n; i++) { const y = 2016 + Math.floor((i + 3) / 4), q = ((i + 3) % 4) + 1; quarters.push(`${y}Q${q}`); }
+  const path = (start, drift, shock) => quarters.map((_, i) => +(start * Math.pow(1 + drift, i) * (i === 13 ? shock : 1)).toFixed(4));
+  return { schema: "alt-replay/1", class: "TEST_FIXTURE", title: "Test", source: "synthetic", quarters,
+    series: { equity: { values: path(1000, 0.02, 0.75) }, rate: { values: quarters.map((_, i) => i < 13 ? 2 : 0.1) }, infl: { values: quarters.map((_, i) => i > 16 ? 7 : 2) },
+      vol: { values: quarters.map((_, i) => i === 13 ? 55 : 15) }, energy: { values: path(60, 0.01, 0.4) }, gold: { values: path(1200, 0.015, 1.1) }, corn: { values: path(350, 0.01, 1) }, timber: { values: path(400, 0.03, 0.7) } } };
+}
+test("replay: validation, cut at the start year, real values replace simulated ones", () => {
+  const doc = fakeReplay();
+  const v = W.validateReplay(doc);
+  assert.ok(v.ok, v.errors.join("; "));
+  assert.ok(v.starts.includes(2017) && v.starts.includes(2019));
+  const bad = JSON.parse(JSON.stringify(doc)); bad.series.equity.values[3] = -1; bad.quarters[5] = "2018Q9";
+  assert.equal(W.validateReplay(bad).ok, false);
+  assert.equal(W.validateReplay({ schema: "x" }).ok, false);
+  const rp = W.replayFrom(doc, 2018);                       // starts at 2017Q4
+  let w = W.create({ seed: 4, replay: rp });
+  assert.equal(W.label(0, w.base), "Q1/2018");
+  assert.equal(w.rate, 0.02);
+  const shockAt = doc.quarters.indexOf("2020Q1") - doc.quarters.indexOf("2017Q4");   // the fixture shock sits at 2020Q1
+  for (let q = 1; q <= shockAt; q++) w = W.step(w, [{ v: "eqRet", add: 0.5 }]);
+  assert.ok(Math.abs(w.eqRet - (0.75 * 1.02 - 1)) < 1e-6, "real equity return, the event shock does not apply");
+  assert.equal(w.regime, "rec", "a −25% quarter with VIX 55 reads as a recession");
+  assert.equal(w.vol, 0.55);
+  assert.ok(Math.abs(w.energy - 100 * doc.series.energy.values[shockAt + doc.quarters.indexOf("2017Q4")] / doc.series.energy.values[doc.quarters.indexOf("2017Q4")]) < 1e-3);
+  assert.deepEqual(W.replayed(w).sort(), ["ags", "energy", "eqRet", "gold", "infl", "rate", "timber", "vol"].sort());
+  for (let q = w.q; q < rp.n + 3; q++) w = W.step(w, []);   // past the end of the file: simulation takes over
+  assert.equal(w.real, false);
+  assert.ok(isFinite(w.eqIdx) && w.eqIdx > 0);
+});
+test("replay: a campaign on real data reconciles, saves and reloads with its data", () => {
+  const rp = W.replayFrom(fakeReplay(), 2018);
+  const g = G.newGame({ seed: 12, replay: rp });
+  assert.equal(G.summary(g).label, "Q1/2018"); assert.equal(G.summary(g).replay, 2018);
+  G.negotiate(g, "d1-fund", {}, 20); G.invest(g, "d1-fund", { commit: 20 });
+  for (let i = 0; i < 6; i++) G.endQuarter(g);
+  assert.ok(F.verify(g.fund).ok);
+  assert.ok(!g.events.some(e => ["oil", "inflation", "cut"].includes(e.id)), "no events on replayed variables");
+  const back = G.deserialize(G.serialize(g));
+  assert.ok(back.ok && back.sealOk);
+  G.endQuarter(g); G.endQuarter(back.G);
+  assert.equal(F.nav(g.fund), F.nav(back.G.fund));
+});
+test("modes: sandbox opens every deal and no story missions", () => {
+  const g = G.newGame({ mode: "sandbox", seed: 9 });
+  assert.ok(G.dealState(g, "d7-token").ok && G.dealState(g, "d3-bw-lbo").ok && G.dealState(g, "d4-toll").ok);
+  assert.equal(G.missionOpen(g, C.MISSIONS[0]).ok, false);
+  assert.equal(G.setCreditLine(g, 20).ok, true); assert.equal(g.fund.credit.limit, M(20));
+  const c = G.newGame({ seed: 9 });
+  assert.equal(G.setCreditLine(c, 10).ok, false, "in the campaign only after the leverage mission");
+});
+test("modes: each challenge sets up its book, fires its script and ends with a scored result", () => {
+  for (const ch of C.CHALLENGES) {
+    const g = G.newGame({ mode: "challenge", challenge: ch.id });
+    assert.equal(g.horizon, ch.quarters);
+    assert.equal(g.fund.holdings.length, ch.setup.length);
+    assert.equal(Object.keys(g.ach).length, 0);
+    while (g.status === "active") { g.decisions.filter(d => !d.done).forEach(d => G.resolve(g, d.id, d.options[0].id)); G.endQuarter(g); }
+    assert.ok(F.verify(g.fund).ok);
+    assert.deepEqual(g.events.map(e => e.id).reverse(), ch.script.map(s => s.ev), `${ch.id}: only its scripted events`);
+    if (g.status === "finished") { assert.equal(g.result.goals.length, ch.goals.length); assert.ok(g.result.score >= 0 && g.result.score <= 100); }
+  }
+  assert.throws(() => G.newGame({ mode: "challenge", challenge: "nope" }), E.AltError);
+});
+test("modes: doing nothing loses the liquidity winter; managing liquidity wins it", () => {
+  const p = G.newGame({ mode: "challenge", challenge: "winter" });
+  while (p.status === "active") { p.decisions.filter(d => !d.done).forEach(d => G.resolve(p, d.id, d.options[0].id)); G.endQuarter(p); }
+  assert.equal(p.status, "lost");
+  const a = G.newGame({ mode: "challenge", challenge: "winter" });
+  G.setCreditLine(a, 20); G.sellHolding(a, a.fund.holdings.find(h => h.type === "coinv").id, 1);
+  while (a.status === "active") { a.decisions.filter(d => !d.done).forEach(d => G.resolve(a, d.id, d.options[0].id)); G.endQuarter(a); }
+  assert.equal(a.status, "finished"); assert.equal(a.result.pass, true); assert.ok(a.result.score >= 50);
+});
+test("modes: the weekly cup is the same economy for everyone and scores excess return", () => {
+  const a = G.newGame({ mode: "cup", seed: 702648, week: "2026-W48" }), b = G.newGame({ mode: "cup", seed: 702648, week: "2026-W48" });
+  while (a.status === "active") G.endQuarter(a);
+  while (b.status === "active") G.endQuarter(b);
+  assert.equal(a.q, 12); assert.deepEqual(a.world, b.world); assert.equal(a.result.score, b.result.score);
+  const s = a.board.d, expect = Math.round(Math.max(0, Math.min(100, 50 + 300 * (s.ann - s.annB) - 150 * Math.max(0, Math.abs(s.dd) - 0.1) - 15 * G.breaches(a).length - 20 * a.emergencies)));
+  assert.equal(a.result.score, expect);
+});
+test("questions: twelve per module, three options, explanations for each", () => {
+  for (let lm = 1; lm <= 7; lm++) assert.equal(C.QUESTIONS.filter(q => q.lm === lm).length, 12);
+  for (const q of C.QUESTIONS) { assert.equal(q.opts.length, 3); assert.equal(q.why.length, 3); assert.ok([0, 1, 2].includes(q.ans)); }
+});
+
+test("replay: blanks in the file are filled by the simulation, flagged, and the real path resumes", () => {
+  const doc = fakeReplay(), i0 = doc.quarters.indexOf("2017Q4");
+  doc.series.energy.values[i0 + 3] = null;             // no oil price for game quarter 3
+  doc.series.rate.values[i0 + 5] = null;
+  const v = W.validateReplay(doc);
+  assert.ok(v.ok, v.errors.join("; ")); assert.deepEqual(v.gaps, { energy: 1, rate: 1 });
+  const half = JSON.parse(JSON.stringify(doc)); half.series.gold.values = half.series.gold.values.map((x, i) => i % 3 ? null : x);
+  assert.equal(W.validateReplay(half).ok, false, "a series blank for more than half the quarters is refused");
+  let w = W.create({ seed: 5, replay: W.replayFrom(doc, 2018) });
+  for (let q = 1; q <= 2; q++) w = W.step(w, []);
+  const e2 = w.energy;
+  w = W.step(w, [{ v: "energy", mul: 1.5 }, { v: "gold", mul: 1.5 }]);   // quarter 3: oil is simulated, gold is real
+  assert.deepEqual(w.gaps, ["energy"]); assert.equal(w.real, true);
+  assert.equal(w.hist[w.hist.length - 1].gaps[0], "energy");
+  const g3 = doc.series.gold.values;
+  assert.ok(Math.abs(w.gold - 100 * g3[i0 + 3] / g3[i0]) < 1e-3, "the event cannot move a real price");
+  assert.ok(w.energy > e2 * 1.2, "a blank quarter is open to the simulation and to events");
+  const e3 = w.energy;
+  w = W.step(w, []);                                   // data again: the index is back on the real path
+  const en = doc.series.energy.values;
+  assert.equal(w.gaps.length, 0); assert.ok(e3 > 0);
+  assert.ok(Math.abs(w.energy - 100 * en[i0 + 4] / en[i0]) < 1e-3);
+  w = W.step(w, []);
+  assert.deepEqual(w.gaps, ["rate"]);
+  assert.ok(w.rate >= 0 && w.rate <= 0.12);
+});

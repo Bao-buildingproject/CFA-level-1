@@ -247,3 +247,23 @@ body.ae-mode .main.enter #view > * { animation: none; }
   .ae-card { padding: 14px; } .ae-brand { flex-direction: column; align-items: flex-start; }
   .ae-score { grid-template-columns: minmax(0, 1.6fr) minmax(40px, 1fr) 30px; }
 }
+
+/* round 2: modes, goals, leaderboard */
+.ae-form.ae-wide { max-width: 980px; }
+.ae-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.ae-modecard { position: relative; display: grid !important; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(246, 244, 240, 0.03); cursor: pointer; }
+.ae-modecard input { position: absolute; opacity: 0; pointer-events: none; }
+.ae-modecard:hover { border-color: var(--gold); }
+.ae-modecard.on { border-color: var(--gold); background: var(--gold-soft); box-shadow: 0 0 0 1px rgba(201, 168, 106, 0.25); }
+.ae-modecard:focus-within { outline: 2px solid var(--gold2); outline-offset: 2px; }
+.ae-modecard small { color: var(--tx2); font-size: 12.5px; }
+.ae-goalist { font-size: 11.5px; color: var(--gold2); }
+.ae-radio.ae-off { opacity: 0.55; cursor: not-allowed; }
+.ae-goals { list-style: none; padding: 0 !important; margin: 8px 0; display: grid; gap: 6px; }
+.ae-goals li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 8px; background: rgba(246, 244, 240, 0.03); border: 1px solid var(--line2); }
+.ae-goals li.ok { border-color: rgba(60, 196, 141, 0.45); } .ae-goals li.ok .icon { color: var(--green); }
+.ae-goals li.bad { border-color: rgba(232, 103, 94, 0.4); } .ae-goals li.bad .icon { color: var(--red); }
+.ae-goals em { font-style: normal; color: var(--tx2); font-size: 12.5px; text-align: right; }
+.ae-table tr.me td { color: var(--gold2); font-weight: 700; }
+.ae-card code { padding: 1px 6px; border-radius: 5px; background: #0D1628; color: var(--gold2); font-size: 12px; }
+@media (max-width: 600px) { .ae-goals li { grid-template-columns: auto 1fr; } .ae-goals em { grid-column: 2; text-align: left; } }

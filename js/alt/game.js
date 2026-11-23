@@ -19,8 +19,14 @@
 
   // ======================= New game =======================
   function newGame(o) {
-    const seed = (o && o.seed ? o.seed : 1) >>> 0 || 1, difficulty = o && o.difficulty;
-    const world = W.create({ seed, difficulty });
+    o = o || {};
+    const mode = C.MODES[o.mode] ? o.mode : "campaign";
+    const ch = mode === "challenge" ? C.CHALLENGES.find(x => x.id === o.challenge) : null;
+    if (mode === "challenge" && !ch) throw new E.AltError("Không có thử thách này");
+    const seed = ((ch ? ch.seed : o.seed) || 1) >>> 0 || 1;
+    const difficulty = ch ? ch.difficulty : mode === "cup" ? C.CUP.difficulty : o.difficulty;
+    const replay = mode === "campaign" || mode === "sandbox" ? o.replay || null : null;
+    const world = W.create({ seed, difficulty, init: ch && ch.world, replay });
     const G = { schema: SCHEMA, v: VERSION, seed, difficulty: world.difficulty, name: (o && o.name) || "Portfolio Manager", createdAt: (o && o.now) || 0,
       q: 0, world, fund: F.create({ initial: INITIAL, q: 0 }), companies: {},
       chapter: 1, chapterStart: { 1: 0 }, chapterDone: {}, reviews: [],
@@ -28,11 +34,28 @@
       rep: 50, trust: 60, probation: 0, emergencies: 0,
       know: { 1: { n: 0, r: 0 }, 2: { n: 0, r: 0 }, 3: { n: 0, r: 0 }, 4: { n: 0, r: 0 }, 5: { n: 0, r: 0 }, 6: { n: 0, r: 0 }, 7: { n: 0, r: 0 } },
       quizHist: [], wrong: [], flags: {}, ach: {}, career: 1, careerHist: [{ q: 0, lv: 1 }], board: null, boardHist: [], reports: [],
-      status: "active", ending: null, finalScore: null, lost: null, tampered: false };
-    mail(G, "eleanor", "Chào mừng tới Aurelion Capital", "Bạn được giao 100 triệu USD vốn mô phỏng. Mở Nhiệm vụ của chương 1, đọc kỹ các đề xuất và nhớ: Hội đồng chấm cả rủi ro, thanh khoản và hiểu biết — không chỉ NAV.");
+      status: "active", ending: null, finalScore: null, lost: null, tampered: false,
+      mode, modeId: ch ? ch.id : mode === "cup" ? o.week || "" : null, horizon: ch ? ch.quarters : mode === "cup" ? C.CUP.quarters : null,
+      script: ch ? ch.script.map(x => Object.assign({}, x)) : [], result: null };
+    if (mode === "campaign") mail(G, "eleanor", "Chào mừng tới Aurelion Capital", `Bạn được giao 100 triệu USD vốn mô phỏng. Mở Nhiệm vụ của chương 1, đọc kỹ các đề xuất và nhớ: Hội đồng chấm cả rủi ro, thanh khoản và hiểu biết — không chỉ NAV.${replay ? ` Thị trường chạy theo dữ liệu thật từ ${replay.year}.` : ""}`);
+    else if (mode === "sandbox") mail(G, "marcus", "Sandbox", `Mọi thương vụ đều mở. Không có nhiệm vụ hay thời hạn — thử chiến lược của bạn.${replay ? ` Thị trường chạy theo dữ liệu thật từ ${replay.year}.` : ""}`);
+    else if (mode === "cup") mail(G, "eleanor", `Giải đấu tuần ${G.modeId}`, `12 quý, cùng nền kinh tế cho mọi tài khoản trên máy này. Điểm là điểm Hội đồng khi kết thúc.`);
+    else {
+      mail(G, "eleanor", `Thử thách: ${ch.name}`, `${ch.desc} Điều kiện: ${ch.goals.map(x => x.l).join("; ")}.`);
+      for (const [id, v] of ch.setup) {
+        const d = C.DEALS[id];
+        if (d.negotiate) G.nego[id] = { accepted: true, terms: termsOf({}).terms, cost: 0, budget: 0, round: 0, strikes: 0, maxCommit: d.form[0].max };
+        const r = invest(G, id, v);
+        if (!r.ok) throw new E.AltError(`Không dựng được danh mục thử thách (${id}): ${r.msg}`);
+      }
+      G.inbox = G.inbox.filter(m => m.kind !== "ach");
+      for (const k of Object.keys(G.ach)) delete G.ach[k];
+    }
     G.board = scorecard(G);
     return G;
   }
+  const campaign = G => !G.mode || G.mode === "campaign";
+  const lbl = (G, q) => W.label(q, G.world.base);
   function mail(G, from, title, text, kind) { G.inbox.unshift({ q: G.q, from, title, text, kind: kind || "info", read: false }); if (G.inbox.length > 80) G.inbox.pop(); }
   const draw = (G, k) => W.uni(G.seed, "game", k);
 
@@ -48,6 +71,12 @@
     if (!d) return { ok: false, reason: "Không tồn tại" };
     const taken = !!G.deals[id];
     if (G.status === "lost") return { ok: false, reason: "Ván chơi đã kết thúc", taken };
+    if (!campaign(G)) {
+      if (taken && !REPEATABLE.has(id)) return { ok: false, reason: "Đã thực hiện", taken };
+      if (d.co && G.companies[d.co] && G.companies[d.co].age > 0) return { ok: false, reason: "Vòng vốn đã đóng: doanh nghiệp đã bước sang giai đoạn tiếp theo", taken, closed: true };
+      const nd = d.need ? d.need(G) : null;
+      return nd ? { ok: false, reason: nd, taken } : { ok: true, taken };
+    }
     if (d.ch > G.chapter) return { ok: false, reason: `Mở ở chương ${d.ch}`, taken, locked: true };
     if (d.ch < G.chapter && !MARKET.has(id)) return { ok: false, reason: "Cơ hội đã đóng (chỉ mở trong chương của nó)", taken, closed: true };
     if (taken && !REPEATABLE.has(id)) return { ok: false, reason: "Đã thực hiện", taken };
@@ -318,6 +347,7 @@
   // ======================= Missions =======================
   function mstate(G, id) { return G.missions[id] = G.missions[id] || { steps: [], done: false, score: null, attempts: {} }; }
   function missionOpen(G, m) {
+    if (!campaign(G)) return { ok: false, reason: "Nhiệm vụ cốt truyện chỉ có trong chế độ Chiến dịch" };
     if (m.ch > G.chapter) return { ok: false, reason: `Chương ${m.ch}` };
     if (m.req && m.req.flag && !G.flags[m.req.flag]) return { ok: false, reason: m.id === "c5-drought" ? "Mở sau vụ thu hoạch có hạn hán" : "Mở sau khi xử lý yêu cầu rút vốn" };
     if (m.req && m.req.allBut) {
@@ -622,15 +652,20 @@
     // 2. events: the story's, then perhaps a random one
     const shocks = [], evIds = [];
     const ch = G.chapter, cq = q0 - G.chapterStart[ch];
-    for (const s of C.SCRIPT[ch] || []) {
-      const key = `${ch}-${s.ev}`;
-      if (G.fired[key]) continue;
-      if (s.at === cq || (s.at === "harvest" && W.isHarvest(q1))) { evIds.push({ id: s.ev, decision: s.decision }); G.fired[key] = q1; }
+    if (campaign(G)) {
+      for (const s of C.SCRIPT[ch] || []) {
+        const key = `${ch}-${s.ev}`;
+        if (G.fired[key]) continue;
+        if (s.at === cq || (s.at === "harvest" && W.isHarvest(q1))) { evIds.push({ id: s.ev, decision: s.decision }); G.fired[key] = q1; }
+      }
+    } else {
+      G.script.forEach((s, i) => { if (s.q === q1 && !G.fired["s" + i]) { evIds.push({ id: s.ev, decision: s.decision }); G.fired["s" + i] = q1; } });
     }
-    if (!evIds.length) {
-      const D = W.DIFFICULTY[G.difficulty], u = W.uni(G.seed, "event", q1);
+    if (!evIds.length && !(G.mode === "challenge")) {
+      const D = W.DIFFICULTY[G.difficulty], u = W.uni(G.seed, "event", q1), rv = W.replayed(G.world);
       if (u < 0.24 * D.events) {
-        const pool = Object.entries(C.EVENTS).filter(([id, e]) => (!e.cond || e.cond(G.world)) && (!e.needs || e.needs(G)) && id !== "drought" && !(id === "keyPerson" && G.fired.keyPerson));
+        const pool = Object.entries(C.EVENTS).filter(([id, e]) => (!e.cond || e.cond(G.world)) && (!e.needs || e.needs(G)) && id !== "drought" && !(id === "keyPerson" && G.fired.keyPerson)
+          && !(e.shocks || []).some(s => rv.includes(s.v)));
         const tot = pool.reduce((s, [, e]) => s + e.w, 0); let acc = 0; const v = W.uni(G.seed, "eventPick", q1) * tot;
         for (const [id, e] of pool) { acc += e.w; if (v <= acc) { evIds.push({ id }); if (id === "keyPerson") G.fired.keyPerson = q1; break; } }
       }
@@ -650,7 +685,7 @@
     // 3. the economy
     const w0 = G.world, w1 = W.step(w0, shocks);
     G.world = w1;
-    const ctx = { seed: G.seed, W: w1, W0: w0, q: q1, companies: G.companies, hackMul: ch === 7 ? 2 : 1 };
+    const ctx = { seed: G.seed, W: w1, W0: w0, q: q1, companies: G.companies, hackMul: campaign(G) && ch === 7 ? 2 : 1 };
     // 4. companies
     for (const c of Object.values(G.companies)) {
       for (const o of A.stepCompany(c, w1, ctx)) {
@@ -697,12 +732,13 @@
     report.board = G.board; report.nav = row;
     // 10. chapter review
     const cr = chapterReady(G);
-    if (G.status === "active" && cr.ready && G.chapter < 7) report.review = chapterReview(G);
+    if (campaign(G) && G.status === "active" && cr.ready && G.chapter < 7) report.review = chapterReview(G);
     // 11. win/lose
     const nav = F.nav(f);
     if (nav < R(f.initial * 0.6)) lose(G, "closed", "NAV giảm dưới 60% vốn ban đầu: Hội đồng đóng quỹ.");
     else if (G.trust <= 10) lose(G, "fired", "Niềm tin của Hội đồng xuống dưới 10: bạn bị sa thải.");
     else if (G.emergencies >= 2) lose(G, "insolvent", "Hai lần phải vay khẩn cấp để trả nghĩa vụ: Hội đồng thay người quản lý.");
+    if (G.status === "active" && G.horizon && G.q >= G.horizon) report.result = finishMode(G);
     updateCareer(G); checkAch(G);
     report.verify = F.verify(f).ok;
     G.reports.unshift({ q: q1, nav: row.nav, ret: row.ret, bench: row.bench, events: report.events.map(e => e.title), news: report.news.slice(0, 12), auto: report.auto, total: G.board.total, trust: G.trust, review: report.review ? { ch: report.review.ch, pass: report.review.pass } : null });
@@ -723,6 +759,44 @@
     updateCareer(G);
     return { ch, pass, sc };
   }
+  // ---------- Challenge and cup goals ----------
+  function goalStatus(G) {
+    const ch = G.mode === "challenge" ? C.CHALLENGES.find(x => x.id === G.modeId) : null;
+    if (!ch) return [];
+    const f = G.fund, nav = F.nav(f), b = G.board || scorecard(G), liq = F.liquidity(f);
+    const real = nav / f.initial / (G.world.cpi / 100);
+    const test = {
+      noEmergency: () => [G.emergencies === 0, `${G.emergencies} lần`],
+      navMin: v => [nav >= E.M(v), fmtM(nav)],
+      realNav: v => [real >= v, `${(real * 100).toFixed(1)}% vốn ban đầu (sức mua)`],
+      illiqMax: v => [liq.illiquidPct <= v + 1e-9, `${(liq.illiquidPct * 100).toFixed(1)}%`],
+      illiqMin: v => [liq.illiquidPct >= v - 1e-9, `${(liq.illiquidPct * 100).toFixed(1)}%`],
+      beatBench: () => [b.d.twr > b.d.bench, `${(b.d.twr * 100).toFixed(2)}% vs ${(b.d.bench * 100).toFixed(2)}%`],
+      noBreach: () => { const br = breaches(G); return [br.length === 0, br.length ? br[0] : "không"]; },
+      ddMax: v => [Math.abs(b.d.dd) <= v + 1e-9, `${(b.d.dd * 100).toFixed(1)}%`]
+    };
+    return ch.goals.map(g => { const [ok, now] = test[g.k](g.v); return { k: g.k, label: g.l, ok, now }; });
+  }
+  function finishMode(G) {
+    const goals = goalStatus(G), b = G.board, pass = G.mode === "challenge" ? goals.every(x => x.ok) : true;
+    // challenge: passing is worth 50–100 by the board score; cup: excess return over 60/40, less penalties
+    const cup = () => clamp(50 + 300 * (b.d.ann - b.d.annB) - 150 * Math.max(0, Math.abs(b.d.dd) - 0.1) - 15 * breaches(G).length - 20 * G.emergencies, 0, 100);
+    const score = Math.round(G.mode === "cup" ? cup() : pass ? 50 + b.total / 2 : b.total / 3);
+    G.result = { mode: G.mode, id: G.modeId, pass, score, goals, q: G.q, nav: F.nav(G.fund) };
+    G.status = "finished";
+    mail(G, "eleanor", G.mode === "cup" ? `Kết thúc giải đấu tuần ${G.modeId}` : `Kết thúc thử thách: ${pass ? "Hoàn thành" : "Chưa đạt"}`,
+      `Điểm ${score}. ${goals.map(x => `${x.ok ? "✓" : "✗"} ${x.label} (${x.now})`).join(" · ")}`, "ending");
+    return G.result;
+  }
+  // a credit facility the player sets directly (outside the campaign, or once chapter 2 has taught leverage)
+  function setCreditLine(G, limitM) {
+    if (campaign(G) && !(G.missions["c2-leverage"] && G.missions["c2-leverage"].done)) return { ok: false, msg: "Mở sau nhiệm vụ “Đòn bẩy cấp quỹ” (chương 2)" };
+    if (![0, 10, 20].includes(limitM)) return { ok: false, msg: "Hạn mức 0, 10 hoặc 20 triệu USD" };
+    if (G.fund.debt > E.M(limitM)) return { ok: false, msg: "Hãy trả bớt nợ trước khi giảm hạn mức" };
+    F.setCredit(G.fund, E.M(limitM), G.world.rate + 0.02);
+    return { ok: true, msg: `Hạn mức $${limitM}M, lãi ${((G.world.rate + 0.02) * 100).toFixed(2)}%/năm` };
+  }
+
   function lose(G, why, text) { if (G.status === "lost") return; G.status = "lost"; G.lost = { why, text, q: G.q }; mail(G, "eleanor", "Kết thúc", text, "alert"); }
 
   // ======================= Saved games =======================
@@ -746,9 +820,16 @@
     G.v = VERSION; G.schema = SCHEMA;
     return G;
   }
-  function summary(G) { return { name: G.name, q: G.q, label: W.label(G.q), chapter: G.chapter, nav: F.nav(G.fund), career: C.CAREER[G.career - 1].name, status: G.status, difficulty: G.difficulty, seed: G.seed, tampered: !!G.tampered }; }
+  function summary(G) { return { name: G.name, q: G.q, label: lbl(G, G.q), chapter: G.chapter, nav: F.nav(G.fund), career: C.CAREER[G.career - 1].name, status: G.status, difficulty: G.difficulty, seed: G.seed, tampered: !!G.tampered,
+    mode: G.mode || "campaign", modeName: modeName(G), replay: G.world.rp ? G.world.rp.year : null }; }
+  function modeName(G) {
+    if (campaign(G)) return C.MODES.campaign.short;
+    if (G.mode === "challenge") { const c = C.CHALLENGES.find(x => x.id === G.modeId); return `Thử thách: ${c ? c.name : G.modeId}`; }
+    if (G.mode === "cup") return `Giải đấu tuần ${G.modeId}`;
+    return C.MODES[G.mode].short;
+  }
 
   return { SCHEMA, VERSION, INITIAL, REPEATABLE, newGame, dealState, preview, invest, negoInfo, negotiate, termsOf, holding, sellHolding, setPolicy, exitOptions, exitHolding, credit,
     resolve, missionOpen, stepIndex, mstate, computeTask, submitStep, missionQuiz, answer, drawQuiz, mastery, avgMastery, weaknesses, breaches, scorecard, careerNext, chapterReady,
-    preflight, endQuarter, serialize, deserialize, migrate, summary, learn, GEN, checkField, companyOfHolding };
+    preflight, endQuarter, serialize, deserialize, migrate, summary, learn, GEN, checkField, companyOfHolding, goalStatus, finishMode, setCreditLine, modeName, lbl };
 });

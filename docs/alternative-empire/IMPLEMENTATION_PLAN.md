@@ -35,7 +35,7 @@ Trạng thái: ✅ xong và đã kiểm thử · ◐ có nhưng đơn giản hó
 | Business logic hoạt động | ✅ |
 | Đầu vào/đầu ra chính xác | ✅ đối chiếu tính tay; sổ cái đối soát mỗi quý |
 | Xử lý lỗi | ✅ AltError, kiểm tra form, tệp lưu hỏng/khác phiên bản |
-| Kiểm thử | ✅ 23 test + Playwright |
+| Kiểm thử | ✅ 31 test + Playwright (vòng 1 và vòng 2) |
 | Lưu trạng thái | ✅ |
 | Không placeholder quan trọng | ✅ |
 
@@ -43,11 +43,18 @@ Trạng thái: ✅ xong và đã kiểm thử · ◐ có nhưng đơn giản hó
 1. Không có server: không PostgreSQL, không chống gian lận tuyệt đối, không multiplayer.
 2. Kinh tế theo quý và các mô hình định giá là đơn giản hóa (ghi nhãn mô hình của game).
 3. Một số khái niệm ngoài LOS 2027 (direct capitalization, gross/net exposure, roll yield) chỉ dùng làm cơ chế, ghi rõ là quy ước ngành/mô hình game.
-4. WiData chưa tích hợp; WiData không có dữ liệu PE/hedge fund.
-5. Hội đồng và cố vấn chấm theo quy tắc công khai, không phải AI.
+4. WiData không có dữ liệu PE/hedge fund/hạ tầng nên các tài sản này luôn mô phỏng; replay chỉ thay biến vĩ mô, cổ phiếu và hàng hóa.
+5. Hội đồng và cố vấn trong game chấm theo quy tắc công khai, không phải AI; cố vấn AI (CFA Tutor) là tùy chọn, cần khóa của người dùng.
+6. Bảng xếp hạng chỉ trong một trình duyệt (không có server).
+
+## Phase 7 — Giai đoạn 3 (vòng 2) ✅
+- ✅ Chế độ chơi: Sandbox, 4 Thử thách danh mục (kịch bản cố định, điều kiện thắng, kỷ lục), Giải đấu tuần + bảng xếp hạng trên máy.
+- ✅ Replay thị trường thật từ WiData (11 chuỗi, 2016Q4 → 2026Q3), năm thật trên nhãn, ô trống được điền bằng mô phỏng có nhãn.
+- ✅ Cố vấn AI qua CFA Tutor với bản tóm tắt danh mục.
+- ✅ Ngân hàng câu hỏi 84 câu (12/LM).
+- ✗ Multiplayer giữa nhiều máy (cần server).
 
 ## Bước tiếp theo đề xuất
-1. Chế độ “Giải đấu tuần” (cùng seed cho mọi tài khoản trên máy) và bảng xếp hạng.
-2. Nhập chuỗi vĩ mô/hàng hóa từ WiData do người dùng tự tải (giống Bond Empire Replay).
-3. Server (nếu cần): Next.js API + PostgreSQL theo bảng ánh xạ, chạy vòng quý phía server, multiplayer.
-4. Thêm câu hỏi (mục tiêu 15/LM) và bài tình huống dài cho từng LM.
+1. Server (nếu cần): Next.js API + PostgreSQL theo bảng ánh xạ, chạy vòng quý phía server, giải đấu giữa nhiều máy.
+2. Thêm câu hỏi (mục tiêu 15/LM) và bài tình huống dài cho từng LM.
+3. Thêm thử thách (ví dụ: vintage year diversification, clawback sau chu kỳ thoái vốn).

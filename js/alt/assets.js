@@ -439,7 +439,7 @@
     step(h, ctx) {
       const w = ctx.W, w0 = ctx.W0;
       return [{ t: "COST", amt: E.mul(h.value, 0.004 / 4), cat: "expense", note: "Phí lưu kho và bảo hiểm vàng (không có dòng tiền thu vào)" },
-        { t: "MARK", amt: R(h.value * clamp(0.6 * (w.metals / w0.metals - 1) - 0.25 * w.eqRet + 0.5 * (w.infl - w0.infl) + 0.03 * nz(ctx, h, "au"), -0.4, 0.5)), note: "Giá vàng" }];
+        { t: "MARK", amt: R(h.value * (w0.gold && w.gold ? w.gold / w0.gold - 1 : clamp(0.6 * (w.metals / w0.metals - 1) - 0.25 * w.eqRet + 0.03 * nz(ctx, h, "au"), -0.4, 0.5))), note: "Giá vàng" }];
     }
   };
 
