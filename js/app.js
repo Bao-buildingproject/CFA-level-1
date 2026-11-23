@@ -410,7 +410,7 @@ const ROUTES = {
   trading: (a, b, c) => renderArena(a, b, c),
   bond: (a, b, c) => renderBond(a, b, c),
   alt: (a, b, c) => renderAlt(a, b, c),
-  coach: (a, b, c) => renderCoach(a, b, c),
+  coach: () => renderCoach(...currentRoute().slice(1)),   // Hoa Tiêu routes can have 4 parts (start/kind/target/task)
   game: (sub, a, b) => renderGame(sub, a, b),
   calc: () => renderCalc(),
   profiles: renderProfiles

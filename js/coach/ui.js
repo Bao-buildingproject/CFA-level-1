@@ -1,580 +1,640 @@
 // ============================================================
-// coach/ui.js — Hoa Tiêu · CFA Compass (route #/coach), in the Plan group.
-// Pages: dashboard · setup (onboarding) · exam (diagnostic 45/90, module check) · analysis ·
-//        plan (today / week / month / whole / versions) · review (spaced repetition) · about (method, status).
-// Everything is computed by coach/engine.js from the learner's own data, stored per account in DATA.coach
-// (so it follows the account: export, delete and profile isolation are the site's own).
-// The CFA Tutor only explains; it never changes progress.
+// coach/ui.js — Hoa Tiêu · CFA Compass v2 (route #/coach), in the Plan group.
+//   (no profile)     welcome → setup (5 steps) → "Kế hoạch của bạn" (shown right after the plan is made)
+//   #/coach          dashboard: countdown, readiness, latest result and current plan, today, topics, radar,
+//                    history, recommendations, the CFA Tutor
+//   #/coach/plan     today / week / month / whole period / versions;  plan/ready: the full plan, explained;
+//                    plan/print: printable plan (PDF);  calendar (.ics) and spreadsheet (.csv) export
+//   #/coach/test     diagnostics 45/90, 180-question mock, confirmation and topic tests, history
+//   #/coach/analysis five levels: topic, module, skill, error classes, personal feedback
+//   #/coach/review   spaced repetition ·  #/coach/bank  question bank integration ·  #/coach/method  method & status
+//   #/coach/solutions/<module>  worked solutions of the questions you got wrong (remediation)
+// Sessions (start, run, report) are in coach/run.js; data in coach/store.js; decisions in coach/engine.js.
 // ============================================================
 (function () {
   "use strict";
-  const CE = window.CoachEngine;
-  const LV = { foundation: 1, application: 2, exam: 3, challenge: 3 };
-  const STATUS = [["none", "Chưa từng học"], ["partial", "Đã học một phần"], ["unclear", "Đã học hết nhưng chưa nhớ rõ"], ["solid", "Đã học kỹ"], ["confident", "Tự tin làm bài thi"]];
-  const STATUS_LABEL = Object.fromEntries(STATUS);
-  const DOW = [["1", "T2"], ["2", "T3"], ["3", "T4"], ["4", "T5"], ["5", "T6"], ["6", "T7"], ["0", "CN"]];
+  const HT = window.HT, CE = window.CoachEngine;
+  const C = () => HT.CO();
+  const UI = { tab: "today", topic: null, step: 1, qbTried: null, month: null, delegated: false };
+  const today = () => HT.today();
+  const dmy = s => s ? s.split("-").reverse().join("/") : "";
+  const fmtH = min => { const h = Math.round(min / 6) / 10; return `${String(h).replace(".", ",")} giờ`; };
+  const DOWS = [["1", "T2"], ["2", "T3"], ["3", "T4"], ["4", "T5"], ["5", "T6"], ["6", "T7"], ["0", "CN"]];
+  const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
   const BAND = { strong: ["Vững", "success"], developing: ["Đang tiến bộ", "application"], needs: ["Cần cải thiện", "warning"], weak: ["Yếu", "danger"], unknown: ["Chưa đủ bằng chứng", ""] };
   const CONF = { insufficient: "chưa đủ dữ liệu", low: "độ tin cậy thấp", medium: "độ tin cậy vừa", high: "độ tin cậy cao" };
-  const PRE_MODULE = { FI: "QM-04", DER: "QM-04", EQ: "QM-04", CI: "QM-04", PM: "QM-05", FSA: "FSA-03", ALT: "QM-04" };   // a foundation module to check first
-  const ERR_LABEL = { time: "Quản lý thời gian (bỏ trống / hết giờ)", calc: "Tính toán hoặc nhớ công thức", concept: "Hiểu khái niệm" };
-  const UI = { step: 1, timer: null, shownAt: 0, tab: "today", mod: null, topic: null, resultId: null };
-  const today = () => todayStr();
-
-  // ---------- data ----------
-  let _pool = null;
-  function pool() {
-    if (_pool) return _pool;
-    const rows = CE.normalizePool(STARTER_QUESTIONS);
-    const supply = {}; rows.forEach(q => { supply[q.module] = (supply[q.module] || 0) + 1; });
-    _pool = { rows, meta: new Map(rows.map(q => [q.id, q])), supply, weights: CE.weightsFromTopics(TOPICS), mods: MODULES.map(m => ({ id: m.id, topic: m.topic, title: m.title })) };
-    return _pool;
-  }
-  const defaults = () => ({ v: 1, profile: null, draft: { step: 1 }, self: { topicStatus: {}, statuses: {}, rating: {} }, attempts: [], session: null, history: [], plan: null, versions: [], learned: {}, confirmed: {}, reviews: {}, log: {}, lastReplan: null });
-  function CO() { if (!DATA.coach) DATA.coach = defaults(); return DATA.coach; }
-  const save = () => saveData();
-  const topicName = id => (topicById(id) || {}).name || id;
-  const modTitle = id => (moduleById(id) || {}).title || id;
-  const fmtH = min => `${Math.round(min / 6) / 10} giờ`;
-  const dmy = s => s ? s.split("-").reverse().join("/") : "";
-
-  function parseBusy(text) {
-    const out = [], bad = [];
-    String(text || "").split(/[\s,;]+/).filter(Boolean).forEach(tok => {
-      const [a, b] = tok.split("..");
-      if (!CE.validDate(a) || (b && !CE.validDate(b)) || (b && b < a)) { bad.push(tok); return; }
-      for (let d = a; d <= (b || a) && out.length < 800; d = CE.addDays(d, 1)) out.push(d);
-    });
-    return { dates: out, bad };
-  }
-  function engineProfile() {
-    const p = CO().profile;
-    return { examDate: p.examDate, hoursPerDay: p.hoursPerDay, studyDays: p.studyDays.map(Number), busyDates: parseBusy(p.busy).dates, maxSessionMin: p.maxSession, breakMin: p.breakMin };
-  }
-  // all evidence: the Coach's own sessions + the first attempt at each question in Practice
-  function allAttempts() {
-    const c = CO(), P = pool(), rows = c.attempts.slice();
-    DATA.questions.forEach(q => {
-      if (!q.attempts.length || !q.topic) return;
-      const a = q.attempts[0], meta = P.meta.get(q.id);
-      rows.push({ q: q.id, t: q.topic, m: q.chapter || (meta && meta.module) || null, s: (meta && meta.skill) || q.los || q.chapter, d: (meta && meta.diff) || LV[q.level] || 2,
-        ok: !!a.correct, pick: a.picked, sec: 0, est: null, calc: false, ts: a.date, src: "practice" });
-    });
-    return rows;
-  }
-  function analysis() { return CE.analyze(allAttempts(), { weights: pool().weights, selfRatings: CO().self.rating, topicIds: TOPICS.map(t => t.id) }); }
-  function state(an) { const c = CO(), P = pool(); return { modules: P.mods, weights: P.weights, analysis: an || analysis(), statuses: c.self.statuses, topicStatus: c.self.topicStatus, learned: c.learned, confirmed: c.confirmed, reviews: c.reviews, supply: P.supply, done: {} }; }
-
-  // ---------- plan lifecycle ----------
-  function newPlan(reason) {
-    const c = CO(), st = state(), prev = c.plan;
-    let plan, extra = null;
-    if (prev && !prev.error && prev.days) { const r = CE.replan(engineProfile(), st, today(), prev, c.log, reason); plan = r.plan; extra = r.adherence; }
-    else plan = CE.buildPlan(engineProfile(), st, today());
-    if (plan.error) { toast(plan.error, "error"); return plan; }
-    // keep what was already done today
-    if (prev && prev.days) { const t0 = prev.days.find(d => d.date === today()); if (t0 && plan.days[0]) { const keep = t0.tasks.filter(t => t.status !== "todo"); plan.days[0].tasks = keep.concat(plan.days[0].tasks.filter(t => !keep.some(k => k.module && k.module === t.module && k.type === t.type))); } }
-    c.versions = CE.pushVersion(c.versions, plan, reason, today());
-    c.plan = plan; c.lastReplan = today(); save();
-    return Object.assign(plan, { _adherence: extra });
-  }
-  function missedTasks() {
-    const p = CO().plan; if (!p || !p.days) return [];
-    return p.days.filter(d => d.date < today()).flatMap(d => d.tasks.filter(t => t.status === "todo"));
-  }
-  const logMinutes = (min, date) => { const c = CO(); date = date || today(); c.log[date] = (c.log[date] || 0) + min; };
-
-  // ---------- small UI parts ----------
   const chip = (txt, cls) => `<span class="badge ${cls ? "badge-" + cls : ""}">${esc(txt)}</span>`;
   const bandChip = b => chip(BAND[b][0], BAND[b][1]);
+  const PHASE = ["Nền tảng & lấp lỗ hổng", "Học nội dung chính", "Củng cố & luyện tập", "Thi thử & ôn cuối"];
+  const PHASE_TXT = ["Bài chẩn đoán, xác nhận các topic bạn tự nhận đã vững, khắc phục lỗi lặp lại và công cụ định lượng (QM-01 → QM-05).",
+    "Học từng topic theo thứ tự giáo trình; luyện ngay sau mỗi module; kiểm tra cuối mỗi topic; ôn ngắt quãng các phần đã học.",
+    "Luyện câu chưa làm theo mức ưu tiên, ôn lỗi sai, ôn công thức, giữ lịch ôn ngắt quãng.",
+    "Thi thử 180 câu (2 phiên × 135 phút), phân tích kết quả, ôn phần yếu, ngày cuối ôn nhẹ."];
+
+  // ---------- shared pieces ----------
   function subnav(active) {
-    const items = [["", "Tổng quan", "home"], ["exam", "Chẩn đoán", "clock"], ["plan", "Kế hoạch", "calendar"], ["analysis", "Phân tích", "pulse"], ["review", "Ôn ngắt quãng", "cards"], ["about", "Phương pháp", "book"]];
-    return `<nav class="co-subnav" aria-label="Hoa Tiêu">${items.map(([r, l, ic]) => `<a href="#/coach${r ? "/" + r : ""}" class="${active === r ? "active" : ""}">${icon(ic, 16)}<span>${l}</span></a>`).join("")}</nav>`;
+    const items = [["", "Tổng quan", "home"], ["plan", "Kế hoạch", "calendar"], ["test", "Đánh giá", "clock"], ["analysis", "Phân tích", "pulse"], ["review", "Ôn tập", "cards"], ["bank", "Ngân hàng câu hỏi", "layers"], ["method", "Phương pháp", "book"]];
+    return `<nav class="co-subnav" aria-label="Hoa Tiêu">${items.map(([r, l, ic]) => `<a href="#/coach${r ? "/" + r : ""}" class="${active === r ? "active" : ""}" ${active === r ? 'aria-current="page"' : ""}>${icon(ic, 16)}<span>${l}</span></a>`).join("")}</nav>`;
   }
-  function bars(rows) {   // [{label, pct, text, tone}]
-    return rows.map(r => `<div class="bar-row"><span>${esc(r.label)}</span>${progressBar(r.pct, r.tone || "")}<span class="num">${esc(r.text)}</span></div>`).join("");
+  // the "plan was updated" notice stays (stored in the account) until the plan is opened or it is closed
+  function head(title, sub, actions, active, o) {
+    const c = C(), n = c.notice; o = o || {};
+    return `${pageHeader(title, sub || "", actions || "", "Hoa Tiêu · CFA Compass")}${subnav(active)}
+      ${!HT.saveOk() ? `<div class="callout warn">${icon("alert", 16)} <b>Không lưu được vào trình duyệt</b> (bộ nhớ có thể đã đầy). Thay đổi gần đây chỉ còn trong trang đang mở. Hãy <a href="#/settings">xuất bản sao lưu</a> và xóa bớt dữ liệu không cần.</div>` : ""}
+      ${n && n.text ? `<div class="callout ht-notice" role="status">${icon("calendar", 16)} <span>${esc(n.text)}</span>${o.onPlan ? "" : ` <a href="#/coach/plan/ready">Xem kế hoạch</a>`}<button class="ht-notice-x" type="button" data-ht-notice-close aria-label="Đóng thông báo">×</button></div>` : ""}
+      ${c.sess && c.sess.submittedAt == null ? `<div class="callout">${icon("clock", 16)} Bạn có một bài đang làm dở. <a class="btn btn-sm btn-primary" href="#/coach/run">Tiếp tục</a></div>` : ""}`;
   }
-  function radar(values) {   // [{label, v 0..1}] → svg
+  function bars(rows) { return rows.map(r => `<div class="bar-row"><span>${esc(r.label)}</span>${progressBar(r.pct, r.tone || "")}<span class="num">${esc(r.text)}</span></div>`).join(""); }
+  function radar(values) {
     const n = values.length, R = 92, cx = 130, cy = 120, pt = (i, r) => [cx + r * Math.sin(2 * Math.PI * i / n), cy - r * Math.cos(2 * Math.PI * i / n)];
     const ring = f => values.map((_, i) => pt(i, R * f).join(",")).join(" ");
-    const poly = values.map((x, i) => pt(i, R * Math.max(0.04, x.v)).join(",")).join(" ");
-    return `<svg class="co-radar" viewBox="0 0 260 240" role="img" aria-label="Biểu đồ mức nắm vững theo topic">
+    return `<svg class="co-radar" viewBox="0 0 260 240" role="img" aria-label="Mức nắm vững theo topic">
       ${[0.25, 0.5, 0.75, 1].map(f => `<polygon points="${ring(f)}" fill="none" stroke="currentColor" stroke-opacity="${f === 1 ? 0.28 : 0.12}"/>`).join("")}
       ${values.map((_, i) => `<line x1="${cx}" y1="${cy}" x2="${pt(i, R)[0]}" y2="${pt(i, R)[1]}" stroke="currentColor" stroke-opacity="0.1"/>`).join("")}
-      <polygon points="${poly}" class="co-radar-fill"/>
-      ${values.map((x, i) => { const [px, py] = pt(i, R + 14); return `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-size="9.5" fill="currentColor" opacity="0.75">${esc(x.label)}</text>`; }).join("")}
-    </svg>`;
+      <polygon points="${values.map((x, i) => pt(i, R * Math.max(0.04, x.v)).join(",")).join(" ")}" class="co-radar-fill"/>
+      ${values.map((x, i) => { const [px, py] = pt(i, R + 14); return `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="middle" font-size="9.5" fill="currentColor" opacity="${x.known ? 0.85 : 0.4}">${esc(x.label)}</text>`; }).join("")}</svg>`;
   }
-  function historyBars() {
-    const c = CO(), days = []; for (let i = 13; i >= 0; i--) days.push(CE.addDays(today(), -i));
+  function historyChart() {
+    const c = C(), days = []; for (let i = 13; i >= 0; i--) days.push(CE.addDays(today(), -i));
     const max = Math.max(60, ...days.map(d => c.log[d] || 0));
-    return `<div class="co-hist" role="img" aria-label="Số phút học 14 ngày gần nhất">${days.map(d => { const m = c.log[d] || 0; return `<div class="co-hist-col" title="${dmy(d)}: ${m} phút"><i style="height:${Math.round(m / max * 100)}%"></i><span>${d.slice(8)}</span></div>`; }).join("")}</div>`;
+    return `<div class="co-hist" role="img" aria-label="Số phút học 14 ngày gần nhất">${days.map(d => { const m = c.log[d] || 0, q = (DATA.dailyLog[d] || {}).questionsDone || 0;
+      return `<div class="co-hist-col" title="${dmy(d)}: ${m} phút · ${q} câu"><i style="height:${Math.round(m / max * 100)}%"></i><span>${d.slice(8)}</span></div>`; }).join("")}</div>`;
   }
 
-  // ---------- recommendations ----------
-  function recommendations(an, limit) {
-    const c = CO(), P = pool(), st = state(an), pri = CE.priorities(P.mods, st, today(), c.profile.examDate).sort((a, b) => b.score - a.score);
-    const out = [], usedTopics = {};
-    for (const m of pri) {
-      if ((usedTopics[m.topic] || 0) >= 1 && out.length < limit - 1) continue;
-      usedTopics[m.topic] = (usedTopics[m.topic] || 0) + 1;
-      const mo = an.modules[m.id], tp = an.topics[m.topic], have = P.supply[m.id] || 0;
-      const sk = an.weakSkills.filter(w => w.module === m.id)[0];
-      const evidence = mo && mo.n ? `${mo.k}/${mo.n} câu đúng ở module này${mo.n < 4 ? " — tín hiệu sơ bộ, chưa đủ để kết luận" : ""}` : tp && tp.n ? `${tp.k}/${tp.n} câu đúng ở topic ${m.topic}; chưa có đủ câu hỏi riêng cho module này` : `Chưa có kết quả bài làm; ước tính từ tự đánh giá "${STATUS_LABEL[m.status]}"`;
-      const pre = PRE_MODULE[m.topic] && PRE_MODULE[m.topic] !== m.id && (CE.moduleKnowledge(P.mods.find(x => x.id === PRE_MODULE[m.topic]), st).k < 0.6) ? PRE_MODULE[m.topic] : null;
-      const mins = Math.min(120, Math.ceil(CE.CONFIG.moduleMinutes * (1 - m.k)));
-      out.push({ module: m.id, topic: m.topic, title: m.title, score: m.score, evidence, skill: sk && sk.skill, prereq: pre, have, k: m.k, mins,
-        reason: `Điểm ưu tiên ${Math.round(m.score * 100)}/100: lỗ hổng ${Math.round(m.gap * 100)}%, tỷ trọng đề ${Math.round(m.exam * 100)}%, nguy cơ quên ${Math.round(m.forget * 100)}%, nền tảng ${Math.round(m.prereq * 100)}%, khẩn cấp ${Math.round(m.urgency * 100)}%.` });
-      if (out.length >= limit) break;
+  // ---------- tasks ----------
+  const TYPE = { diag: "Chẩn đoán", confirm: "Xác nhận", learn: "Học", practice: "Luyện", qb: "Q. Bank", test: "Kiểm tra", check: "Kiểm tra", review: "Ôn", reread: "Ôn", mistakes: "Lỗi sai", formula: "Công thức", mock: "Thi thử", mockReview: "Phân tích", fixStudy: "Khắc phục", buffer: "Dự phòng", final: "Ôn nhẹ" };
+  const enc = encodeURIComponent;
+  function taskActions(t) {
+    if (t.status !== "todo") return t.status === "verified" ? chip("Đã xác nhận", "success") : chip("Đã ghi nhận (tự báo)", "warning");
+    const start = (kind, target) => `<a class="btn btn-sm btn-primary" href="#/coach/start/${kind}/${enc(target || "-")}/${enc(t.id)}">${icon("play", 14)} Bắt đầu</a>`;
+    const self = txt => `<button class="btn btn-sm btn-ghost" data-ht-done="${t.id}">${txt || "Đã làm xong"}</button>`;
+    switch (t.type) {
+      case "diag": return start("quick45");
+      case "confirm": return start("confirm", t.topic);
+      case "test": return start("test", t.topic);
+      case "check": return start("check", t.module);
+      case "practice": return start("practice", t.module);
+      case "review": return start("review", t.module);
+      case "mistakes": return start("mistakes", "all");
+      case "mock": return t.part === "2" ? `<a class="btn btn-sm btn-primary" href="#/coach/start/mock/2/${enc(t.id)}">${icon("play", 14)} Bắt đầu phiên 2</a>` : start("mock", "1");
+      case "learn": return `<a class="btn btn-sm btn-primary" href="#/module/${t.module}">${icon("book", 14)} Mở bài học</a><a class="btn btn-sm btn-secondary" href="#/coach/start/check/${t.module}/${enc(t.id)}" title="5 câu: xác nhận bạn đã nắm">Kiểm tra 5 câu</a>${self("Tôi đã học xong")}`;
+      case "qb": return `<a class="btn btn-sm btn-primary" href="#/qbank/do/${t.fileId}" data-ht-qb="${t.id}">${icon("flag", 14)} Mở set</a><button class="btn btn-sm btn-ghost" data-ht-done="${t.id}">Kiểm tra hoàn thành</button>`;
+      case "reread": return `<a class="btn btn-sm btn-secondary" href="#/module/${t.module}">Mở module</a>${self("Đã ôn xong")}`;
+      case "formula": return `<a class="btn btn-sm btn-secondary" href="#/cards">Mở flashcards</a>${self()}`;
+      case "fixStudy": return `<a class="btn btn-sm btn-primary" href="#/coach/solutions/${t.module}/${enc(t.id)}">Xem lời giải từng bước</a><a class="btn btn-sm btn-secondary" href="#/module/${t.module}">Mở bài học</a>`;
+      case "mockReview": { const m = C().hist.filter(h => h.kind === "mock" && h.part === 2).slice(-1)[0]; return `${m ? `<a class="btn btn-sm btn-secondary" href="#/coach/report/${m.id}">Mở kết quả thi thử</a>` : ""}<a class="btn btn-sm btn-secondary" href="#/coach/start/mistakes/all">Ôn lỗi sai</a>${self()}`; }
+      case "buffer": return `${HT.missedTasks().length ? `<a class="btn btn-sm btn-secondary" href="#/coach/plan">Xem việc trễ</a>` : ""}${self()}`;
+      case "final": return `<a class="btn btn-sm btn-secondary" href="#/cards">Ôn công thức</a>${self()}`;
+      default: return self();
     }
-    return out;
   }
-  function recoHtml(r, i) {
-    return `<article class="co-reco card">
-      <div class="row-between"><strong>Ưu tiên ${i + 1}: ${esc(r.title)}</strong>${chip(r.topic)}</div>
-      <p class="text-2 small" style="margin:6px 0"><b>Bằng chứng:</b> ${esc(r.evidence)}.${r.skill ? ` Kỹ năng yếu nhất: <i>${esc(r.skill)}</i>.` : ""}</p>
-      ${r.prereq ? `<p class="text-2 small" style="margin:6px 0"><b>Có thể thiếu nền tảng:</b> <a href="#/module/${r.prereq}">${esc(modTitle(r.prereq))}</a> (kiến thức này chưa vững nên học trước).</p>` : ""}
-      <p class="text-3 small" style="margin:6px 0">${esc(r.reason)}</p>
-      <ol class="co-steps small">
-        <li>Học lại nội dung: <a href="#/module/${r.module}">${esc(r.title)}</a> (~${r.mins} phút)</li>
-        <li>${r.have ? `<a href="#/coach/exam/check/${r.module}">Làm bài kiểm tra nhanh ${Math.min(5, r.have)} câu</a> để đo lại` : `<span class="text-3">Resource not available — chưa có câu hỏi cho module này, nhờ chủ tài khoản bổ sung</span>`}</li>
-        <li>${r.have > 5 ? `<button class="linklike" data-co-practice="${r.module}">Luyện thêm ${Math.min(10, r.have)} câu mới</button>` : "Luyện thêm khi có thêm câu hỏi"}</li>
-      </ol>
-      <p class="text-3 small" style="margin:6px 0"><b>Tiêu chí thành công:</b> đạt ≥ 80% (có tính trọng số độ khó) trên ≥ 10 câu chưa làm — dùng bài kiểm tra xác nhận của topic.</p>
-    </article>`;
+  function taskRow(t, o) {
+    o = o || {};
+    return `<div class="co-task ${t.status !== "todo" ? "done" : ""}">
+      <div class="co-task-main"><span class="badge co-type co-type-${t.type}">${TYPE[t.type] || t.type}</span><div><strong>${esc(HT.label(t))}</strong>
+        <div class="text-3 small">${t.min} phút${o.time ? ` · ${o.time}` : ""} · ${esc(HT.reason(t))}</div></div></div>
+      <div class="co-task-act">${taskActions(t)}</div></div>`;
+  }
+  function dayHtml(day, o) {
+    o = o || {};
+    if (!day) return `<p class="text-2">Không có ngày này trong kế hoạch.</p>`;
+    if (!day.minutes) return `${o.title ? `<h3>${o.title}</h3>` : ""}<p class="text-2">Ngày nghỉ hoặc ngày bận theo lịch của bạn.</p>`;
+    const ss = CE.daySessions(day, HT.engineProfile()), p = C().profile;
+    return `${o.title ? `<h3>${o.title}</h3>` : ""}<p class="text-3 small">${day.tasks.reduce((s, t) => s + t.min, 0)}/${day.minutes} phút · ${ss.length} phiên · tối đa ${p.maxSession} phút/phiên, nghỉ ${p.breakMin} phút${day.free >= 20 ? ` · ${day.free} phút trống` : ""}</p>
+      ${ss.map((s, i) => `<div class="co-session"><div class="co-session-h">Phiên ${i + 1} · ${s.start}–${s.end} · ${s.minutes} phút</div><div class="co-tasks">${s.tasks.map(t => taskRow(t)).join("")}</div></div>`).join("")}`;
+  }
+  function bindTasks(rerender) {
+    view.querySelectorAll("[data-ht-done]").forEach(b => b.onclick = () => {
+      const r = HT.completeTask(b.dataset.htDone, { selfReport: true });
+      if (r.status === "todo") return toast(r.reason || "Chưa có bằng chứng hoàn thành", "error");
+      toast(r.status === "verified" ? "Đã xác nhận hoàn thành" : "Đã ghi nhận bạn tự báo (không tính là nắm vững)");
+      rerender();
+    });
+    view.querySelectorAll("[data-ht-qb]").forEach(a => a.addEventListener("click", () => HT.startQbTask(a.dataset.htQb)));
   }
 
   // ---------- routing ----------
-  window.coachStop = function () { if (UI.timer) { clearInterval(UI.timer); UI.timer = null; } };
-  window.renderCoach = function (sub, a, b) {
+  window.coachStop = function () { if (typeof coachRunStop === "function") coachRunStop(); };
+  window.renderCoach = function (sub, a, b, c3) {
     coachStop();
-    const c = CO();
-    if (!c.profile || sub === "setup") return renderSetup();
     document.body.classList.add("co-page");
-    const pages = { "": dashboard, exam: () => examPage(a, b), plan: planPage, analysis: analysisPage, review: reviewPage, about: aboutPage, result: () => resultPage(a) };
+    const c = C();
+    if (sub === "run") return renderCoachRun();
+    if (sub === "start") return renderCoachStart(a, b && b !== "-" ? decodeURIComponent(b) : null, c3 ? decodeURIComponent(c3) : null);
+    if (sub === "report") return renderCoachReport(a);
+    if (!c.profile) return sub === "setup" ? setup() : welcome();
+    if (sub === "setup") return setup();
+    // Question Bank sets load from this device once; the plan waits for them so it can use them
+    if (UI.qbTried !== PROFILES.active && typeof qbiReady === "function" && !qbiReady() && typeof qbiLoad === "function") {
+      UI.qbTried = PROFILES.active;
+      view.innerHTML = `${pageHeader("Hoa Tiêu", "Đang đọc dữ liệu học tập…", "", "Hoa Tiêu · CFA Compass")}`;
+      const h = location.hash;
+      qbiLoad().catch(() => {}).then(() => { HT.touch(); if (location.hash === h) router(); });
+      return;
+    }
+    const up = HT.autoUpdate();
+    if (up) {
+      c.notice = { v: up.version, date: today(), text: up.reason === "missed-days" ? `Có ${up.missed} nhiệm vụ trễ: kế hoạch đã được lập lại từ hôm nay (phiên bản ${up.version}). Nhiệm vụ trễ không bị tính là hoàn thành và điểm năng lực không bị trừ.`
+        : up.reason === "upgrade" ? `Hoa Tiêu đã được nâng cấp: kế hoạch mới đã được tạo từ hồ sơ và kết quả của bạn (phiên bản ${up.version}).`
+        : up.reason === "profile" ? `Ngày thi trong hồ sơ đã đổi: kế hoạch đã được lập lại (phiên bản ${up.version}).`
+        : `Kế hoạch đã được cập nhật theo kết quả mới của bạn (phiên bản ${up.version}).` };
+      HT.save();
+    }
+    if (!UI.delegated) {
+      UI.delegated = true;
+      view.addEventListener("click", e => {
+        const x = e.target.closest && e.target.closest("[data-ht-notice-close]"); if (!x) return;
+        delete C().notice; HT.save();
+        const box = x.closest(".ht-notice"); if (box) box.remove();
+      });
+    }
+    const pages = { "": dashboard, plan: () => a === "ready" ? planReady() : a === "print" ? planPrint() : planPage(), test: testHub, analysis: analysisPage, review: reviewPage, bank: bankPage, method: methodPage, solutions: () => solutions(a, b ? decodeURIComponent(b) : null) };
     (pages[sub || ""] || dashboard)();
   };
 
-  // ======================= setup (onboarding) =======================
-  function setupDefaults() {
-    const prof = activeProfile();
-    return { displayName: prof.name || "", level: "I", year: CURRICULUM_YEAR, examDate: DATA.settings.examDate || "", goal: "pass", lang: "vi", finLevel: "some", tookBefore: "no",
-      hoursPerDay: 3, studyDays: ["1", "2", "3", "4", "5", "6", "0"], busy: "", slot: "evening", maxSession: 90, breakMin: 10, assess: "hybrid" };
+  // ======================= welcome =======================
+  function welcome() {
+    view.innerHTML = `${pageHeader("Hoa Tiêu · CFA Compass", "Huấn luyện viên học tập: đo trình độ bằng bài làm thật và lập lộ trình riêng cho tài khoản này đến ngày thi.", "", "Plan")}
+      <section class="card ht-welcome"><div class="ht-steps-4">
+        ${[["user", "1. Hồ sơ", "Ngày thi, số giờ học, ngày bận, khung giờ ưa thích."], ["layers", "2. Bạn đã học gì", "Đánh dấu 10 môn và từng module; mức tự tin 1–5."], ["clock", "3. Đánh giá", "Bài chẩn đoán 45 hoặc 90 phút (hoặc chỉ tự đánh giá)."], ["calendar", "4. Kế hoạch", "Lộ trình theo ngày, tuần, tháng — hiện ngay sau khi tạo, in được, thêm vào lịch."]]
+          .map(([ic, t, s]) => `<div class="ht-step"><span class="stat-icon">${icon(ic, 18)}</span><b>${t}</b><span class="text-2 small">${s}</span></div>`).join("")}</div>
+        <p class="text-2">Mất khoảng 3 phút để thiết lập. Kế hoạch tự điều chỉnh khi bạn làm bài, bỏ lỡ ngày học hoặc tiến bộ. Dữ liệu chỉ lưu trong tài khoản này trên thiết bị này.</p>
+        <div class="form-actions" style="justify-content:flex-start"><a class="btn btn-primary btn-lg" href="#/coach/setup">${icon("play", 18)} Bắt đầu thiết lập</a></div></section>`;
   }
-  function renderSetup() {
-    const c = CO(); document.body.classList.add("co-page");
-    const d = c.draft = Object.assign(setupDefaults(), c.profile || {}, c.draft || {});
-    const step = UI.step = Math.min(4, Math.max(1, UI.step || 1));
-    const titles = ["Thông tin cá nhân", "Thời gian học", "Kiến thức đã học", "Cách đánh giá đầu vào"];
+
+  // ======================= setup =======================
+  const STATUS = HT.STATUS;
+  function setupDefaults() {
+    return { name: activeProfile().name || "", level: "I", year: CURRICULUM_YEAR, examDate: DATA.settings.examDate || "", goal: "pass", lang: "vi", finLevel: "some", tookBefore: "no",
+      hoursPerDay: 3, byDayOn: false, byDay: null, studyDays: ["1", "2", "3", "4", "5", "6", "0"], busy: "", slot: "evening", maxSession: 90, breakMin: 10, assess: "hybrid" };
+  }
+  function setup() {
+    const c = C(); document.body.classList.add("co-page");
+    const d = c.draft = Object.assign(setupDefaults(), c.profile ? { ...c.profile, studyDays: (c.profile.studyDays || []).map(String), byDayOn: !!c.profile.byDay } : {}, c.draft || {});
+    const step = UI.step = Math.min(5, Math.max(1, UI.step || 1));
+    const titles = ["Thông tin cá nhân", "Thời gian học", "Kiến thức đã học", "Cách đánh giá", "Xác nhận"];
     const sel = (name, opts, cur) => `<select class="select" name="${name}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === v ? "selected" : ""}>${l}</option>`).join("")}</select>`;
     let body = "";
     if (step === 1) body = `<div class="form-grid">
-      <label class="field"><span class="field-label">Tên hiển thị</span><input class="input" name="displayName" value="${esc(d.displayName)}" maxlength="40"></label>
-      <label class="field"><span class="field-label">Cấp CFA đang học</span><select class="select" name="level" disabled><option>Level I</option></select><span class="text-3 small">Hiện chỉ hỗ trợ Level I.</span></label>
-      <label class="field"><span class="field-label">Năm curriculum</span><select class="select" name="year" disabled><option>${CURRICULUM_YEAR}</option></select><span class="text-3 small">Dữ liệu module theo phiên bản ${CURRICULUM_YEAR} của website.</span></label>
-      <label class="field"><span class="field-label">Ngày dự thi dự kiến</span><input class="input" type="date" name="examDate" value="${esc(d.examDate)}"><span class="field-error" id="co-err-exam"></span></label>
-      <label class="field"><span class="field-label">Mục tiêu</span>${sel("goal", [["pass", "Đỗ ngay lần này"], ["score", "Đạt điểm cao (vượt MPS rõ rệt)"], ["review", "Ôn lại sau khi đã học"], ["other", "Khác"]], d.goal)}</label>
-      <label class="field"><span class="field-label">Ngôn ngữ học tập</span>${sel("lang", [["vi", "Tiếng Việt"], ["en", "English"], ["both", "Song ngữ"]], d.lang)}<span class="text-3 small">Dùng cho phần giải thích của CFA Tutor; giao diện và câu hỏi giữ nguyên.</span></label>
-      <label class="field"><span class="field-label">Trình độ tài chính hiện tại</span>${sel("finLevel", [["none", "Mới bắt đầu"], ["some", "Có nền tảng cơ bản"], ["good", "Làm việc trong tài chính / kinh tế"]], d.finLevel)}</label>
-      <label class="field"><span class="field-label">Đã thi CFA trước đây?</span>${sel("tookBefore", [["no", "Chưa"], ["yes", "Đã thi (chưa đỗ)"], ["passed", "Đã đỗ cấp khác"]], d.tookBefore)}</label></div>`;
-    if (step === 2) body = `<div class="form-grid">
-      <label class="field"><span class="field-label">Số giờ học mỗi ngày</span><input class="input" type="number" name="hoursPerDay" min="0.5" max="12" step="0.5" value="${d.hoursPerDay}"><span class="field-error" id="co-err-hours"></span></label>
-      <label class="field"><span class="field-label">Khung giờ ưa thích</span>${sel("slot", [["morning", "Buổi sáng"], ["afternoon", "Buổi chiều"], ["evening", "Buổi tối"], ["flex", "Linh hoạt"]], d.slot)}</label>
+      <label class="field"><span class="field-label">Tên hiển thị</span><input class="input" name="name" value="${esc(d.name)}" maxlength="40"></label>
+      <label class="field"><span class="field-label">Cấp CFA</span><select class="select" disabled><option>Level I</option></select><span class="text-3 small">Hiện hỗ trợ Level I.</span></label>
+      <label class="field"><span class="field-label">Năm curriculum</span><select class="select" disabled><option>${CURRICULUM_YEAR}</option></select><span class="text-3 small">102 module, trọng số topic ${CURRICULUM_YEAR} của website.</span></label>
+      <label class="field"><span class="field-label">Ngày dự thi dự kiến</span><input class="input" type="date" name="examDate" value="${esc(d.examDate)}"><span class="field-error" id="ht-err-exam"></span></label>
+      <label class="field"><span class="field-label">Mục tiêu</span>${sel("goal", [["pass", "Đỗ ngay lần này"], ["score", "Đạt điểm cao"], ["review", "Ôn lại sau khi đã học"], ["other", "Khác"]], d.goal)}</label>
+      <label class="field"><span class="field-label">Ngôn ngữ học tập</span>${sel("lang", [["vi", "Tiếng Việt"], ["en", "English"], ["both", "Song ngữ"]], d.lang)}<span class="text-3 small">Dùng cho phần giải thích của CFA Tutor.</span></label>
+      <label class="field"><span class="field-label">Trình độ tài chính hiện tại</span>${sel("finLevel", [["none", "Mới bắt đầu"], ["some", "Có nền tảng cơ bản"], ["good", "Làm trong ngành tài chính / kinh tế"]], d.finLevel)}</label>
+      <label class="field"><span class="field-label">Đã thi CFA trước đây?</span>${sel("tookBefore", [["no", "Chưa"], ["yes", "Đã thi Level I (chưa đỗ)"], ["passed", "Đã đỗ cấp khác"]], d.tookBefore)}</label></div>`;
+    if (step === 2) {
+      const bd = d.byDay || {};
+      const busy = String(d.busy || "").split(/[\s,;]+/).filter(Boolean);
+      body = `<div class="form-grid">
+      <label class="field"><span class="field-label">Số giờ học mỗi ngày</span><input class="input" type="number" name="hoursPerDay" min="0.5" max="12" step="0.5" value="${d.hoursPerDay}"><span class="field-error" id="ht-err-hours"></span></label>
+      <label class="field"><span class="field-label">Khung giờ ưa thích</span>${sel("slot", [["morning", "Buổi sáng (từ 7:00)"], ["afternoon", "Buổi chiều (từ 14:00)"], ["evening", "Buổi tối (từ 19:30)"], ["flex", "Linh hoạt (từ 19:00)"]], d.slot)}</label>
       <label class="field"><span class="field-label">Thời lượng tối đa mỗi phiên</span>${sel("maxSession", [["45", "45 phút"], ["60", "60 phút"], ["90", "90 phút"], ["120", "120 phút"], ["180", "180 phút"]], d.maxSession)}</label>
       <label class="field"><span class="field-label">Nghỉ giữa các phiên</span>${sel("breakMin", [["5", "5 phút"], ["10", "10 phút"], ["15", "15 phút"], ["30", "30 phút"]], d.breakMin)}</label>
-      <div class="field full"><span class="field-label">Những ngày có thể học</span><div class="co-dows">${DOW.map(([v, l]) => `<label class="check-chip"><input type="checkbox" name="studyDays" value="${v}" ${d.studyDays.includes(v) ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></div>
-      <label class="field full"><span class="field-label">Ngày bận / ngày nghỉ / sự kiện cá nhân</span><textarea class="input" name="busy" rows="2" placeholder="2027-01-20..2027-02-02, 2026-12-25">${esc(d.busy)}</textarea><span class="text-3 small">Định dạng YYYY-MM-DD; khoảng ngày viết YYYY-MM-DD..YYYY-MM-DD; cách nhau bằng dấu phẩy.</span><span class="field-error" id="co-err-busy"></span></label></div>
-      <p class="text-3 small">Hai tài khoản có giờ học và ngày thi khác nhau sẽ nhận lịch khác nhau. Kế hoạch không bao giờ xếp quá số giờ bạn khai.</p>`;
+      <div class="field full"><span class="field-label">Những ngày có thể học</span><div class="co-dows">${DOWS.map(([v, l]) => `<label class="check-chip"><input type="checkbox" name="studyDays" value="${v}" ${d.studyDays.includes(v) ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></div>
+      <div class="field full"><label class="check-row"><input type="checkbox" name="byDayOn" ${d.byDayOn ? "checked" : ""}> <span>Số giờ khác nhau theo từng ngày (ví dụ cuối tuần học nhiều hơn)</span></label>
+        ${d.byDayOn ? `<div class="ht-byday">${DOWS.map(([v, l]) => `<label class="field"><span class="field-label">${l} (giờ)</span><input class="input" type="number" min="0" max="14" step="0.5" name="bd${v}" value="${bd[v] != null ? bd[v] / 60 : d.hoursPerDay}"></label>`).join("")}</div>` : ""}</div>
+      <div class="field full"><span class="field-label">Ngày bận / nghỉ / sự kiện cá nhân</span>
+        <div class="ht-busy-add"><input class="input" type="date" id="ht-busy-from" aria-label="Từ ngày"><span>đến</span><input class="input" type="date" id="ht-busy-to" aria-label="Đến ngày (không bắt buộc)"><button type="button" class="btn btn-secondary btn-sm" id="ht-busy-add">${icon("plus", 14)} Thêm</button></div>
+        <div class="ht-busy-list">${busy.length ? busy.map((x, i) => `<span class="ht-busy">${esc(x.split("..").map(dmy).join(" → "))}<button type="button" data-busy-del="${i}" aria-label="Xóa">${icon("x", 12)}</button></span>`).join("") : `<span class="text-3 small">Chưa có ngày bận.</span>`}</div>
+        <span class="field-error" id="ht-err-busy"></span></div></div>
+      <p class="text-3 small">Kế hoạch không bao giờ xếp quá số giờ bạn khai cho mỗi ngày, và không xếp gì vào ngày bận.</p>`;
+    }
     if (step === 3) {
-      const rating = c.self.rating, ts = c.self.topicStatus, ms = c.self.statuses;
-      body = `<p class="text-2">Đánh dấu mức độ đã học. <b>Đây chỉ là thông tin chủ quan</b>: hệ thống dùng nó làm ước tính ban đầu có trọng số thấp và sẽ điều chỉnh theo kết quả bài làm thật; tự nhận giỏi không đồng nghĩa với thành thạo.</p>
+      const r = c.self.rating, ts = c.self.topic, ms = c.self.module;
+      body = `<p class="text-2">Đánh dấu mức độ đã học. <b>Đây là thông tin chủ quan:</b> hệ thống chỉ dùng nó làm điểm xuất phát, và kết quả bài làm sẽ dần thay thế nó. Tự nhận đã vững mà chưa có bài làm thì kế hoạch sẽ có một bài xác nhận 10 câu.</p>
       <div class="co-topics">${TOPICS.map(t => `<div class="co-topic"><div class="row-between"><strong>${esc(t.name)}</strong><span class="text-3 small">${t.weight}</span></div>
-        <div class="co-topic-row"><select class="select" data-co-tstatus="${t.id}">${STATUS.map(([v, l]) => `<option value="${v}" ${(ts[t.id] || "none") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
-        <label class="co-rate">Tự tin <select class="select" data-co-rating="${t.id}">${[1, 2, 3, 4, 5].map(n => `<option ${((rating[t.id]) || 3) === n ? "selected" : ""}>${n}</option>`).join("")}</select> / 5</label></div>
-        <details class="co-det"><summary>Chọn chi tiết từng module (${modulesOf(t.id).length})</summary>
-          ${modulesOf(t.id).map(m => `<div class="co-modrow"><span>${m.n}. ${esc(m.title)}</span><select class="select" data-co-mstatus="${m.id}"><option value="">Theo topic</option>${STATUS.map(([v, l]) => `<option value="${v}" ${ms[m.id] === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>`).join("")}</details></div>`).join("")}</div>`;
+        <div class="co-topic-row"><select class="select" data-ht-tstatus="${t.id}" aria-label="Mức đã học ${esc(t.name)}">${STATUS.map(([v, l]) => `<option value="${v}" ${(ts[t.id] || "none") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <label class="co-rate">Tự tin <select class="select" data-ht-rating="${t.id}">${[1, 2, 3, 4, 5].map(n => `<option ${(r[t.id] || 3) === n ? "selected" : ""}>${n}</option>`).join("")}</select> / 5</label></div>
+        <details class="co-det"><summary>Chi tiết từng module (${modulesOf(t.id).length})</summary>
+          ${modulesOf(t.id).map(m => `<div class="co-modrow"><span>${m.n}. ${esc(m.title)}</span><select class="select" data-ht-mstatus="${m.id}"><option value="">Theo topic</option>${STATUS.map(([v, l]) => `<option value="${v}" ${ms[m.id] === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>`).join("")}</details></div>`).join("")}</div>`;
     }
     if (step === 4) {
-      const hrs = +d.hoursPerDay || 0, rec = hrs >= 2 ? "hybrid" : "self";
-      const opts = [["self", "A. Tự đánh giá", "Nhanh nhất, nhưng kế hoạch dựa hoàn toàn vào cảm nhận của bạn (độ chính xác thấp nhất)."], ["quick", "B. Chẩn đoán nhanh · 45 phút", "30 câu, đủ 10 topic, cho bức tranh sơ bộ."], ["full", "C. Chẩn đoán toàn diện · 90 phút", "60 câu, phủ rộng hơn, ước lượng đáng tin hơn."], ["hybrid", "D. Kết hợp (khuyến nghị nếu có đủ thời gian)", "Dùng tự đánh giá làm ước tính ban đầu, rồi làm bài 45 phút để hiệu chỉnh."]];
+      const rec = (+d.hoursPerDay || 0) >= 2 ? "hybrid" : "self";
+      const opts = [["self", "A. Tự đánh giá", "Nhanh nhất; kế hoạch dựa hoàn toàn vào cảm nhận của bạn (kém chính xác nhất). Bài chẩn đoán vẫn được xếp vào ngày đầu để bạn làm khi sẵn sàng."],
+        ["quick", "B. Chẩn đoán nhanh · 45 phút", "30 câu, đủ 10 môn: bức tranh sơ bộ."], ["full", "C. Chẩn đoán toàn diện · 90 phút", "60 câu, phủ rộng hơn, ước lượng đáng tin hơn."],
+        ["hybrid", "D. Kết hợp", "Tự đánh giá làm điểm xuất phát, rồi bài 45 phút để hiệu chỉnh."]];
       body = `<div class="co-assess">${opts.map(([v, t, s]) => `<label class="co-assess-card ${d.assess === v ? "on" : ""}"><input type="radio" name="assess" value="${v}" ${d.assess === v ? "checked" : ""}><b>${t}${v === rec ? " · khuyến nghị cho bạn" : ""}</b><small>${s}</small></label>`).join("")}</div>
-      <p class="text-3 small">Các bài chẩn đoán là bài kiểm tra nội bộ của website, không phải bài thi CFA chính thức. Bạn luôn có thể làm thêm sau.</p>`;
+      <p class="text-3 small">Bài chẩn đoán là bài kiểm tra nội bộ của website, không phải bài thi CFA chính thức. Kế hoạch được tạo ngay sau bước tiếp theo; bạn làm bài chẩn đoán khi sẵn sàng và kế hoạch sẽ tự cập nhật.</p>`;
     }
-    view.innerHTML = `${pageHeader("Thiết lập hồ sơ học tập", `Bước ${step}/4 · ${titles[step - 1]}`, "", "Hoa Tiêu · CFA Compass")}
+    if (step === 5) {
+      const prof = { examDate: d.examDate, hoursPerDay: +d.hoursPerDay, minutesByWeekday: d.byDayOn ? d.byDay : null, studyDays: d.studyDays.map(Number), busyDates: HT.parseBusy(d.busy).dates };
+      const days = Math.max(0, CE.daysBetween(today(), d.examDate)); let cap = 0;
+      for (let i = 0; i < days; i++) cap += CE.dayMinutes(prof, CE.addDays(today(), i));
+      const strong = TOPICS.filter(t => ["solid", "confident"].includes(c.self.topic[t.id])).map(t => t.id);
+      body = `<dl class="ht-dl ht-dl-wide">
+        <div><dt>Tên</dt><dd>${esc(d.name)}</dd></div><div><dt>Ngày thi</dt><dd>${dmy(d.examDate)} · còn ${days} ngày</dd></div>
+        <div><dt>Giờ học</dt><dd>${d.byDayOn ? "khác nhau theo ngày" : `${d.hoursPerDay} giờ/ngày`} · ${d.studyDays.length} ngày/tuần · ${HT.parseBusy(d.busy).dates.length} ngày bận</dd></div>
+        <div><dt>Phiên học</dt><dd>tối đa ${d.maxSession} phút, nghỉ ${d.breakMin} phút, ${({ morning: "buổi sáng", afternoon: "buổi chiều", evening: "buổi tối", flex: "linh hoạt" })[d.slot]}</dd></div>
+        <div><dt>Thời gian khả dụng</dt><dd><b>${fmtH(cap)}</b> đến ngày thi (tham khảo cho cả chương trình: khoảng ${CE.CONFIG.recommendedHours} giờ)</dd></div>
+        <div><dt>Tự đánh giá</dt><dd>${strong.length ? `Đã học kỹ: ${strong.join(", ")}` : "Chưa có topic nào đã học kỹ"}</dd></div>
+        <div><dt>Đánh giá đầu vào</dt><dd>${({ self: "Tự đánh giá", quick: "Chẩn đoán 45 phút", full: "Chẩn đoán 90 phút", hybrid: "Kết hợp" })[d.assess]}</dd></div></dl>
+      ${cap < 60 ? `<div class="callout warn">${icon("alert", 16)} Không còn thời gian học khả dụng: kiểm tra lại ngày thi, ngày học và ngày bận.</div>` : cap < 150 * 60 ? `<div class="callout warn">${icon("alert", 16)} Thời gian khả dụng khá ít so với khối lượng Level I: kế hoạch sẽ ưu tiên phần quan trọng nhất của mỗi môn và nói rõ phần chưa xếp được.</div>` : ""}`;
+    }
+    view.innerHTML = `${pageHeader(c.profile ? "Sửa hồ sơ học tập" : "Thiết lập hồ sơ học tập", `Bước ${step}/5 · ${titles[step - 1]}`, c.profile ? `<a class="btn btn-ghost" href="#/coach">Huỷ</a>` : "", "Hoa Tiêu · CFA Compass")}
       <div class="co-steps-bar">${titles.map((t, i) => `<span class="${i + 1 === step ? "on" : i + 1 < step ? "done" : ""}">${i + 1}. ${t}</span>`).join("")}</div>
-      <form class="card section" id="co-form" novalidate>${body}
-        <div class="form-actions" style="justify-content:space-between">
-          <button type="button" class="btn btn-secondary" id="co-back" ${step === 1 ? "disabled" : ""}>${icon("prev", 16)} Quay lại</button>
-          <button type="submit" class="btn btn-primary">${step === 4 ? "Hoàn tất và tạo kế hoạch" : "Tiếp tục"} ${icon("next", 16)}</button></div></form>`;
-    const form = document.getElementById("co-form");
+      <form class="card section" id="ht-form" novalidate>${body}
+        <div class="form-actions" style="justify-content:space-between"><button type="button" class="btn btn-secondary" id="ht-back" ${step === 1 ? "disabled" : ""}>${icon("prev", 16)} Quay lại</button>
+          <button type="submit" class="btn btn-primary" id="ht-next">${step === 5 ? (c.profile ? "Lưu và lập lại kế hoạch" : "Tạo kế hoạch") : "Tiếp tục"} ${icon("next", 16)}</button></div></form>`;
+    const form = document.getElementById("ht-form");
     const read = () => {
       const f = new FormData(form);
-      if (step === 1) ["displayName", "examDate", "goal", "lang", "finLevel", "tookBefore"].forEach(k => { d[k] = String(f.get(k) || "").trim(); });
-      if (step === 2) { d.hoursPerDay = +f.get("hoursPerDay"); d.slot = f.get("slot"); d.maxSession = +f.get("maxSession"); d.breakMin = +f.get("breakMin"); d.studyDays = f.getAll("studyDays"); d.busy = String(f.get("busy") || ""); }
+      if (step === 1) ["name", "examDate", "goal", "lang", "finLevel", "tookBefore"].forEach(k => { d[k] = String(f.get(k) || "").trim(); });
+      if (step === 2) {
+        d.hoursPerDay = +f.get("hoursPerDay"); d.slot = f.get("slot"); d.maxSession = +f.get("maxSession"); d.breakMin = +f.get("breakMin"); d.studyDays = f.getAll("studyDays"); d.byDayOn = !!f.get("byDayOn");
+        if (d.byDayOn && form.querySelector("[name=bd1]")) { d.byDay = {}; DOWS.forEach(([v]) => { const x = +f.get("bd" + v); d.byDay[v] = Math.round(Math.max(0, Math.min(14, isFinite(x) ? x : 0)) * 60); }); }
+        if (!d.byDayOn) d.byDay = null;
+      }
       if (step === 4) d.assess = f.get("assess") || d.assess;
     };
-    view.querySelectorAll("[data-co-tstatus]").forEach(s => s.onchange = () => { c.self.topicStatus[s.dataset.coTstatus] = s.value; save(); });
-    view.querySelectorAll("[data-co-rating]").forEach(s => s.onchange = () => { c.self.rating[s.dataset.coRating] = +s.value; save(); });
-    view.querySelectorAll("[data-co-mstatus]").forEach(s => s.onchange = () => { if (s.value) c.self.statuses[s.dataset.coMstatus] = s.value; else delete c.self.statuses[s.dataset.coMstatus]; save(); });
-    view.querySelectorAll(".co-assess-card input").forEach(r => r.onchange = () => { read(); save(); renderSetup(); });
-    document.getElementById("co-back").onclick = () => { read(); save(); UI.step = step - 1; renderSetup(); };
+    view.querySelectorAll("[data-ht-tstatus]").forEach(s => s.onchange = () => { c.self.topic[s.dataset.htTstatus] = s.value; HT.save(); });
+    view.querySelectorAll("[data-ht-rating]").forEach(s => s.onchange = () => { c.self.rating[s.dataset.htRating] = +s.value; HT.save(); });
+    view.querySelectorAll("[data-ht-mstatus]").forEach(s => s.onchange = () => { if (s.value) c.self.module[s.dataset.htMstatus] = s.value; else delete c.self.module[s.dataset.htMstatus]; HT.save(); });
+    view.querySelectorAll(".co-assess-card input, [name=byDayOn]").forEach(r => r.onchange = () => { read(); HT.save(); setup(); });
+    const add = document.getElementById("ht-busy-add");
+    if (add) add.onclick = () => {
+      read(); const a = document.getElementById("ht-busy-from").value, b = document.getElementById("ht-busy-to").value;
+      if (!CE.validDate(a)) return void (document.getElementById("ht-err-busy").textContent = "Chọn ngày bắt đầu.");
+      if (b && b < a) return void (document.getElementById("ht-err-busy").textContent = "Ngày kết thúc phải sau ngày bắt đầu.");
+      d.busy = [String(d.busy || "").trim(), b && b !== a ? `${a}..${b}` : a].filter(Boolean).join(", "); HT.save(); setup();
+    };
+    view.querySelectorAll("[data-busy-del]").forEach(b => b.onclick = () => { read(); const list = String(d.busy).split(/[\s,;]+/).filter(Boolean); list.splice(+b.dataset.busyDel, 1); d.busy = list.join(", "); HT.save(); setup(); });
+    document.getElementById("ht-back").onclick = () => { read(); HT.save(); UI.step = step - 1; setup(); };
     form.onsubmit = e => {
       e.preventDefault(); read();
       if (step === 1) {
-        if (!d.displayName) d.displayName = activeProfile().name;
-        const err = document.getElementById("co-err-exam");
-        if (!CE.validDate(d.examDate)) { err.textContent = "Chọn một ngày thi hợp lệ."; return; }
-        if (CE.daysBetween(today(), d.examDate) < 7) { err.textContent = "Ngày thi phải cách hôm nay ít nhất 7 ngày để lập kế hoạch có ý nghĩa."; return; }
+        if (!d.name) d.name = activeProfile().name;
+        const err = document.getElementById("ht-err-exam");
+        if (!CE.validDate(d.examDate)) return void (err.textContent = "Chọn một ngày thi hợp lệ.");
+        if (CE.daysBetween(today(), d.examDate) < 7) return void (err.textContent = "Ngày thi phải cách hôm nay ít nhất 7 ngày để lập kế hoạch có ý nghĩa.");
       }
       if (step === 2) {
-        const eh = document.getElementById("co-err-hours"), eb = document.getElementById("co-err-busy");
-        if (!(d.hoursPerDay >= 0.5 && d.hoursPerDay <= 12)) { eh.textContent = "Nhập từ 0,5 đến 12 giờ."; return; }
-        if (!d.studyDays.length) { eh.textContent = "Chọn ít nhất một ngày có thể học."; return; }
-        const pb = parseBusy(d.busy); if (pb.bad.length) { eb.textContent = "Không đọc được: " + pb.bad.slice(0, 3).join(", "); return; }
+        const eh = document.getElementById("ht-err-hours");
+        if (!(d.hoursPerDay >= 0.5 && d.hoursPerDay <= 12)) return void (eh.textContent = "Nhập từ 0,5 đến 12 giờ.");
+        if (!d.studyDays.length) return void (eh.textContent = "Chọn ít nhất một ngày có thể học.");
       }
-      save();
-      if (step < 4) { UI.step = step + 1; return renderSetup(); }
-      c.profile = Object.assign({}, d); c.draft = { step: 1 }; DATA.settings.examDate = d.examDate; UI.step = 1;
-      const p = newPlan("setup");
-      toast(p && !p.error ? (d.assess === "self" ? "Đã tạo kế hoạch từ tự đánh giá" : "Đã tạo kế hoạch tạm thời — làm bài chẩn đoán để hiệu chỉnh") : "Không tạo được kế hoạch", p && p.error ? "error" : "success");
-      location.hash = d.assess === "quick" || d.assess === "hybrid" ? "#/coach/exam/start/quick45" : d.assess === "full" ? "#/coach/exam/start/full90" : "#/coach";
+      HT.save();
+      if (step < 5) { UI.step = step + 1; window.scrollTo(0, 0); return setup(); }
+      const wasNew = !c.profile;
+      c.profile = { name: d.name, level: "I", year: CURRICULUM_YEAR, examDate: d.examDate, goal: d.goal, lang: d.lang, finLevel: d.finLevel, tookBefore: d.tookBefore, hoursPerDay: d.hoursPerDay,
+        byDay: d.byDayOn ? d.byDay : null, studyDays: d.studyDays.map(Number), busy: d.busy, slot: d.slot, maxSession: d.maxSession, breakMin: d.breakMin, assess: d.assess, createdAt: (c.profile && c.profile.createdAt) || today() };
+      c.draft = null; DATA.settings.examDate = d.examDate; UI.step = 1;
+      const p = HT.newPlan(wasNew ? "setup" : "profile");
+      if (p.error) { toast(p.error, "error"); return; }
+      location.hash = "#/coach/plan/ready";
     };
   }
 
   // ======================= dashboard =======================
   function dashboard() {
-    const c = CO(), P = pool(), an = analysis(), p = c.profile, plan = c.plan;
+    const c = C(), P = HT.pool(), an = HT.analysis(), p = c.profile, plan = HT.plan();
     const left = CE.daysBetween(today(), p.examDate), rd = CE.readiness(an, P.weights, c.self.rating);
-    const planned = plan && plan.days ? plan.days.reduce((s, d) => s + d.tasks.reduce((x, t) => x + t.min, 0), 0) : 0;
-    const doneMin = Object.values(c.log).reduce((s, x) => s + x, 0);
-    const todayDay = plan && plan.days && plan.days.find(d => d.date === today());
-    const reco = recommendations(an, 4);
-    const missed = missedTasks();
-    const learnedBy = t => { const ms = modulesOf(t); return Math.round(100 * ms.filter(m => c.learned[m.id]).length / ms.length); };
-    const rows = TOPICS.map(t => { const a = an.topics[t.id]; return { label: t.id + " · " + t.name.replace(/ and /g, " & "), pct: a.n >= CE.CONFIG.evidence.insufficient ? Math.round(a.wAcc * 100) : 0, text: a.n ? `${Math.round(a.acc * 100)}% · ${a.n} câu` : "chưa có", tone: a.band === "weak" ? "danger" : a.band === "needs" ? "warning" : "" }; });
-    const pending = c.session && !c.session.submittedAt;
-    view.innerHTML = `${pageHeader(`Chào ${esc(p.displayName || activeProfile().name)}`, "Hoa Tiêu đo năng lực bằng bài làm thật và điều chỉnh lộ trình riêng cho tài khoản này.", `<a class="btn btn-secondary" href="#/coach/setup">${icon("settings", 16)} Sửa hồ sơ</a>`, "Hoa Tiêu · CFA Compass")}
-      ${subnav("")}
-      ${pending ? `<div class="callout"><b>Bạn có bài thi đang làm dở.</b> <a href="#/coach/exam/run">Tiếp tục</a></div>` : ""}
-      ${missed.length ? `<div class="callout warn">${icon("alert", 16)} Có ${missed.length} nhiệm vụ trễ. Chúng <b>không</b> được đánh dấu hoàn thành và không ảnh hưởng điểm năng lực. <button class="btn btn-sm btn-secondary" id="co-replan">Lập lại lịch</button></div>` : ""}
+    const remaining = plan ? plan.days.filter(d => d.date >= today()).reduce((s, d) => s + d.tasks.filter(t => t.status === "todo").reduce((x, t) => x + t.min, 0), 0) : 0;
+    const t0 = plan && plan.days.find(d => d.date === today());
+    const st = HT.plannerState(an), reco = CE.recommendations(st, today(), p.examDate, 4);
+    const lastTest = c.hist.filter(h => !["practice", "review", "mistakes"].includes(h.kind)).slice(-1)[0];
+    const ver = c.ver[c.ver.length - 1];
+    const learnedPct = t => { const ms = modulesOf(t); return Math.round(100 * ms.filter(m => c.learned[m.id] || CE.moduleKnowledge({ id: m.id, topic: t }, st).k >= CE.CONFIG.learnedAt).length / ms.length); };
+    const rows = TOPICS.map(t => { const a = an.topics[t.id]; const ok = a.nEff >= CE.CONFIG.evidence.insufficient; return { label: `${t.id} · ${t.name.replace(/ and /g, " & ")}`, pct: ok ? Math.round(a.wAcc * 100) : 0, text: a.n ? `${Math.round(a.acc * 100)}% · ${a.n} câu${ok ? "" : " · chưa đủ"}` : "chưa đo", tone: a.band === "weak" ? "danger" : a.band === "needs" ? "warning" : "" }; });
+    const weakMods = Object.entries(an.modules).filter(([, m]) => m.n >= 2 && m.acc < 0.6).sort((a, b) => a[1].acc - b[1].acc).slice(0, 6);
+    const KN = { quick45: "Chẩn đoán nhanh", full90: "Chẩn đoán toàn diện", confirm: "Kiểm tra xác nhận", test: "Kiểm tra cuối topic", check: "Kiểm tra module", mock: "Thi thử" };
+    view.innerHTML = `${head(`Chào ${esc(p.name || activeProfile().name)}`, "Hoa Tiêu đo năng lực bằng bài làm thật và điều chỉnh lộ trình riêng cho tài khoản này.", `<a class="btn btn-secondary" href="#/coach/setup">${icon("settings", 16)} Sửa hồ sơ</a>`, "")}
+      ${an.remediation.length ? `<div class="callout warn">${icon("alert", 16)} Bạn sai ${an.remediation[0].wrong}/5 câu gần nhất ở <b>${esc(an.remediation[0].skill)}</b> (${esc(an.remediation[0].module)}). Kế hoạch có chuỗi khắc phục: xem lời giải → luyện câu mới → kiểm tra lại. <a href="#/coach/solutions/${an.remediation[0].module}">Xem lời giải</a></div>` : ""}
       <div class="grid grid-stats">
-        <div class="card stat"><div class="stat-icon">${icon("calendar", 18)}</div><span class="stat-label">Đếm ngược kỳ thi</span><span class="stat-value">${left >= 0 ? left : 0}<small> ngày</small></span><span class="stat-hint">${dmy(p.examDate)} · ${plan && plan.capacity ? fmtH(plan.capacity) + " khả dụng" : "chưa có kế hoạch"}</span></div>
-        <div class="card stat"><div class="stat-icon accent">${icon("clock", 18)}</div><span class="stat-label">Giờ học</span><span class="stat-value">${fmtH(doneMin)}</span><span class="stat-hint">đã ghi nhận · ${fmtH(planned)} đã xếp lịch</span></div>
-        <div class="card stat"><div class="stat-icon warning">${icon("target", 18)}</div><span class="stat-label">Số câu đã làm</span><span class="stat-value">${an.evidenceTotal}</span><span class="stat-hint">${an.total.n ? `${Math.round(an.total.acc * 100)}% đúng (lần đầu)` : "chưa có bài làm"}</span></div>
+        <div class="card stat"><div class="stat-icon">${icon("calendar", 18)}</div><span class="stat-label">Đếm ngược kỳ thi</span><span class="stat-value">${Math.max(0, left)}<small> ngày</small></span><span class="stat-hint">${dmy(p.examDate)} · còn ${fmtH(remaining)} trong kế hoạch</span></div>
+        <div class="card stat"><div class="stat-icon accent">${icon("clock", 18)}</div><span class="stat-label">Giờ đã học</span><span class="stat-value">${fmtH(HT.studied())}</span><span class="stat-hint">từ bài làm và nhiệm vụ đã ghi nhận</span></div>
+        <div class="card stat"><div class="stat-icon warning">${icon("target", 18)}</div><span class="stat-label">Câu đã làm (lần đầu)</span><span class="stat-value">${an.evidenceTotal}</span><span class="stat-hint">${an.total.n ? `${Math.round(an.total.acc * 100)}% đúng` : "chưa có bài làm"}</span></div>
         <div class="card stat"><div class="stat-icon danger">${icon("pulse", 18)}</div><span class="stat-label">Độ sẵn sàng (nội bộ)</span><span class="stat-value">${rd.enough ? rd.value + "%" : "—"}</span><span class="stat-hint">${esc(rd.label)}${rd.enough ? ` · khoảng ${rd.low}–${rd.high}%` : ""}</span></div>
       </div>
+      <section class="card section ht-results"><div class="ht-results-col"><h2>Kết quả đánh giá</h2>
+          ${lastTest ? `<p><b>${esc(KN[lastTest.kind] || lastTest.kind)}</b> · ${dmy(lastTest.date)} · ${lastTest.k}/${lastTest.n} đúng</p><div class="row-gap"><a class="btn btn-sm btn-secondary" href="#/coach/report/${lastTest.id}">Xem kết quả</a><a class="btn btn-sm btn-ghost" href="#/coach/analysis">Phân tích</a></div>`
+            : `<p class="text-2">Chưa có bài đánh giá. Kế hoạch hiện dựa trên tự đánh giá của bạn.</p><a class="btn btn-sm btn-primary" href="#/coach/start/quick45">Làm bài chẩn đoán 45 phút</a>`}</div>
+        <div class="ht-results-col"><h2>Kế hoạch học</h2>
+          ${plan ? `<p><b>Phiên bản ${c.ver.length}</b> · tạo ${dmy(plan.createdAt)} · ${esc(HT.REASON_LABEL[(ver || {}).reason] || "")}</p><div class="row-gap"><a class="btn btn-sm btn-primary" href="#/coach/plan/ready">Xem kế hoạch đầy đủ</a><a class="btn btn-sm btn-ghost" href="#/coach/plan">Theo ngày / tuần</a></div>`
+            : `<p class="text-2">Chưa có kế hoạch.</p><button class="btn btn-sm btn-primary" id="ht-mkplan">Tạo kế hoạch</button>`}</div></section>
       <div class="grid grid-2 section">
-        <section class="card"><div class="card-head"><h2>Kế hoạch hôm nay</h2><a class="card-link" href="#/coach/plan">Xem lịch</a></div>${todayHtml(todayDay)}</section>
+        <section class="card"><div class="card-head"><h2>Hôm nay</h2><a class="card-link" href="#/coach/plan">Cả lịch</a></div>${t0 ? dayHtml(t0) : `<p class="text-2">Không có nhiệm vụ hôm nay.</p>`}</section>
         <section class="card"><div class="card-head"><h2>Độ sẵn sàng</h2></div>
-          <div class="co-ready">${progressRing(rd.enough ? rd.value : 0, 112, 10, rd.enough ? "nội bộ" : "chưa đủ")}<div><p class="text-2 small" style="margin:0 0 6px">${rd.enough ? `Ước tính <b>${rd.value}%</b>, khoảng tin cậy 90%: ${rd.low}–${rd.high}%. ` : `Mới có ${rd.covered}/${rd.topics} topic đủ dữ liệu và ${an.evidenceTotal} câu: chưa đủ để đưa ra con số. `}</p>
-          <p class="text-3 small" style="margin:0">${esc(rd.note)}</p></div></div>
-          ${!rd.enough ? `<a class="btn btn-primary btn-sm" href="#/coach/exam" style="margin-top:12px">Làm bài chẩn đoán</a>` : ""}</section>
+          <div class="co-ready">${progressRing(rd.enough ? rd.value : 0, 112, 10, rd.enough ? "nội bộ" : "chưa đủ")}<div>
+            <p class="text-2 small" style="margin:0 0 6px">${rd.enough ? `Ước tính <b>${rd.value}%</b>, khoảng tin cậy 90%: ${rd.low}–${rd.high}%.` : `Mới có ${rd.covered}/${rd.topics} topic đủ dữ liệu và ${an.evidenceTotal} câu: chưa đủ để đưa ra con số.`}</p>
+            <p class="text-3 small" style="margin:0">Chỉ số nội bộ = tổng theo tỷ trọng topic của mức nắm vững ước tính (câu khó tính nặng hơn; topic thiếu dữ liệu được tính thận trọng). Không phải xác suất đỗ CFA.</p></div></div></section>
       </div>
       <div class="grid grid-2 section">
         <section class="card"><div class="card-head"><h2>Hiệu quả theo topic</h2><a class="card-link" href="#/coach/analysis">Chi tiết</a></div>${bars(rows)}
-          <p class="text-3 small">Thanh = độ chính xác có trọng số độ khó; chỉ hiện khi có ≥ ${CE.CONFIG.evidence.insufficient} câu. Hoàn thành giáo trình (đã học và được xác nhận): ${TOPICS.map(t => `${t.id} ${learnedBy(t.id)}%`).join(" · ")}.</p></section>
-        <section class="card"><div class="card-head"><h2>Radar mức nắm vững</h2></div>${radar(TOPICS.map(t => ({ label: t.id, v: an.topics[t.id].n >= CE.CONFIG.evidence.insufficient ? an.topics[t.id].mastery : 0 })))}
-          <p class="text-3 small">Chỉ vẽ topic có đủ bằng chứng; điểm 0 nghĩa là chưa đo được, không phải bằng 0.</p></section>
+          <p class="text-3 small">Thanh = độ chính xác có trọng số độ khó (chỉ khi có ≥ ${CE.CONFIG.evidence.insufficient} câu). Đã học (đã xác nhận hoặc ước tính vững): ${TOPICS.map(t => `${t.id} ${learnedPct(t.id)}%`).join(" · ")}.</p></section>
+        <section class="card"><div class="card-head"><h2>Điểm yếu</h2></div>${radar(TOPICS.map(t => { const a = an.topics[t.id]; const known = a.nEff >= CE.CONFIG.evidence.insufficient; return { label: t.id, v: known ? a.mastery : 0, known }; }))}
+          ${weakMods.length ? `<div class="list">${weakMods.map(([id, m]) => `<a class="list-item" href="#/module/${id}"><div class="list-main"><div class="list-title">${esc(id)} ${esc(HT.modTitle(id))}</div><div class="list-meta">${m.k}/${m.n} đúng${m.nEff < 4 ? " · sơ bộ" : ""}</div></div></a>`).join("")}</div>` : `<p class="text-3 small">Chưa có module nào đủ bằng chứng là yếu. Topic mờ trên biểu đồ là chưa đo được.</p>`}</section>
       </div>
-      <section class="card section"><div class="card-head"><h2>Nhiệm vụ ưu tiên (AI + quy tắc)</h2><button class="btn btn-sm btn-secondary" id="co-ask">${icon("chat", 14)} Hỏi CFA Tutor về kế hoạch</button></div>
-        <div class="co-recos">${reco.map(recoHtml).join("")}</div></section>
-      <section class="card section"><div class="card-head"><h2>Lịch sử học</h2></div>${historyBars()}
-        <p class="text-3 small">Số phút học mỗi ngày (14 ngày gần nhất). ${c.history.length ? "Bài chẩn đoán: " + c.history.slice(-5).map(h => `${dmy(h.date)} ${h.k}/${h.n}`).join(" → ") : "Chưa có bài chẩn đoán nào."}</p></section>`;
-    bind();
-    const rp = document.getElementById("co-replan"); if (rp) rp.onclick = () => { newPlan("missed-days"); toast("Đã lập lại lịch; phiên bản cũ vẫn được lưu"); renderCoach(""); };
-    document.getElementById("co-ask").onclick = () => askTutor(an, rd, reco);
+      <section class="card section"><div class="card-head"><h2>Nhiệm vụ ưu tiên</h2><span class="text-3 small">Theo quy tắc và dữ liệu của bạn; CFA Tutor giải thích</span></div><div class="co-recos">${reco.map(recoHtml).join("")}</div></section>
+      <div class="grid grid-2 section">
+        <section class="card"><div class="card-head"><h2>Lịch sử học (14 ngày)</h2></div>${historyChart()}
+          <p class="text-3 small">${c.hist.filter(h => CE.DIAG_KINDS.includes(h.kind) || (h.kind === "mock" && h.part === 2)).slice(-5).map(h => `${dmy(h.date)}: ${h.k}/${h.n}`).join(" → ") || "Chưa có bài chẩn đoán hay thi thử."}</p></section>
+        <section class="card"><div class="card-head"><h2>Hỏi CFA Tutor</h2></div>${tutorBox()}</section>
+      </div>`;
+    bindTasks(dashboard); bindTutor();
+    const mk = document.getElementById("ht-mkplan"); if (mk) mk.onclick = () => { const r = HT.newPlan("manual"); if (r.error) return toast(r.error, "error"); location.hash = "#/coach/plan/ready"; };
   }
-  function askTutor(an, rd, reco) {
-    if (typeof tutorOpen !== "function" || typeof TUTOR === "undefined") return toast("CFA Tutor chưa sẵn sàng", "error");
-    const c = CO(), p = c.profile;
-    const text = [`Hoa Tiêu (CFA Level I ${CURRICULUM_YEAR}): hồ sơ học viên — ngày thi ${p.examDate} (còn ${CE.daysBetween(today(), p.examDate)} ngày), ${p.hoursPerDay} giờ/ngày, mục tiêu ${p.goal}.`,
-      `Độ sẵn sàng nội bộ: ${rd.enough ? `${rd.value}% (khoảng ${rd.low}–${rd.high}%)` : "chưa đủ dữ liệu"}.`,
-      "Kết quả theo topic: " + TOPICS.map(t => { const a = an.topics[t.id]; return `${t.id} ${a.n ? Math.round(a.acc * 100) + "% (" + a.n + " câu, " + CONF[a.confidence] + ")" : "chưa đo"}`; }).join("; ") + ".",
-      "Ưu tiên hiện tại: " + reco.map((r, i) => `${i + 1}) ${r.title} [${r.evidence}]`).join(" ") ,
-      "Quy tắc: chỉ giải thích; không tự sửa tiến độ hay đánh dấu hoàn thành. Nếu học viên nói đã thành thạo một topic, đề nghị làm bài kiểm tra xác nhận thay vì học lại toàn bộ."].join("\n");
-    TUTOR.ctx = { label: "Hoa Tiêu · kế hoạch học tập", text }; tutorOpen();
-    if (typeof tutorCfg === "function" && tutorCfg().key && !TUTOR.busy && typeof tutorSend === "function")
-      tutorSend("Dựa trên hồ sơ và kết quả đính kèm, giải thích ngắn gọn vì sao kế hoạch ưu tiên các nội dung trên và gợi ý cách điều chỉnh nếu cần. Trả lời bằng tiếng Việt.", TUTOR.ctx);
+  function recoHtml(r, i) {
+    const ev = r.evidence;
+    const evTxt = ev.scope === "module" ? `${ev.k}/${ev.n} câu đúng ở module này${ev.preliminary ? " — tín hiệu sơ bộ" : ""}` : ev.scope === "topic" ? `${ev.k}/${ev.n} câu đúng ở topic ${r.topic}; module này chưa có câu riêng${ev.preliminary ? " (sơ bộ)" : ""}` : `chưa có bài làm; theo tự đánh giá “${(STATUS.find(s => s[0] === ev.status) || ["", "chưa học"])[1]}”`;
+    return `<article class="co-reco card"><div class="row-between"><strong>${i + 1}. ${esc(r.module)} ${esc(r.title)}</strong>${chip(r.topic)}</div>
+      <p class="text-2 small"><b>Bằng chứng:</b> ${esc(evTxt)}.${r.skill && r.skill !== r.module ? ` Kỹ năng yếu: <i>${esc(r.skill)}</i>.` : ""}</p>
+      ${r.prereq ? `<p class="text-2 small"><b>Có thể thiếu nền tảng:</b> <a href="#/module/${r.prereq}">${esc(r.prereq)} ${esc(HT.modTitle(r.prereq))}</a>.</p>` : ""}
+      <p class="text-3 small">Ưu tiên ${Math.round(r.score * 100)}/100 = lỗ hổng ${Math.round(r.components.gap * 100)}% · tỷ trọng đề ${Math.round(r.components.exam * 100)}% · nguy cơ quên ${Math.round(r.components.forget * 100)}% · nền tảng ${Math.round(r.components.prereq * 100)}% · khẩn cấp ${Math.round(r.components.urgency * 100)}%.</p>
+      <ol class="co-steps small">${r.learnMinutes ? `<li><a href="#/module/${r.module}">Học lại module</a> (~${r.learnMinutes} phút)</li>` : ""}
+        ${r.fresh >= 3 ? `<li><a href="#/coach/start/practice/${r.module}">Luyện ${Math.min(10, r.fresh)} câu chưa làm</a></li><li><a href="#/coach/start/check/${r.module}">Kiểm tra lại 5 câu</a></li>` : r.qbSets.length ? `<li><a href="#/qbank/do/${r.qbSets[0]}">Luyện set Question Bank</a></li>` : `<li class="text-3">Resource not available — chưa có câu hỏi chưa làm cho module này</li>`}</ol>
+      <p class="text-3 small"><b>Đạt khi:</b> ≥ 80% (có trọng số độ khó) trên ≥ 10 câu chưa làm của topic (bài xác nhận).</p></article>`;
   }
-
-  // ---------- tasks ----------
-  function taskLink(t) {
-    if (t.type === "learn") return `#/module/${t.module}`;
-    if (t.type === "mock") return "#/mock";
-    if (t.link) return t.link;
-    return null;
+  function tutorContext() {
+    const c = C(), P = HT.pool(), an = HT.analysis(), p = c.profile, plan = HT.plan(), rd = CE.readiness(an, P.weights, c.self.rating);
+    const t0 = plan && plan.days.find(d => d.date === today());
+    const reco = CE.recommendations(HT.plannerState(an), today(), p.examDate, 4);
+    const week = plan ? plan.days.filter(d => d.date >= today()).slice(0, 7).map(d => `${dmy(d.date)}: ${d.tasks.map(t => HT.label(t)).join("; ") || "nghỉ"}`).join(" | ") : "";
+    return [`Hoa Tiêu (CFA Level I ${CURRICULUM_YEAR}) — hồ sơ học viên: thi ngày ${p.examDate} (còn ${CE.daysBetween(today(), p.examDate)} ngày), ${p.hoursPerDay} giờ/ngày, mục tiêu ${p.goal}.`,
+      `Độ sẵn sàng nội bộ: ${rd.enough ? `${rd.value}% (khoảng ${rd.low}–${rd.high}%)` : "chưa đủ dữ liệu"}. ${an.evidenceTotal} câu đã làm.`,
+      "Theo topic: " + TOPICS.map(t => { const a = an.topics[t.id]; return `${t.id} ${a.n ? Math.round(a.acc * 100) + "% (" + a.n + " câu, " + CONF[a.confidence] + ")" : "chưa đo"}${c.self.topic[t.id] ? ", tự đánh giá " + c.self.topic[t.id] : ""}${c.confirmed[t.id] ? ", đã xác nhận" : ""}`; }).join("; ") + ".",
+      "Ưu tiên: " + reco.map((r, i) => `${i + 1}) ${r.module} ${r.title} [${r.evidence.scope === "self" ? "theo tự đánh giá" : r.evidence.k + "/" + r.evidence.n + " đúng"}]`).join(" "),
+      plan ? `Kế hoạch phiên bản ${c.ver.length}: ${plan.phases.map(ph => `${PHASE[ph.id - 1]} ${ph.from ? dmy(ph.from) + "–" + dmy(ph.to) : "(không cần)"}`).join("; ")}. Hôm nay: ${t0 ? t0.tasks.map(t => HT.label(t)).join("; ") : "không có"}. 7 ngày tới: ${week}.` : "Chưa có kế hoạch.",
+      "Quy tắc: bạn chỉ giải thích và gợi ý. Không tự sửa tiến độ hay đánh dấu hoàn thành. Nếu học viên nói đã thành thạo một topic, đề nghị bài kiểm tra xác nhận 10 câu (trang Đánh giá của Hoa Tiêu) thay vì học lại toàn bộ. Nếu học viên bận, gợi ý sửa giờ học trong hồ sơ để kế hoạch tự lập lại."].join("\n");
   }
-  const TYPE_LABEL = { learn: "Học", practice: "Luyện", review: "Ôn", mock: "Thi thử", confirm: "Xác nhận" };
-  function taskHtml(t) {
-    const done = t.status !== "todo", link = taskLink(t);
-    const st = t.status === "verified" ? chip("Đã xác nhận", "success") : t.status === "reported" ? chip("Tự báo cáo", "warning") : "";
-    return `<div class="co-task ${done ? "done" : ""}" data-task="${t.id}">
-      <div class="co-task-main"><span class="badge">${TYPE_LABEL[t.type] || t.type}</span><div><strong>${esc(t.title)}</strong><div class="text-3 small">${t.min} phút · ${esc(t.reason || "")}</div></div></div>
-      <div class="co-task-act">${st}
-        ${!done && t.type === "learn" ? `<a class="btn btn-sm btn-secondary" href="${link}">Bắt đầu</a><a class="btn btn-sm btn-secondary" href="#/coach/exam/check/${t.module}" title="5 câu: xác nhận bạn đã nắm">Kiểm tra 5 câu</a><button class="btn btn-sm btn-ghost" data-co-done="${t.id}" data-how="self">Tôi đã học xong</button>` : ""}
-        ${!done && (t.type === "practice") ? `<button class="btn btn-sm btn-secondary" data-co-practice="${t.module}" data-n="${t.n}">Bắt đầu</button><button class="btn btn-sm btn-ghost" data-co-done="${t.id}" data-how="verify">Kiểm tra hoàn thành</button>` : ""}
-        ${!done && t.type === "review" && t.module ? `<a class="btn btn-sm btn-secondary" href="#/coach/exam/review/${t.module}">Ôn ${t.n || 5} câu</a>` : ""}
-        ${!done && t.type === "review" && !t.module ? `${link ? `<a class="btn btn-sm btn-secondary" href="${link}">Mở</a>` : ""}<button class="btn btn-sm btn-ghost" data-co-done="${t.id}" data-how="self">Đã làm xong</button>` : ""}
-        ${!done && t.type === "confirm" ? `<a class="btn btn-sm btn-secondary" href="#/coach/exam/confirm/${t.topic}">Làm bài 10 câu</a>` : ""}
-        ${!done && t.type === "mock" ? `<a class="btn btn-sm btn-secondary" href="${link}">Mở Mock exams</a><button class="btn btn-sm btn-ghost" data-co-done="${t.id}" data-how="verify">Kiểm tra hoàn thành</button>` : ""}</div></div>`;
-  }
-  function todayHtml(day) {
-    if (!day || !day.tasks.length) return `<p class="text-2">${day && !day.minutes ? "Hôm nay là ngày nghỉ hoặc ngày bận theo lịch của bạn." : "Chưa có nhiệm vụ cho hôm nay."}</p>`;
-    const tot = day.tasks.reduce((s, t) => s + t.min, 0);
-    return `<p class="text-3 small">${tot} phút · ${day.sessions.length} phiên (tối đa ${CO().profile.maxSession} phút/phiên, nghỉ ${CO().profile.breakMin} phút giữa các phiên)</p><div class="co-tasks">${day.tasks.map(taskHtml).join("")}</div>`;
-  }
-  function answeredToday(module) {
-    const d = today(), c = CO(), P = pool();
-    const mine = c.attempts.filter(a => a.m === module && a.ts === d).map(a => a.q);
-    DATA.questions.forEach(q => { if (q.chapter === module) q.attempts.forEach(a => { if (a.date === d) mine.push(q.id); }); });
-    return new Set(mine).size;
-  }
-  function bind() {
-    view.querySelectorAll("[data-co-practice]").forEach(b => b.onclick = () => startPractice(b.dataset.coPractice, +b.dataset.n || 10));
-    view.querySelectorAll("[data-co-done]").forEach(b => b.onclick = () => completeTask(b.dataset.coDone, b.dataset.how));
-  }
-  function startPractice(module, n) {
-    const list = DATA.questions.filter(q => q.chapter === module);
-    if (!list.length) return toast("Resource not available: module này chưa có câu hỏi", "error");
-    const fresh = list.filter(q => !q.attempts.length), rest = list.filter(q => q.attempts.length);
-    const pick = shuffle(fresh).concat(shuffle(rest)).slice(0, n);
-    pick.sort((a, b) => LV[a.level] - LV[b.level]);        // easy to hard
-    startQuiz(shuffle(pick.length > 6 ? pick : pick));
-  }
-  function findTask(id) { const p = CO().plan; if (!p) return null; for (const d of p.days) { const t = d.tasks.find(x => x.id === id); if (t) return t; } return null; }
-  function completeTask(id, how) {
-    const t = findTask(id); if (!t) return;
-    const ev = how === "self" ? { selfReport: true } : { answered: answeredToday(t.module), mockFinished: (DATA.mocks || []).some(m => m.date === today()) };
-    const r = CE.completeTask(t, ev);
-    if (r.status === "todo") return toast(r.reason || "Chưa có bằng chứng hoàn thành", "error");
-    t.status = r.status; t.doneAt = today();
-    if (t.type === "learn" && t.module && !CO().learned[t.module]) { CO().learned[t.module] = r.status; if (!CO().reviews[t.module]) CO().reviews[t.module] = CE.startReview(today()); }
-    logMinutes(t.min); save(); toast(r.status === "verified" ? "Đã xác nhận hoàn thành" : "Đã ghi nhận bạn tự báo cáo (chưa tính là nắm vững)"); renderCoach(location.hash.split("/")[2] || "");
+  const TUTOR_Q = ["Vì sao kế hoạch ưu tiên các nội dung này?", "Giải thích kế hoạch tuần này của tôi.", "Tôi đã thành thạo một topic, có cần học lại không?", "Tuần này tôi bận, nên điều chỉnh thế nào?"];
+  function tutorBox() { return `<div class="ht-tq">${TUTOR_Q.map((q, i) => `<button class="btn btn-sm btn-secondary" data-ht-tutor="${i}">${esc(q)}</button>`).join("")}</div><p class="text-3 small">CFA Tutor đọc bản tóm tắt hồ sơ và kế hoạch của bạn. Tutor không thay đổi tiến độ.</p>`; }
+  function bindTutor() {
+    view.querySelectorAll("[data-ht-tutor]").forEach(b => b.onclick = () => {
+      if (typeof tutorOpen !== "function" || typeof TUTOR === "undefined") return toast("CFA Tutor chưa sẵn sàng", "error");
+      TUTOR.ctx = { label: "Hoa Tiêu · hồ sơ và kế hoạch", text: tutorContext() }; tutorOpen();
+      const lang = C().profile.lang === "en" ? "Answer in English." : C().profile.lang === "both" ? "Trả lời song ngữ Việt – Anh ngắn gọn." : "Trả lời bằng tiếng Việt.";
+      if (typeof tutorCfg === "function" && tutorCfg().key && !TUTOR.busy && typeof tutorSend === "function") tutorSend(`${TUTOR_Q[+b.dataset.htTutor]} ${lang}`, TUTOR.ctx);
+    });
   }
 
-  // ======================= exam =======================
-  const KIND_TXT = { quick45: "Chẩn đoán nhanh · 45 phút · 30 câu", full90: "Chẩn đoán toàn diện · 90 phút · 60 câu", confirm: "Kiểm tra xác nhận thành thạo · 10 câu", check: "Kiểm tra nhanh module · 5 câu", targeted: "Bài luyện theo điểm yếu" };
-  function seenIds() { return new Set(allAttempts().map(a => a.q)); }
-  function examPage(a, b) {
-    const c = CO();
-    if (a === "run") return examRun();
-    if (a === "start") return examStart(b, null);
-    if (a === "check" || a === "review") return examStart(a, b);
-    if (a === "confirm") return examStart("confirm", b);
-    const pending = c.session && !c.session.submittedAt;
-    const hist = c.history.slice().reverse().slice(0, 8);
-    view.innerHTML = `${pageHeader("Chẩn đoán năng lực", "Bài kiểm tra nội bộ để đo trình độ từng topic. Không phải bài thi CFA chính thức.", "", "Hoa Tiêu · CFA Compass")}${subnav("exam")}
-      ${pending ? `<div class="callout"><b>Bạn có bài thi đang làm dở</b> (${KIND_TXT[c.session.kind] || c.session.kind}). <a class="btn btn-sm btn-primary" href="#/coach/exam/run">Tiếp tục</a></div>` : ""}
-      <div class="grid grid-2">
-        ${["quick45", "full90"].map(k => `<article class="card"><h3>${KIND_TXT[k]}</h3><p class="text-2 small">${k === "quick45" ? "Mỗi topic có tối thiểu 2 câu, phân bổ theo trọng số 2027; câu dễ, vừa, khó trộn lẫn." : "Phủ rộng hơn, độ khó cân bằng, có cả câu tính toán và lý thuyết."} Trung bình 90 giây mỗi câu. Đáp án không hiện trước khi nộp bài; hết giờ bài tự nộp.</p>
-          <a class="btn btn-primary" href="#/coach/exam/start/${k}">Bắt đầu</a></article>`).join("")}
+  // ======================= plan =======================
+  function noPlan(title) {
+    view.innerHTML = `${head(title, "", "", "plan")}${emptyState("calendar", "Chưa có kế hoạch", "Hoàn tất hồ sơ để tạo kế hoạch.", `<a class="btn btn-primary" href="#/coach/setup">Thiết lập hồ sơ</a>`)}`;
+  }
+  const exportBtns = () => `<div class="ht-export"><a class="btn btn-secondary btn-sm" href="#/coach/plan/print">${icon("download", 14)} In / lưu PDF</a><button class="btn btn-secondary btn-sm" data-ht-export="ics">${icon("calendar", 14)} Thêm vào lịch (.ics)</button><button class="btn btn-secondary btn-sm" data-ht-export="csv">${icon("grid", 14)} Bảng tính (.csv)</button></div>`;
+  function bindExport() {
+    view.querySelectorAll("[data-ht-export]").forEach(b => b.onclick = () => {
+      const plan = HT.plan(), prof = HT.engineProfile(), name = (C().profile.name || "hoa-tieu").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w-]+/g, "_").slice(0, 20);
+      if (b.dataset.htExport === "ics") { downloadFile(`hoa-tieu-${name}.ics`, CE.toICS(plan, prof, HT.label), "text/calendar;charset=utf-8"); toast("Đã tải tệp lịch: mở bằng Google Calendar, Outlook hoặc Lịch để thêm các buổi học"); }
+      else downloadFile(`hoa-tieu-${name}.csv`, "﻿" + CE.toCSV(plan, prof, HT.label), "text/csv;charset=utf-8");
+    });
+  }
+  // the plan, explained: shown right after it is made, and any time from the dashboard
+  function planReady() {
+    const c = C(), plan = HT.plan(); if (!plan) return noPlan("Kế hoạch của bạn");
+    const an = HT.analysis(), ver = c.ver[c.ver.length - 1] || {};
+    const firstDays = plan.days.filter(d => d.date >= today()).slice(0, 7);
+    const byTopic = plan.summary.byTopic, totT = Object.values(byTopic).reduce((s, x) => s + x, 0) || 1;
+    const lastDiag = c.hist.filter(h => CE.DIAG_KINDS.includes(h.kind)).slice(-1)[0];
+    const sure = t => !["insufficient", "low"].includes(an.topics[t].confidence);
+    const weak = TOPICS.filter(t => ["weak", "needs"].includes(an.topics[t.id].band)).map(t => t.id);
+    const strong = TOPICS.filter(t => (an.topics[t.id].band === "strong" && sure(t.id)) || c.confirmed[t.id]).map(t => t.id);
+    const goodPrelim = TOPICS.filter(t => an.topics[t.id].band === "strong" && !sure(t.id) && !c.confirmed[t.id]).map(t => t.id);
+    const all = plan.days.flatMap(d => d.tasks);
+    const claimed = [...new Set(all.filter(t => t.type === "confirm").map(t => t.topic))];
+    const fix = [...new Set(all.filter(t => t.type === "fixStudy").map(t => t.module))];
+    const months = {}; plan.days.forEach(d => { const k = d.date.slice(0, 7); const m = months[k] || (months[k] = { min: 0, learn: 0, practice: 0, review: 0, mock: 0 }); d.tasks.forEach(t => { m.min += t.min; const g = t.type === "learn" || t.type === "fixStudy" ? "learn" : ["practice", "qb", "test", "check", "confirm", "diag", "mistakes"].includes(t.type) ? "practice" : t.type === "mock" || t.type === "mockReview" ? "mock" : "review"; m[g] += t.min; }); });
+    const why = [
+      lastDiag ? `Dựa trên bài ${lastDiag.kind === "full90" ? "chẩn đoán 90 phút" : "chẩn đoán 45 phút"} ngày ${dmy(lastDiag.date)} (${lastDiag.k}/${lastDiag.n} đúng) và tổng cộng ${an.evidenceTotal} câu bạn đã làm.` : "Chưa có bài chẩn đoán: kế hoạch đang dựa trên tự đánh giá của bạn; bài chẩn đoán 45 phút được xếp vào ngày đầu để hiệu chỉnh.",
+      weak.length ? `Cần cải thiện (theo bài làm${weak.some(t => !sure(t)) ? ", một số mới là tín hiệu sơ bộ vì ít câu" : ""}): ${weak.join(", ")} — được dành nhiều thời gian hơn.` : "",
+      strong.length ? `Đã vững hoặc đã xác nhận: ${strong.join(", ")} — ${strong.every(t => !all.some(x => x.type === "learn" && x.topic === t)) ? "chỉ ôn và duy trì, không học lại từ đầu" : "học lại ít, chủ yếu ôn và duy trì"}.` : "",
+      goodPrelim.length ? `Kết quả tốt nhưng mới có ít câu (chưa kết luận): ${goodPrelim.join(", ")}.` : "",
+      claimed.length ? `Bạn tự nhận đã học kỹ ${claimed.join(", ")} nhưng chưa có đủ bài làm: có bài xác nhận 10 câu ở đầu kế hoạch.` : "",
+      fix.length ? `Khắc phục lỗi lặp lại ở ${fix.join(", ")}: xem lời giải → luyện câu mới → kiểm tra lại.` : "",
+      plan.depth > 1.05 ? `Bạn có nhiều thời gian hơn nhu cầu ước tính: mỗi module được học sâu hơn (×${String(plan.depth).replace(".", ",")})${plan.freeMinutes >= 60 ? ` và còn ${fmtH(plan.freeMinutes)} để trống` : ""}.` : plan.depth < 0.95 ? `Thời gian eo hẹp: mỗi module được rút gọn (×${String(plan.depth).replace(".", ",")}); mỗi môn vẫn giữ phần quan trọng nhất.` : "",
+      "Thứ tự học: công cụ định lượng trước, rồi từng topic theo thứ tự giáo trình; mỗi module có buổi luyện ngay sau khi học và được ôn lại sau 1, 3, 7, 14, 30 ngày."
+    ].filter(Boolean);
+    view.innerHTML = `${head(`Kế hoạch học của ${esc(c.profile.name || activeProfile().name)}`, `Phiên bản ${c.ver.length} · tạo ${dmy(plan.createdAt)} · ${esc(HT.REASON_LABEL[ver.reason] || "")} · thi ngày ${dmy(plan.examDate)}`, exportBtns(), "plan", { onPlan: true })}
+      <div class="grid grid-stats">
+        <div class="card stat"><span class="stat-label">Còn</span><span class="stat-value">${plan.daysLeft}<small> ngày</small></span><span class="stat-hint">${plan.days.filter(d => d.minutes).length} ngày học</span></div>
+        <div class="card stat"><span class="stat-label">Thời gian khả dụng</span><span class="stat-value">${fmtH(plan.capacity)}</span><span class="stat-hint">nhu cầu ước tính ${fmtH(plan.neededMinutes || 0)}</span></div>
+        <div class="card stat"><span class="stat-label">Đã xếp lịch</span><span class="stat-value">${fmtH(plan.placedMinutes)}</span><span class="stat-hint">${plan.freeMinutes >= 60 ? `${fmtH(plan.freeMinutes)} để trống` : "gần như dùng hết thời gian"}</span></div>
+        <div class="card stat"><span class="stat-label">Thi thử 180 câu</span><span class="stat-value">${plan.mocks}</span><span class="stat-hint">${plan.deferredMinutes ? `${fmtH(plan.deferredMinutes)} chưa xếp được` : "đủ nội dung"}</span></div>
+      </div>
+      ${plan.warnings.map(w => `<div class="callout warn">${icon("alert", 16)} ${esc(w)}</div>`).join("")}${plan.notes.map(w => `<div class="callout">${icon("flag", 16)} ${esc(w)}</div>`).join("")}
+      <section class="card section"><div class="card-head"><h2>Vì sao kế hoạch như vậy</h2></div><ul class="ht-why">${why.map(w => `<li>${esc(w)}</li>`).join("")}</ul>
+        ${ver.diff && ver.diff.length && c.ver.length > 1 ? `<p class="text-2 small"><b>Thay đổi so với phiên bản trước:</b> ${ver.diff.map(esc).join(" ")}</p>` : ""}</section>
+      <section class="card section"><div class="card-head"><h2>Bốn giai đoạn</h2></div><div class="ht-phases">${plan.phases.map((ph, i) => `<div class="ht-phase ${ph.from ? "" : "off"}">
+          <div class="ht-phase-head"><span class="ht-key ph${i + 1}"></span><b>${i + 1}. ${PHASE[i]}</b></div><span class="text-3 small">${ph.from ? `${dmy(ph.from)} → ${dmy(ph.to)} · ${fmtH(ph.minutes)}` : "không cần giai đoạn này"}</span><span class="text-2 small">${PHASE_TXT[i]}</span></div>`).join("")}</div>
+        <div class="ht-phase-strip">${plan.phases.map((ph, i) => ph.minutes ? `<i class="ph${i + 1}" style="flex-grow:${ph.minutes}" title="${PHASE[i]}"></i>` : "").join("")}</div></section>
+      <div class="grid grid-2 section">
+        <section class="card"><div class="card-head"><h2>Thời gian theo topic</h2></div>${bars(TOPICS.map(t => ({ label: `${t.id} (đề ${t.weight})`, pct: 100 * (byTopic[t.id] || 0) / totT, text: fmtH(byTopic[t.id] || 0) })))}
+          <p class="text-3 small">Theo tỷ trọng đề ${CURRICULUM_YEAR} và lỗ hổng của bạn; mọi môn đều có thời gian.</p></section>
+        <section class="card"><div class="card-head"><h2>Theo tháng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Tháng</th><th class="num">Tổng</th><th class="num">Học</th><th class="num">Luyện/KT</th><th class="num">Ôn</th><th class="num">Thi thử</th></tr></thead><tbody>
+          ${Object.entries(months).map(([k, v]) => `<tr><td>${k.slice(5)}/${k.slice(0, 4)}</td><td class="num">${fmtH(v.min)}</td><td class="num">${fmtH(v.learn)}</td><td class="num">${fmtH(v.practice)}</td><td class="num">${fmtH(v.review)}</td><td class="num">${fmtH(v.mock)}</td></tr>`).join("")}</tbody></table></div></section>
+      </div>
+      <section class="card section"><div class="card-head"><h2>7 ngày tới</h2><a class="card-link" href="#/coach/plan">Theo ngày</a></div><div class="co-week">${firstDays.map(d => `<div class="co-daycard ${d.date === today() ? "now" : ""}"><b>${WD[CE.weekday(d.date)]} ${dmy(d.date).slice(0, 5)}</b><span class="text-3 small">${d.minutes ? `${d.tasks.reduce((s, t) => s + t.min, 0)} phút` : "nghỉ"}</span>${d.tasks.map(t => `<div class="co-mini co-type-${t.type} ${t.status !== "todo" ? "done" : ""}">${esc(HT.label(t))}</div>`).join("")}</div>`).join("")}</div></section>
+      <section class="card section"><div class="card-head"><h2>Hôm nay · ${WD[CE.weekday(today())]} ${dmy(today())}</h2></div>${dayHtml(plan.days.find(d => d.date === today()))}</section>
+      ${plan.deferred.length ? `<section class="card section"><div class="card-head"><h2>Chưa xếp được (${plan.deferred.length})</h2></div><div class="list">${plan.deferred.slice(0, 15).map(t => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(HT.label(t))}</div><div class="list-meta">${t.min} phút · ưu tiên thấp hơn các mục đã xếp</div></div></div>`).join("")}</div></section>` : ""}
+      <div class="form-actions"><a class="btn btn-secondary" href="#/coach/setup">Sửa hồ sơ / giờ học</a><button class="btn btn-secondary" data-ht-tutor="0">${icon("chat", 16)} Hỏi CFA Tutor về kế hoạch</button>
+        ${!lastDiag ? `<a class="btn btn-primary" href="#/coach/start/quick45">Làm bài chẩn đoán để hiệu chỉnh</a>` : `<a class="btn btn-primary" href="#/coach/plan">Nhiệm vụ hôm nay</a>`}</div>`;
+    c.planNew = false; delete c.notice; HT.save();
+    bindTasks(planReady); bindExport(); bindTutor();
+  }
+  function planPrint() {
+    const c = C(), plan = HT.plan(); if (!plan) return noPlan("In kế hoạch");
+    const prof = HT.engineProfile(), weeks = [];
+    plan.days.forEach(d => { const w = CE.addDays(d.date, -((CE.weekday(d.date) + 6) % 7)); let wk = weeks[weeks.length - 1]; if (!wk || wk.start !== w) weeks.push(wk = { start: w, days: [] }); wk.days.push(d); });
+    view.innerHTML = `<div class="ht-print">
+      <div class="ht-noprint form-actions" style="justify-content:space-between"><a class="btn btn-ghost" href="#/coach/plan/ready">${icon("prev", 16)} Quay lại</a><button class="btn btn-primary" id="ht-print">${icon("download", 16)} In / lưu PDF</button></div>
+      <h1>Kế hoạch học CFA Level I — ${esc(c.profile.name || activeProfile().name)}</h1>
+      <p>Hoa Tiêu · phiên bản ${c.ver.length} · tạo ${dmy(plan.createdAt)} · thi ngày ${dmy(plan.examDate)} · ${fmtH(plan.capacity)} khả dụng, ${fmtH(plan.placedMinutes)} đã xếp.</p>
+      <table class="ht-ptable"><thead><tr><th>Giai đoạn</th><th>Từ</th><th>Đến</th><th>Giờ</th></tr></thead><tbody>${plan.phases.map((ph, i) => `<tr><td>${i + 1}. ${PHASE[i]}</td><td>${dmy(ph.from) || "—"}</td><td>${dmy(ph.to) || "—"}</td><td>${fmtH(ph.minutes)}</td></tr>`).join("")}</tbody></table>
+      ${plan.warnings.map(w => `<p class="ht-pwarn">⚠ ${esc(w)}</p>`).join("")}
+      ${weeks.map(w => `<section class="ht-pweek"><h2>Tuần từ ${dmy(w.start)}</h2>${w.days.map(d => `<div class="ht-pday"><b>${WD[CE.weekday(d.date)]} ${dmy(d.date)}</b>${d.minutes ? CE.daySessions(d, prof).map(s => `<div class="ht-psess"><span>${s.start}–${s.end}</span><ul>${s.tasks.map(t => `<li>☐ ${esc(HT.label(t))} <i>(${t.min}′)</i></li>`).join("")}</ul></div>`).join("") : `<span class="text-3"> — nghỉ</span>`}</div>`).join("")}</section>`).join("")}
+      <p class="text-3 small">Kế hoạch được tạo tự động từ dữ liệu học tập của bạn; Hoa Tiêu sẽ điều chỉnh khi có kết quả mới. Không phải tài liệu của CFA Institute.</p></div>`;
+    document.getElementById("ht-print").onclick = () => window.print();
+  }
+  function planPage() {
+    const c = C(), plan = HT.plan(); if (!plan) return noPlan("Kế hoạch");
+    const tab = UI.tab, days = plan.days, prof = HT.engineProfile();
+    const tabs = [["today", "Hôm nay"], ["week", "Tuần"], ["month", "Tháng"], ["all", "Toàn kỳ"], ["versions", `Phiên bản (${c.ver.length})`]];
+    let body = "";
+    const missed = HT.missedTasks();
+    if (tab === "today") {
+      body = `<section class="card">${dayHtml(days.find(d => d.date === today()), { title: `Hôm nay · ${WD[CE.weekday(today())]} ${dmy(today())}` })}</section>
+        ${missed.length ? `<section class="card section"><div class="card-head"><h2>Nhiệm vụ trễ (${missed.length})</h2><button class="btn btn-sm btn-secondary" id="ht-replan2">Lập lại lịch từ hôm nay</button></div><div class="co-tasks">${missed.slice(0, 8).map(t => taskRow(t, { time: dmy(t.date) })).join("")}</div><p class="text-3 small">Nhiệm vụ trễ không được tính là hoàn thành và không làm giảm điểm năng lực.</p></section>` : ""}
+        <section class="card section"><div class="card-head"><h2>Các ngày tới</h2></div>${days.filter(d => d.date > today() && d.minutes).slice(0, 3).map(d => dayHtml(d, { title: `${WD[CE.weekday(d.date)]} ${dmy(d.date)}` })).join("") || `<p class="text-2">Không còn ngày học nào.</p>`}</section>`;
+    }
+    if (tab === "week") {
+      const i0 = Math.max(0, days.findIndex(d => d.date >= today()));
+      body = `<section class="card"><div class="co-week">${days.slice(i0, i0 + 7).map(d => `<div class="co-daycard ${d.date === today() ? "now" : ""}"><b>${WD[CE.weekday(d.date)]} ${dmy(d.date).slice(0, 5)}</b><span class="text-3 small">${d.minutes ? `${d.tasks.reduce((s, t) => s + t.min, 0)}/${d.minutes} phút` : "nghỉ"}</span>${CE.daySessions(d, prof).map(s => `<span class="co-mini-time">${s.start}–${s.end}</span>${s.tasks.map(t => `<div class="co-mini co-type-${t.type} ${t.status !== "todo" ? "done" : ""}">${esc(HT.label(t))}</div>`).join("")}`).join("")}</div>`).join("")}</div></section>`;
+    }
+    if (tab === "month") {
+      const monthsList = [...new Set(days.map(d => d.date.slice(0, 7)))];
+      const mm = monthsList.includes(UI.month) ? UI.month : monthsList[0], mdays = days.filter(d => d.date.slice(0, 7) === mm);
+      const lead = mdays.length ? (CE.weekday(mdays[0].date) + 6) % 7 : 0;
+      body = `<section class="card"><div class="segmented" style="flex-wrap:wrap">${monthsList.map(m => `<button data-month="${m}" class="${mm === m ? "active" : ""}">${m.slice(5)}/${m.slice(2, 4)}</button>`).join("")}</div>
+        <div class="ht-cal">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map(x => `<b>${x}</b>`).join("")}${"<span></span>".repeat(lead)}${mdays.map(d => { const mins = d.tasks.reduce((s, t) => s + t.min, 0); return `<div class="ht-cal-day ph${d.phase + 1} ${d.date === today() ? "now" : ""}" title="${esc(dmy(d.date) + ": " + d.tasks.map(t => HT.label(t)).join("; "))}"><span>${+d.date.slice(8)}</span>${d.minutes ? `<em>${mins}′</em><i>${[...new Set(d.tasks.map(t => t.topic).filter(Boolean))].slice(0, 3).join(" ")}</i>` : `<em>—</em>`}</div>`; }).join("")}</div>
+        <p class="text-3 small">Màu theo giai đoạn: ${PHASE.map((p, i) => `<span class="ht-key ph${i + 1}"></span>${p}`).join(" · ")}. Di chuột (hoặc chạm) để xem nhiệm vụ.</p></section>`;
+    }
+    if (tab === "all") {
+      const bt = plan.summary.byType, lbl = { learn: "Học", practice: "Luyện", qb: "Question Bank", review: "Ôn ngắt quãng", reread: "Ôn ghi chú", mistakes: "Ôn lỗi sai", formula: "Công thức", test: "Kiểm tra topic", check: "Kiểm tra module", confirm: "Xác nhận", diag: "Chẩn đoán", mock: "Thi thử", mockReview: "Phân tích thi thử", fixStudy: "Khắc phục", buffer: "Dự phòng", final: "Ngày cuối" };
+      const tot = Object.values(bt).reduce((s, x) => s + x, 0) || 1;
+      body = `<section class="card"><div class="card-head"><h2>Phân bổ theo loại việc</h2></div>${bars(Object.entries(bt).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: lbl[k] || k, pct: 100 * v / tot, text: fmtH(v) })))}</section>
+        <section class="card section"><div class="card-head"><h2>Giả định của kế hoạch</h2></div><ul class="ht-why small">
+          <li>Thời gian tham khảo cho cả chương trình: khoảng ${CE.CONFIG.recommendedHours} giờ (một nửa để học lần đầu, chia theo tỷ trọng topic và số module); thời gian học mỗi module nhân hệ số ×${String(plan.depth || 1).replace(".", ",")} theo thời gian bạn có.</li>
+          <li>${String(CE.CONFIG.minutesPerQuestion).replace(".", ",")} phút/câu luyện; ôn ngắt quãng 5 câu ≈ ${CE.CONFIG.reviewMinutes} phút, tối đa ${Math.round(CE.CONFIG.reviewCap * 100)}% thời gian mỗi ngày; dự phòng khoảng ${Math.round(CE.CONFIG.bufferShare * 100)}% mỗi tuần.</li>
+          <li>Điểm ưu tiên = 0,30 × lỗ hổng + 0,25 × tỷ trọng đề + 0,20 × nguy cơ quên + 0,15 × nền tảng + 0,10 × khẩn cấp (mỗi thành phần 0–1). Đây là công thức heuristic ban đầu, không phải mô hình được CFA Institute xác nhận.</li>
+          <li>Thi thử: 2 phiên × 90 câu × 135 phút, trước ngày thi ít nhất 2 ngày; ngày trước kỳ thi chỉ ôn nhẹ.</li></ul></section>
+        ${plan.deferred.length ? `<section class="card section"><div class="card-head"><h2>Chưa xếp được</h2></div><div class="list">${plan.deferred.map(t => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(HT.label(t))}</div><div class="list-meta">${t.min} phút</div></div></div>`).join("")}</div></section>` : ""}`;
+    }
+    if (tab === "versions") {
+      body = `<section class="card"><p class="text-3 small">Mỗi lần kế hoạch thay đổi, một phiên bản mới được thêm cùng danh sách thay đổi; lịch sử không bị xóa.</p><div class="list">${c.ver.slice().reverse().map(v => `<div class="list-item"><div class="list-main">
+        <div class="list-title">Phiên bản ${v.v} · ${dmy(v.date)} · ${esc(HT.REASON_LABEL[v.reason] || v.reason)}</div>
+        <div class="list-meta">${v.sum ? `${fmtH(v.sum.capacity)} khả dụng · ${fmtH(v.sum.placedMinutes)} đã xếp${v.sum.deferredMinutes ? ` · ${fmtH(v.sum.deferredMinutes)} chưa xếp` : ""} · thi ${dmy(v.sum.examDate)}` : ""}</div>
+        ${v.diff && v.diff.length ? `<ul class="ht-diff small">${v.diff.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`).join("")}</div></section>`;
+    }
+    view.innerHTML = `${head("Kế hoạch học", `Phiên bản ${c.ver.length} · ${plan.daysLeft} ngày đến kỳ thi ${dmy(plan.examDate)} · ${fmtH(plan.capacity)} khả dụng`, `<a class="btn btn-primary" href="#/coach/plan/ready">Xem kế hoạch đầy đủ</a><button class="btn btn-secondary" id="ht-replan">${icon("calendar", 16)} Lập lại lịch</button>`, "plan", { onPlan: true })}
+      ${exportBtns()}
+      <div class="segmented co-tabs" style="margin-top:12px">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "active" : ""}">${l}</button>`).join("")}</div>
+      <div style="margin-top:14px">${body}</div>`;
+    if (c.notice) { delete c.notice; HT.save(); }
+    bindTasks(planPage); bindExport();
+    view.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { UI.tab = b.dataset.tab; planPage(); });
+    view.querySelectorAll("[data-month]").forEach(b => b.onclick = () => { UI.month = b.dataset.month; planPage(); });
+    const rp = () => { const r = HT.newPlan("manual"); if (r.error) return toast(r.error, "error"); toast("Đã lập lại lịch từ hôm nay; phiên bản cũ vẫn được lưu"); location.hash = "#/coach/plan/ready"; };
+    document.getElementById("ht-replan").onclick = rp;
+    const rp2 = document.getElementById("ht-replan2"); if (rp2) rp2.onclick = rp;
+  }
+
+  // ======================= assessments =======================
+  function testHub() {
+    const c = C(), hist = c.hist.slice().reverse();
+    const KN = { quick45: "Chẩn đoán nhanh", full90: "Chẩn đoán toàn diện", confirm: "Xác nhận", test: "Kiểm tra cuối topic", check: "Kiểm tra module", mock: "Thi thử", practice: "Luyện", review: "Ôn ngắt quãng", mistakes: "Ôn lỗi sai" };
+    const mockOpen = c.mock && c.mock.sess && c.mock.sess[0] && !c.mock.sess[1];
+    view.innerHTML = `${head("Đánh giá", "Bài kiểm tra nội bộ để đo trình độ từng topic. Không phải bài thi CFA chính thức.", "", "test")}
+      <div class="grid grid-3">
+        ${[["quick45", "Chẩn đoán nhanh", "30 câu · 45 phút", "Mỗi môn ít nhất 2 câu, phân bổ theo trọng số 2027; dễ–vừa–khó trộn lẫn; có câu tính toán và lý thuyết."],
+          ["full90", "Chẩn đoán toàn diện", "60 câu · 90 phút", "Phủ rộng hơn, độ khó cân bằng; kết luận theo topic đáng tin hơn."],
+          ["mock", "Thi thử 180 câu", "2 phiên × 90 câu × 135 phút", "Phân bổ theo trọng số; phân tích thời gian, topic, so sánh với lần trước."]].map(([k, t, s, d]) => `<article class="card"><h3>${t}</h3><p class="text-3 small">${s}</p><p class="text-2 small">${d}</p>
+          ${k === "mock" && mockOpen ? `<a class="btn btn-primary" href="#/coach/start/mock/2">Làm phiên 2</a>` : `<a class="btn btn-primary" href="#/coach/start/${k}${k === "mock" ? "/1" : ""}">Bắt đầu</a>`}</article>`).join("")}
       </div>
       <section class="card section"><div class="card-head"><h2>Xác nhận đã thành thạo một topic</h2></div>
-        <p class="text-2 small">Nếu bạn đã học kỹ một topic, làm bài 10 câu để xác nhận. Đạt ≥ 80% (tính trọng số độ khó) thì topic chuyển sang chế độ duy trì và kế hoạch rút ngắn phần học lại — nhưng vẫn giữ thời gian ôn tập.</p>
-        <div class="row-gap">${TOPICS.map(t => `<a class="btn btn-sm btn-secondary" href="#/coach/exam/confirm/${t.id}">${t.id}${c.confirmed[t.id] ? " ✓" : ""}</a>`).join("")}</div></section>
-      <section class="card section"><div class="card-head"><h2>Các bài đã làm</h2></div>${hist.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Ngày</th><th>Loại</th><th class="num">Đúng</th><th></th></tr></thead><tbody>${hist.map(h => `<tr><td>${dmy(h.date)}</td><td>${esc(KIND_TXT[h.kind] || h.kind)}</td><td class="num">${h.k}/${h.n}${h.expired ? " · hết giờ" : ""}</td><td><a href="#/coach/result/${h.id}">Xem</a></td></tr>`).join("")}</tbody></table></div>` : `<p class="text-2">Chưa có bài nào.</p>`}</section>`;
-  }
-  function examStart(kind, target) {
-    const c = CO(), P = pool();
-    if (c.session && !c.session.submittedAt) { toast("Bạn đang có bài làm dở"); return void (location.hash = "#/coach/exam/run"); }
-    let ids = [], opts = { seed: `${activeProfile().id}|${today()}|${c.history.length}|${target || ""}`, weights: P.weights, seen: kind === "review" ? [] : seenIds() };
-    let k = kind;
-    if (kind === "check" || kind === "review") { if (!moduleById(target)) return void (location.hash = "#/coach/exam"); opts.module = target; opts.topic = moduleById(target).topic; opts.n = 5; k = "check"; if (kind === "review") { const recent = new Set(c.attempts.filter(x => CE.daysBetween(x.ts, today()) < 3).map(x => x.q)); opts.seen = [...recent]; } }
-    if (kind === "confirm") { if (!topicById(target)) return void (location.hash = "#/coach/exam"); opts.topic = target; opts.n = 10; opts.mix = { 1: 0.2, 2: 0.5, 3: 0.3 }; }
-    if (!CE.KINDS[k]) return void (location.hash = "#/coach/exam");
-    ids = CE.buildAssessment(P.rows, k, opts);
-    if (!ids.length || (kind !== "quick45" && kind !== "full90" && ids.length < Math.min(3, opts.n || 3))) { toast("Resource not available: chưa đủ câu hỏi cho bài này", "error"); return void (location.hash = "#/coach/exam"); }
-    const s = CE.newSession(k, ids, Date.now(), "s" + Date.now().toString(36));
-    s.meta = { target: target || null, src: kind === "review" ? "review" : k === "check" ? "check" : k }; c.session = s; save();
-    UI.shownAt = Date.now(); location.hash = "#/coach/exam/run";
-  }
-  function spent() { const t = Date.now(), d = Math.max(0, Math.min(300, Math.round((t - UI.shownAt) / 1000))); UI.shownAt = t; return d; }
-  function examRun() {
-    const c = CO(), s = c.session;
-    if (!s) return void (location.hash = "#/coach/exam");
-    if (s.submittedAt) return void (location.hash = "#/coach/result/" + s.id);
-    if (CE.remainingSec(s, Date.now()) <= 0) return finishExam(true);
-    const q = DATA.questions.find(x => x.id === s.ids[s.current]), flagged = !!s.flags[s.ids[s.current]];
-    const answered = Object.keys(s.answers).length;
-    if (!UI.shownAt) UI.shownAt = Date.now();
-    view.innerHTML = `<div class="mock-top"><div><div style="font-weight:600">${esc(KIND_TXT[s.kind] || s.kind)}</div><div class="text-3 small">${answered}/${s.ids.length} đã trả lời · bài nội bộ, không phải đề CFA chính thức</div></div>
-        <div class="row-gap"><div class="timer" id="co-timer" role="timer" aria-label="Thời gian còn lại">${icon("clock", 18)}<span></span></div><button class="btn btn-primary" id="co-submit">Nộp bài</button></div></div>
-      <div class="mock-layout"><div><div class="card">
-        ${q ? `<div class="row-between" style="margin-bottom:12px"><span class="text-2 small" style="font-weight:600">Câu ${s.current + 1}/${s.ids.length}</span>
-            <button class="btn btn-ghost btn-sm" id="co-flag" aria-pressed="${flagged}" style="${flagged ? "color:var(--warning)" : ""}">${icon("flag", 16)} ${flagged ? "Đã gắn cờ" : "Gắn cờ xem lại"}</button></div>
-          ${questionBodyHtml(q)}${choicesHtml(q, s.answers[q.id] || null, false)}` : `<p>Câu hỏi này không còn trong ngân hàng; sẽ tính là chưa trả lời.</p>`}
-        <div class="mock-nav"><button class="btn btn-secondary" id="co-prev" ${s.current === 0 ? "disabled" : ""}>${icon("prev", 18)} Trước</button><button class="btn btn-secondary" id="co-next" ${s.current === s.ids.length - 1 ? "disabled" : ""}>Sau ${icon("next", 18)}</button></div></div>
-        <p class="text-3 small hide-mobile" style="margin-top:12px">Phím tắt: <span class="kbd">1</span>–<span class="kbd">3</span> chọn · <span class="kbd">←</span> <span class="kbd">→</span> chuyển câu · <span class="kbd">F</span> gắn cờ. Bài được lưu tự động; tải lại trang vẫn tiếp tục, đồng hồ chạy theo giờ thật.</p></div>
-        <aside class="card mock-side" aria-label="Danh sách câu hỏi"><div class="row-between" style="margin-bottom:12px"><h3>Câu hỏi</h3><span class="text-3 small">${Object.values(s.flags).filter(Boolean).length} gắn cờ · ${s.ids.length - answered} chưa trả lời</span></div>
-          <div class="palette">${s.ids.map((id, i) => `<button class="pal-btn ${s.answers[id] ? "answered" : ""} ${s.flags[id] ? "flagged" : ""} ${i === s.current ? "current" : ""}" data-go="${i}" aria-label="Câu ${i + 1}">${i + 1}</button>`).join("")}</div></aside></div>`;
-    const tick = () => { const left = CE.remainingSec(s, Date.now()), el = document.getElementById("co-timer"); if (!el) return coachStop(); el.querySelector("span").textContent = formatTime(left); el.classList.toggle("warn", left <= 300 && left > 60); el.classList.toggle("danger", left <= 60); if (left <= 0) { coachStop(); finishExam(true); } };
-    tick(); UI.timer = setInterval(tick, 1000);
-    const go = i => { const sec = spent(); const id = s.ids[s.current]; if (!s.answers[id]) s.secs[id] = (s.secs[id] || 0) + sec; s.current = Math.max(0, Math.min(s.ids.length - 1, i)); save(); examRun(); };
-    view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => { const r = CE.answer(s, q.id, b.dataset.pick, Date.now(), spent()); if (!r.ok) { toast(r.reason === "expired" ? "Đã hết giờ — không thể sửa đáp án" : "Không ghi được đáp án", "error"); return finishExam(true); } save(); examRun(); });
-    view.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(+b.dataset.go));
-    document.getElementById("co-prev").onclick = () => go(s.current - 1); document.getElementById("co-next").onclick = () => go(s.current + 1);
-    const fl = document.getElementById("co-flag"); if (fl) fl.onclick = () => { s.flags[q.id] = !s.flags[q.id]; save(); examRun(); };
-    document.getElementById("co-submit").onclick = async () => {
-      const un = s.ids.length - Object.keys(s.answers).length;
-      if (un && !(await confirmDialog({ title: "Nộp bài?", message: `Còn ${un} câu chưa trả lời. Sau khi nộp, bạn không thể sửa đáp án.`, confirmText: "Nộp bài" }))) return;
-      finishExam(false);
-    };
-    window.onkeydown = e => { if (!UI.timer || /input|textarea|select/i.test(e.target.tagName)) return; const k = e.key; if (k === "ArrowRight") go(s.current + 1); else if (k === "ArrowLeft") go(s.current - 1); else if (/^[1-3]$/.test(k) && q) { CE.answer(s, q.id, "ABC"[+k - 1], Date.now(), spent()); save(); examRun(); } else if ((k === "f" || k === "F") && q) { s.flags[q.id] = !s.flags[q.id]; save(); examRun(); } };
-  }
-  // grade, store the evidence, update reviews, rebuild the plan
-  function finishExam(expired) {
-    coachStop(); window.onkeydown = null;
-    const c = CO(), s = c.session; if (!s || s.submittedAt) return void (location.hash = "#/coach/exam");
-    const id = s.ids[s.current]; if (!s.answers[id] && !expired) s.secs[id] = (s.secs[id] || 0) + spent();
-    CE.submit(s, Date.now());
-    const P = pool(), byId = {}; s.ids.forEach(i => { const m = P.meta.get(i), q = DATA.questions.find(x => x.id === i); if (m && q) byId[i] = { ...m, ans: q.answer }; });
-    const rows = CE.attemptsFromSession(s, byId, today(), s.meta && s.meta.src || s.kind);
-    c.attempts.push(...rows);
-    // mirror into the site's own question records so Weak spots and the mistake log stay consistent
-    rows.forEach(r => { if (r.ok !== null) { const q = DATA.questions.find(x => x.id === r.q); if (q) { q.attempts.push({ date: today(), picked: r.pick, correct: r.ok }); if (r.ok) { q.correctStreak++; if (q.inMistakeLog && q.correctStreak >= 2) q.inMistakeLog = false; } else { q.correctStreak = 0; q.inMistakeLog = true; } const log = DATA.dailyLog[today()] || (DATA.dailyLog[today()] = {}); log.questionsDone = (log.questionsDone || 0) + 1; log.questionsRight = (log.questionsRight || 0) + (r.ok ? 1 : 0); } } });
-    const k = rows.filter(r => r.ok).length, n = rows.length;
-    const spentMin = Math.max(1, Math.round(rows.reduce((x, r) => x + r.sec, 0) / 60)); logMinutes(spentMin);
-    const rec = { id: s.id, date: today(), kind: s.kind, src: s.meta && s.meta.src, target: s.meta && s.meta.target, n, k, expired: !!s.expired, secs: s.secs };
-    // per-module reviews
-    const byMod = {}; rows.forEach(r => { if (r.m) (byMod[r.m] = byMod[r.m] || []).push(r); });
-    Object.keys(byMod).forEach(m => { const rr = byMod[m]; if (rr.length >= 2) { const ratio = rr.filter(x => x.ok).length / rr.length; c.reviews[m] = c.reviews[m] ? CE.recordReview(c.reviews[m], ratio, rr.length, today()) : CE.recordReview(CE.startReview(today()), ratio, rr.length, today()); } });
-    // learn-task checks and topic confirmation
-    if (s.meta && s.meta.src === "check" && s.meta.target && rows.length >= 3) {
-      const ok = rows.filter(r => r.ok).length / rows.length;
-      c.learned[s.meta.target] = ok >= 0.6 ? "verified" : (c.learned[s.meta.target] || "reported");
-      const t = c.plan && c.plan.days.flatMap(d => d.tasks).find(x => x.type === "learn" && x.module === s.meta.target && x.status === "todo");
-      if (t && ok >= 0.6) { t.status = "verified"; t.doneAt = today(); logMinutes(t.min); }
-      rec.checkOk = ok >= 0.6;
-    }
-    if (s.kind === "confirm") {
-      const ev = CE.evaluateConfirm(rows); rec.confirm = ev.passed; if (ev.passed) c.confirmed[s.meta.target] = true;
-      const ct = c.plan && c.plan.days.flatMap(d => d.tasks).find(x => x.type === "confirm" && x.topic === s.meta.target && x.status === "todo");
-      if (ct) { ct.status = "verified"; ct.doneAt = today(); logMinutes(ct.min); }
-    }
-    c.history.push(rec); c.session = null; save();
-    if (["quick45", "full90", "confirm", "check"].includes(s.kind) || s.kind === "review") { const p = newPlan(s.kind === "quick45" || s.kind === "full90" ? "assessment" : "progress"); rec.planV = p && p.error ? null : c.versions.length; save(); }
-    UI.resultId = s.id; location.hash = "#/coach/result/" + s.id;
-  }
-  function resultPage(id) {
-    const c = CO(), rec = c.history.find(h => h.id === id);
-    if (!rec) return void (location.hash = "#/coach/exam");
-    const P = pool(), rows = c.attempts.filter(a => a.sess === id);
-    const t = CE.tally(rows, null), expl = DATA.questions;
-    const byTopic = TOPICS.map(tp => ({ tp, r: CE.tally(rows.filter(x => x.t === tp.id), null) })).filter(x => x.r.n);
-    view.innerHTML = `${pageHeader("Kết quả", `${KIND_TXT[rec.kind] || rec.kind} · ${dmy(rec.date)}${rec.expired ? " · tự nộp khi hết giờ" : ""}`, `<a class="btn btn-secondary" href="#/coach/exam">Quay lại</a>`, "Hoa Tiêu · CFA Compass")}${subnav("exam")}
-      <div class="grid grid-stats"><div class="card stat"><span class="stat-label">Đúng</span><span class="stat-value">${rec.k}/${rec.n}</span><span class="stat-hint">${rec.n ? Math.round(100 * rec.k / rec.n) : 0}% · có trọng số độ khó ${t.wAcc == null ? "—" : Math.round(t.wAcc * 100) + "%"}</span></div>
-        <div class="card stat"><span class="stat-label">Chưa trả lời</span><span class="stat-value">${rows.filter(r => r.ok === null).length}</span></div>
-        <div class="card stat"><span class="stat-label">Thời gian TB/câu</span><span class="stat-value">${rows.length ? Math.round(rows.reduce((s, r) => s + r.sec, 0) / rows.length) : 0}s</span><span class="stat-hint">ước tính ${Math.round(rows.reduce((s, r) => s + (r.est || 0), 0) / Math.max(1, rows.length))}s</span></div>
-        <div class="card stat"><span class="stat-label">Kế hoạch</span><span class="stat-value">v${rec.planV || c.versions.length}</span><span class="stat-hint">đã cập nhật theo kết quả này</span></div></div>
-      ${rec.kind === "confirm" ? `<div class="callout ${rec.confirm ? "" : "warn"}">${rec.confirm ? "Đã xác nhận thành thạo: topic chuyển sang chế độ duy trì, kế hoạch rút ngắn phần học lại." : "Chưa đạt ngưỡng xác nhận (≥ 10 câu, ≥ 80% có trọng số độ khó). Kế hoạch giữ nguyên phần học cho topic này."}</div>` : ""}
-      ${rec.checkOk != null ? `<div class="callout ${rec.checkOk ? "" : "warn"}">${rec.checkOk ? "Bài kiểm tra nhanh đạt: nhiệm vụ học module được xác nhận." : "Chưa đạt: module vẫn cần học thêm (không bị tính là hoàn thành)."}</div>` : ""}
-      <section class="card section"><div class="card-head"><h2>Theo topic</h2></div>${byTopic.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Topic</th><th class="num">Đúng</th><th>Nhận định</th></tr></thead><tbody>${byTopic.map(({ tp, r }) => `<tr><td>${esc(tp.name)}</td><td class="num">${r.k}/${r.n}</td><td>${r.n < CE.CONFIG.evidence.insufficient ? `${chip("Chưa đủ bằng chứng")} <span class="text-3 small">chỉ ${r.n} câu trong bài này</span>` : bandChip(r.band)}</td></tr>`).join("")}</tbody></table></div>` : ""}
-        <p class="text-3 small">Nhận định chính thức theo topic dựa trên toàn bộ bài làm của bạn, xem ở trang <a href="#/coach/analysis">Phân tích</a>.</p></section>
-      <section class="card section"><div class="card-head"><h2>Xem lại từng câu</h2></div>${rows.map((r, i) => { const q = DATA.questions.find(x => x.id === r.q); if (!q) return ""; return `<details class="co-review"><summary><span class="badge ${r.ok ? "badge-success" : r.ok === false ? "badge-danger" : ""}">${r.ok ? "Đúng" : r.ok === false ? "Sai" : "Bỏ trống"}</span> Câu ${i + 1} · ${esc(q.topic)} · ${esc(P.meta.get(q.id) ? P.meta.get(q.id).skill : "")}</summary>${questionBodyHtml(q)}${choicesHtml(q, r.pick, true)}${explanationHtml(q, r.pick)}</details>`; }).join("")}</section>
-      <div class="form-actions"><a class="btn btn-primary" href="#/coach/plan">Xem kế hoạch đã cập nhật</a><a class="btn btn-secondary" href="#/coach/analysis">Phân tích chi tiết</a></div>`;
+        <p class="text-2 small">Đã học kỹ một topic? Làm 10 câu chưa làm. Đạt ≥ 80% (có trọng số độ khó) thì topic chuyển sang duy trì và kế hoạch bỏ phần học lại (vẫn giữ ôn tập).</p>
+        <div class="row-gap">${TOPICS.map(t => `<a class="btn btn-sm ${c.confirmed[t.id] ? "btn-soft-success" : "btn-secondary"}" href="#/coach/start/confirm/${t.id}">${t.id}${c.confirmed[t.id] ? " ✓" : ""}</a>`).join("")}</div></section>
+      <section class="card section"><div class="card-head"><h2>Kiểm tra cuối topic (15 câu · 25 phút)</h2></div><div class="row-gap">${TOPICS.map(t => `<a class="btn btn-sm btn-secondary" href="#/coach/start/test/${t.id}">${t.id}</a>`).join("")}</div></section>
+      <section class="card section"><div class="card-head"><h2>Lịch sử</h2></div>${hist.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Ngày</th><th>Loại</th><th>Nội dung</th><th class="num">Đúng</th><th class="num">Phút</th><th></th></tr></thead><tbody>
+        ${hist.slice(0, 40).map(h => `<tr><td>${dmy(h.date)}</td><td>${esc(KN[h.kind] || h.kind)}${h.kind === "mock" ? ` · phiên ${h.part}` : ""}</td><td>${esc(h.target && !["-", "all", "1", "2"].includes(h.target) ? h.target : "")}</td><td class="num">${h.k}/${h.n}${h.expired ? " ⏱" : ""}</td><td class="num">${Math.round((h.secs || 0) / 60)}</td><td><a href="#/coach/report/${h.id}">Xem</a></td></tr>`).join("")}</tbody></table></div>` : `<p class="text-2">Chưa có bài nào.</p>`}</section>`;
   }
 
   // ======================= analysis =======================
   function analysisPage() {
-    const c = CO(), P = pool(), an = analysis(), ev = CE.evidenceSummary(an);
+    const c = C(), an = HT.analysis(), ev = CE.evidenceSummary(an), src = HT.sources();
     const topic = UI.topic || (TOPICS.find(t => an.topics[t.id].n && an.topics[t.id].band !== "strong") || TOPICS[0]).id;
-    const tp = an.topics[topic], mods = modulesOf(topic);
-    const err = (all => { const t = { time: 0, calc: 0, concept: 0 }; Object.values(all).forEach(a => Object.keys(t).forEach(k => { t[k] += a.errors.types[k]; })); return t; })(an.topics);
+    const mods = modulesOf(topic), P = HT.pool(), st = HT.plannerState(an);
     const ci = a => `${Math.round(a.ci[0] * 100)}–${Math.round(a.ci[1] * 100)}%`;
-    view.innerHTML = `${pageHeader("Phân tích năng lực", "Ba cấp: topic → module → kỹ năng (LOS). Mọi nhận định đi kèm số câu và độ tin cậy.", "", "Hoa Tiêu · CFA Compass")}${subnav("analysis")}
-      <section class="card"><div class="card-head"><h2>Cấp 1 · Theo topic</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Topic</th><th class="num">Câu</th><th class="num">Chính xác</th><th class="num">Có trọng số</th><th>Khoảng 90%</th><th>Nhận định</th><th class="num">Tự đánh giá</th></tr></thead><tbody>
-        ${TOPICS.map(t => { const a = an.topics[t.id]; return `<tr class="${t.id === topic ? "co-sel" : ""}"><td><a href="#/coach/analysis" data-co-topic="${t.id}">${esc(t.name)}</a></td><td class="num">${a.n}</td><td class="num">${a.n ? Math.round(a.acc * 100) + "%" : "–"}</td><td class="num">${a.n ? Math.round(a.wAcc * 100) + "%" : "–"}</td><td>${a.n ? ci(a) : "–"}</td><td>${bandChip(a.band)} <span class="text-3 small">${CONF[a.confidence]}</span></td><td class="num">${a.selfRating ? a.selfRating + "/5" : "–"}</td></tr>`; }).join("")}</tbody></table></div>
-        <p class="text-3 small">Ngưỡng (có thể chỉnh trong CONFIG): Vững ≥ 80% · Đang tiến bộ 65–79% · Cần cải thiện 50–64% · Yếu < 50%. Dưới ${CE.CONFIG.evidence.insufficient} câu hệ thống không kết luận. ${ev.insufficient.length ? `<b>Thiếu dữ liệu:</b> ${ev.insufficient.join(", ")} — nên làm thêm bài kiểm tra.` : ""} Chỉ lần làm đầu tiên của mỗi câu tính là bằng chứng; làm lại câu đã biết không làm tăng điểm.</p></section>
-      <section class="card section"><div class="card-head"><h2>Cấp 2 · Module của ${esc(topicName(topic))}</h2></div>
-        <div class="segmented" id="co-topicsel" style="flex-wrap:wrap">${TOPICS.map(t => `<button data-t="${t.id}" class="${t.id === topic ? "active" : ""}">${t.id}</button>`).join("")}</div>
-        <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Module</th><th class="num">Câu</th><th class="num">Chính xác</th><th>Nhận định</th><th class="num">Câu có sẵn</th></tr></thead><tbody>
-        ${mods.map(m => { const a = an.modules[m.id]; return `<tr><td><a href="#/module/${m.id}">${m.n}. ${esc(m.title)}</a></td><td class="num">${a ? a.n : 0}</td><td class="num">${a ? Math.round(a.acc * 100) + "%" : "–"}</td><td>${a ? (a.n < 4 ? chip("Sơ bộ") + ` <span class="text-3 small">${a.k}/${a.n}</span>` : bandChip(a.band)) : chip("Chưa đo")}</td><td class="num">${P.supply[m.id] || 0}</td></tr>`; }).join("")}</tbody></table></div></section>
+    const trendTxt = t => ({ improving: "↗ tiến bộ", declining: "↘ giảm", stable: "→ ổn định", "not-comparable": "khác độ khó", insufficient: "" })[t.status] || "";
+    const calTxt = { over: "tự đánh giá cao hơn kết quả", under: "kết quả tốt hơn tự đánh giá", ok: "khớp" };
+    view.innerHTML = `${head("Phân tích năng lực", "Năm cấp: topic → module → kỹ năng (LOS) → loại lỗi → phản hồi riêng. Mọi nhận định có kèm số câu và độ tin cậy.", "", "analysis")}
+      <p class="text-3 small">Nguồn dữ liệu: ${src.coach} câu từ bài làm Hoa Tiêu · ${src.site} câu từ Practice/Mock exams · ${src.qb} đánh dấu Question Bank (mỗi đánh dấu tính 0,6 câu vì là kết quả gần nhất, có thể gồm câu làm lại). Chỉ lần làm đầu tiên của mỗi câu được tính.</p>
+      <section class="card"><div class="card-head"><h2>Cấp 1 · Theo topic</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Topic</th><th class="num">Câu</th><th class="num">Đúng</th><th class="num">Có trọng số</th><th>Khoảng 90%</th><th>Nhận định</th><th>Dễ · vừa · khó</th><th>Xu hướng</th><th>Tự đánh giá</th></tr></thead><tbody>
+        ${TOPICS.map(t => { const a = an.topics[t.id]; return `<tr class="${t.id === topic ? "co-sel" : ""}"><td><a href="#/coach/analysis" data-ht-topic="${t.id}">${esc(t.name)}</a></td><td class="num">${a.n}</td><td class="num">${a.n ? Math.round(a.acc * 100) + "%" : "–"}</td><td class="num">${a.n ? Math.round(a.wAcc * 100) + "%" : "–"}</td><td>${a.n ? ci(a) : "–"}</td>
+          <td>${bandChip(a.band)} <span class="text-3 small">${CONF[a.confidence]}</span></td><td class="small">${[1, 2, 3].map(d => a.byDiff[d].n ? `${a.byDiff[d].k}/${a.byDiff[d].n}` : "–").join(" · ")}</td><td class="small">${trendTxt(a.trend)}</td>
+          <td class="small">${a.selfRating ? a.selfRating + "/5" : "–"}${a.calibration && a.calibration !== "ok" ? ` · <span class="text-warning">${calTxt[a.calibration]}</span>` : ""}</td></tr>`; }).join("")}</tbody></table></div>
+        <p class="text-3 small">Ngưỡng (chỉnh được trong CONFIG): Vững ≥ 80% · Đang tiến bộ 65–79% · Cần cải thiện 50–64% · Yếu &lt; 50%, tính trên độ chính xác có trọng số độ khó. Dưới ${CE.CONFIG.evidence.insufficient} câu không kết luận. ${ev.insufficient.length ? `<b>Thiếu dữ liệu:</b> ${ev.insufficient.join(", ")} — nên <a href="#/coach/test">làm thêm bài kiểm tra</a>.` : ""} Xu hướng chỉ so các bài có ≥ 5 câu của topic và độ khó tương đương.</p></section>
+      <section class="card section"><div class="card-head"><h2>Cấp 2 · Module của ${esc(HT.topicName(topic))}</h2></div>
+        <div class="segmented" style="flex-wrap:wrap">${TOPICS.map(t => `<button data-t="${t.id}" class="${t.id === topic ? "active" : ""}">${t.id}</button>`).join("")}</div>
+        <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Module</th><th class="num">Câu</th><th class="num">Đúng</th><th>Nhận định</th><th class="num">Nắm vững (ước tính)</th><th class="num">Câu chưa làm</th><th></th></tr></thead><tbody>
+          ${mods.map(m => { const a = an.modules[m.id], k = CE.moduleKnowledge({ id: m.id, topic }, st).k, fresh = Math.max(0, (P.supply[m.id] || 0) - (st.seen[m.id] || 0)); return `<tr><td><a href="#/module/${m.id}">${m.n}. ${esc(m.title)}</a></td><td class="num">${a ? a.n : 0}</td><td class="num">${a ? Math.round(a.acc * 100) + "%" : "–"}</td>
+            <td>${a ? (a.nEff < 4 ? chip("Sơ bộ") + ` <span class="text-3 small">${a.k}/${a.n}</span>` : bandChip(a.band)) : chip("Chưa đo")}</td><td class="num">${Math.round(k * 100)}%</td><td class="num">${fresh}</td>
+            <td>${fresh >= 3 ? `<a class="btn btn-sm btn-ghost" href="#/coach/start/practice/${m.id}">Luyện</a>` : `<span class="text-3 small">Resource not available</span>`}</td></tr>`; }).join("")}</tbody></table></div>
+        <p class="text-3 small">Mức nắm vững ước tính kết hợp tự đánh giá, kết quả của topic và kết quả riêng của module (module càng nhiều câu thì càng dựa vào chính nó).</p></section>
       <section class="card section"><div class="card-head"><h2>Cấp 3 · Kỹ năng (LOS) chưa đạt</h2></div>
-        ${an.weakSkills.length ? `<div class="list">${an.weakSkills.map(w => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(w.skill)}</div><div class="list-meta">${w.topic} · ${esc(modTitle(w.module))} · ${w.k}/${w.n} đúng${w.preliminary ? " · tín hiệu sơ bộ" : ""}</div></div><a class="btn btn-sm btn-secondary" href="#/module/${w.module}">Ôn lại</a></div>`).join("")}</div>` : `<p class="text-2">Chưa có kỹ năng nào có đủ bằng chứng là yếu (cần ≥ 2 câu cùng kỹ năng).</p>`}
-        <p class="text-3 small">“Kỹ năng” là thẻ mô tả theo module trong ngân hàng câu hỏi của website; kho dữ liệu hiện chưa có mã LOS chính thức của CFA Institute nên chưa liên kết tới mã LOS.</p></section>
-      <section class="card section"><div class="card-head"><h2>Cấp 4 · Phân loại lỗi (giả thuyết)</h2></div>
-        ${err.time + err.calc + err.concept ? `<div class="grid grid-3">${Object.keys(ERR_LABEL).map(k => `<div class="card stat"><span class="stat-label">${ERR_LABEL[k]}</span><span class="stat-value">${err[k]}</span><span class="stat-hint">${err[k] >= 3 ? "đủ để cân nhắc" : err[k] >= 2 ? "bằng chứng yếu" : "chưa đủ bằng chứng"}</span></div>`).join("")}</div>` : `<p class="text-2">Chưa có câu sai để phân loại.</p>`}
-        <p class="text-3 small">${esc(tp.errors.note)} Hệ thống không suy đoán “bất cẩn” hay tâm lý chỉ từ một câu sai; ${tp.errors.rushedWrong} câu sai của ${topic} được trả lời rất nhanh (${tp.errors.rushedEvidence === "weak" ? "bằng chứng yếu" : "chưa đủ bằng chứng"}).</p></section>
-      <section class="card section"><div class="card-head"><h2>Cấp 5 · Phản hồi cá nhân hóa</h2></div><div class="co-recos">${recommendations(an, 5).map(recoHtml).join("")}</div></section>`;
-    bind();
-    view.querySelectorAll("[data-co-topic]").forEach(a => a.onclick = e => { e.preventDefault(); UI.topic = a.dataset.coTopic; analysisPage(); });
-    view.querySelectorAll("#co-topicsel [data-t]").forEach(b => b.onclick = () => { UI.topic = b.dataset.t; analysisPage(); });
+        ${an.weakSkills.length ? `<div class="list">${an.weakSkills.map(w => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(w.skill)}</div><div class="list-meta">${w.topic} · ${esc(w.module)} ${esc(HT.modTitle(w.module))} · ${w.k}/${w.n} đúng${w.preliminary ? " · tín hiệu sơ bộ" : ""}</div></div><a class="btn btn-sm btn-secondary" href="#/coach/solutions/${w.module}">Xem lời giải</a></div>`).join("")}</div>` : `<p class="text-2">Chưa có kỹ năng nào có đủ bằng chứng là yếu (cần ≥ 2 câu cùng kỹ năng, &lt; 60% đúng).</p>`}
+        <p class="text-3 small">Thẻ kỹ năng lấy từ ngân hàng câu hỏi: câu của Hoa Tiêu có tên kỹ năng; ${STARTER_QUESTIONS.filter(q => /^LOS\s*\d+\.[a-z]$/i.test(q.los || "")).length} câu có sẵn mang số LOS theo danh mục SchweserNotes 2026 (đánh số cũ, chưa đối chiếu với LOS ${CURRICULUM_YEAR}); câu chỉ ghi “Vol · LM” được phân tích ở cấp module. Hoa Tiêu không tự gắn mã LOS.</p></section>
+      <section class="card section"><div class="card-head"><h2>Cấp 4 · Loại lỗi (giả thuyết)</h2></div>${an.errors.total ? coachErrorList(an.errors) : `<p class="text-2">Chưa có câu sai để phân loại.</p>`}</section>
+      <section class="card section"><div class="card-head"><h2>Cấp 5 · Phản hồi riêng</h2></div>
+        ${an.remediation.length ? `<div class="callout warn">${an.remediation.map(r => `Sai ${r.wrong}/5 câu gần nhất ở <b>${esc(r.skill)}</b> (${esc(r.module)}): <a href="#/coach/solutions/${r.module}">xem lời giải từng bước</a>, rồi luyện câu mới và kiểm tra lại (đã có trong kế hoạch).`).join("<br>")}</div>` : ""}
+        <div class="co-recos">${CE.recommendations(st, today(), c.profile.examDate, 5).map(recoHtml).join("")}</div></section>`;
+    view.querySelectorAll("[data-ht-topic]").forEach(a => a.onclick = e => { e.preventDefault(); UI.topic = a.dataset.htTopic; analysisPage(); });
+    view.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { UI.topic = b.dataset.t; analysisPage(); });
   }
 
-  // ======================= plan =======================
-  function planPage() {
-    const c = CO(), plan = c.plan, tab = UI.tab;
-    if (!plan || plan.error) return void (view.innerHTML = `${pageHeader("Kế hoạch học", "", "", "Hoa Tiêu · CFA Compass")}${subnav("plan")}${emptyState("calendar", "Chưa có kế hoạch", plan && plan.error ? esc(plan.error) : "Hoàn tất thiết lập hồ sơ để tạo kế hoạch.", `<a class="btn btn-primary" href="#/coach/setup">Thiết lập hồ sơ</a>`)}`);
-    // an automatic re-plan once a day when tasks were missed
-    if (c.lastReplan !== today() && missedTasks().length) { const r = newPlan("missed-days"); if (r && !r.error) toast("Đã tự lập lại lịch vì có nhiệm vụ trễ; bản cũ được lưu trong Phiên bản"); return planPage(); }
-    const days = plan.days, t0 = days.find(d => d.date === today());
-    const tabs = [["today", "Hôm nay"], ["week", "Tuần"], ["month", "Tháng"], ["all", "Toàn kỳ"], ["versions", "Phiên bản"]];
-    let body = "";
-    if (tab === "today") body = `<section class="card"><div class="card-head"><h2>Hôm nay · ${dmy(today())}</h2></div>${todayHtml(t0)}</section>
-      <section class="card section"><div class="card-head"><h2>Các ngày tới</h2></div>${days.filter(d => d.date > today() && d.minutes).slice(0, 4).map(d => `<div class="co-day"><b>${dmy(d.date)}</b> <span class="text-3 small">${d.minutes} phút · ${d.sessions.length} phiên</span><ul>${d.tasks.map(t => `<li>${esc(t.title)} <span class="text-3 small">(${t.min}′)</span></li>`).join("")}</ul></div>`).join("")}</section>`;
-    if (tab === "week") {
-      const start = days.findIndex(d => d.date >= today()), wk = days.slice(start, start + 7);
-      body = `<section class="card"><div class="card-head"><h2>7 ngày tới</h2></div><div class="co-week">${wk.map(d => `<div class="co-daycard ${d.date === today() ? "now" : ""}"><b>${["CN", "T2", "T3", "T4", "T5", "T6", "T7"][CE.weekday(d.date)]} ${d.date.slice(8)}/${d.date.slice(5, 7)}</b><span class="text-3 small">${d.minutes ? d.minutes + " phút" : "nghỉ"}</span>${d.tasks.map(t => `<div class="co-mini ${t.status !== "todo" ? "done" : ""}">${TYPE_LABEL[t.type]}: ${esc(t.title.replace(/^[^:]+: /, ""))}</div>`).join("")}</div>`).join("")}</div></section>`;
-    }
-    if (tab === "month") {
-      const byM = {}; days.forEach(d => { const k = d.date.slice(0, 7); (byM[k] = byM[k] || { min: 0, learn: 0, practice: 0, mock: 0, review: 0 }); byM[k].min += d.tasks.reduce((s, t) => s + t.min, 0); d.tasks.forEach(t => { byM[k][t.type] = (byM[k][t.type] || 0) + t.min; }); });
-      body = `<section class="card"><div class="card-head"><h2>Theo tháng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Tháng</th><th class="num">Tổng</th><th class="num">Học</th><th class="num">Luyện</th><th class="num">Ôn</th><th class="num">Thi thử</th></tr></thead><tbody>${Object.entries(byM).map(([k, v]) => `<tr><td>${k.slice(5)}/${k.slice(0, 4)}</td><td class="num">${fmtH(v.min)}</td><td class="num">${fmtH(v.learn)}</td><td class="num">${fmtH(v.practice)}</td><td class="num">${fmtH(v.review)}</td><td class="num">${fmtH(v.mock)}</td></tr>`).join("")}</tbody></table></div></section>`;
-    }
-    if (tab === "all") {
-      body = `<section class="card"><div class="card-head"><h2>Toàn bộ thời gian đến kỳ thi</h2></div>${plan.phases.map(p => `<div class="co-phase"><div class="row-between"><strong>Giai đoạn ${p.id} · ${esc(["Nền tảng & lấp lỗ hổng", "Học nội dung chính", "Củng cố & luyện tập", "Thi thử & ôn cuối"][p.id - 1])}</strong><span class="text-3 small">${p.from ? `${dmy(p.from)} → ${dmy(p.to)} · ${fmtH(p.minutes)}` : "không cần giai đoạn này"}</span></div>${progressBar(plan.capacity ? 100 * p.minutes / plan.capacity : 0)}</div>`).join("")}
-        <h3 style="margin-top:16px">Phân bổ thời gian theo topic</h3>${(() => { const bt = {}; days.forEach(d => d.tasks.forEach(t => { if (t.topic) bt[t.topic] = (bt[t.topic] || 0) + t.min; })); const tot = Object.values(bt).reduce((s, x) => s + x, 0) || 1; return bars(TOPICS.map(t => ({ label: t.id, pct: 100 * (bt[t.id] || 0) / tot, text: fmtH(bt[t.id] || 0) }))); })()}
-        <p class="text-3 small">Giả định: một module chưa biết gì cần ~${plan.assumptions.moduleMinutes} phút; ${plan.assumptions.practiceQuestions} câu luyện ≈ ${plan.assumptions.practiceQuestions * plan.assumptions.minutesPerQuestion} phút; ngày cuối trước kỳ thi chỉ ôn nhẹ. Điểm ưu tiên = ${Object.entries(plan.assumptions.priorityWeights).map(([k, v]) => `${v} × ${({ gap: "lỗ hổng", exam: "tỷ trọng đề", forget: "nguy cơ quên", prereq: "nền tảng", urgency: "khẩn cấp" })[k]}`).join(" + ")} (công thức heuristic ban đầu, không phải mô hình được CFA Institute xác nhận).</p></section>
-        ${plan.deferred.length ? `<section class="card section"><div class="card-head"><h2>Chưa xếp được vào lịch (${plan.deferred.length})</h2></div><div class="list">${plan.deferred.slice(0, 12).map(d => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(d.title)}</div><div class="list-meta">${d.min} phút · ưu tiên thấp hơn các mục đã xếp</div></div></div>`).join("")}</div></section>` : ""}`;
-    }
-    if (tab === "versions") {
-      body = `<section class="card"><div class="card-head"><h2>Phiên bản kế hoạch</h2></div><p class="text-3 small">Mỗi lần kế hoạch thay đổi, bản cũ được giữ lại để so sánh; không bao giờ xóa lịch sử.</p><div class="table-wrap"><table class="table"><thead><tr><th>v</th><th>Ngày tạo</th><th>Lý do</th><th class="num">Thời gian khả dụng</th><th class="num">Đã xếp</th><th class="num">Chưa xếp</th></tr></thead><tbody>${c.versions.slice().reverse().map(v => `<tr><td>${v.v}</td><td>${dmy(v.createdAt)}</td><td>${({ setup: "Thiết lập hồ sơ", assessment: "Sau bài chẩn đoán", progress: "Sau bài kiểm tra", "missed-days": "Bỏ lỡ nhiệm vụ", manual: "Bạn yêu cầu", update: "Cập nhật" })[v.reason] || esc(v.reason)}</td><td class="num">${fmtH(v.summary.capacity)}</td><td class="num">${fmtH(v.summary.placedMinutes)}</td><td class="num">${fmtH(v.summary.deferredMinutes)}</td></tr>`).join("")}</tbody></table></div></section>`;
-    }
-    const adh = plan._adherence;
-    view.innerHTML = `${pageHeader("Kế hoạch học cá nhân", `${plan.daysLeft} ngày đến kỳ thi ${dmy(plan.examDate)} · ${fmtH(plan.capacity)} khả dụng · phiên bản ${c.versions.length}`, `<button class="btn btn-secondary" id="co-replan">${icon("calendar", 16)} Lập lại lịch</button>`, "Hoa Tiêu · CFA Compass")}${subnav("plan")}
-      ${plan.warnings.map(w => `<div class="callout warn">${icon("alert", 16)} ${esc(w)}</div>`).join("")}
-      <div class="co-tabs segmented">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "active" : ""}">${l}</button>`).join("")}</div>
-      <div style="margin-top:14px">${body}</div>`;
-    bind();
-    view.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { UI.tab = b.dataset.tab; planPage(); });
-    document.getElementById("co-replan").onclick = () => { const r = newPlan("manual"); if (r && !r.error) toast("Đã lập lại lịch từ hôm nay; bản cũ vẫn được lưu"); planPage(); };
+  // worked solutions of the questions you got wrong in a module (remediation step 2)
+  function solutions(mod, taskId) {
+    if (!moduleById(mod)) return void (location.hash = "#/coach/analysis");
+    const ids = HT.mistakeIds().filter(id => (HT.metaOf(id) || {}).module === mod).slice(0, 8);
+    const Q = new Map(DATA.questions.map(q => [q.id, q]));
+    const last = new Map(); HT.coachRows().forEach(a => { if (a.m === mod) last.set(a.q, a.pick); });
+    DATA.questions.forEach(q => { if (q.chapter === mod && q.attempts && q.attempts.length && !last.has(q.id)) last.set(q.id, q.attempts[q.attempts.length - 1].picked); });
+    const pre = CE.PRE_MODULE[moduleById(mod).topic];
+    view.innerHTML = `${head(`Lời giải: ${esc(mod)} ${esc(HT.modTitle(mod))}`, "Xem lại các câu bạn đã làm sai, từng bước, trước khi luyện câu mới.", "", "analysis")}
+      <section class="card"><ol class="co-steps small"><li>Đọc lại bài học: <a href="#/module/${mod}">${esc(mod)} ${esc(HT.modTitle(mod))}</a>${pre && pre !== mod ? ` (nền tảng: <a href="#/module/${pre}">${esc(pre)} ${esc(HT.modTitle(pre))}</a>)` : ""}.</li>
+        <li>Xem lời giải từng câu dưới đây; với câu tính toán, làm lại bằng BA II Plus. Nút hỏi CFA Tutor giải thích từng bước.</li><li>Sau đó <a href="#/coach/start/practice/${mod}">luyện câu mới</a> và <a href="#/coach/start/check/${mod}">kiểm tra lại 5 câu</a>.</li></ol></section>
+      ${ids.length ? ids.map((id, i) => { const q = Q.get(id); return q ? `<section class="card section"><div class="text-3 small">Câu ${i + 1} · ${esc((HT.metaOf(id) || {}).skill || "")}</div>${questionBodyHtml(q)}${choicesHtml(q, last.get(id) || null, true)}${explanationHtml(q, last.get(id) || null)}</section>` : ""; }).join("")
+        : `<section class="card section"><p class="text-2">Không có câu sai nào đang mở ở module này.</p></section>`}
+      ${taskId ? `<div class="form-actions"><button class="btn btn-primary" id="ht-sol-done">Đã xem xong lời giải</button></div>` : ""}`;
+    const b = document.getElementById("ht-sol-done");
+    if (b) b.onclick = () => { const r = HT.completeTask(taskId, { selfReport: true }); toast(r.status === "todo" ? (r.reason || "Không ghi nhận được") : "Đã ghi nhận", r.status === "todo" ? "error" : "success"); location.hash = "#/coach/plan"; };
   }
 
   // ======================= spaced repetition =======================
   function reviewPage() {
-    const c = CO(), rows = Object.entries(c.reviews).map(([m, r]) => ({ m, r, ret: CE.retention(r, today()), due: r.next <= today() })).sort((a, b) => (b.due - a.due) || a.r.next.localeCompare(b.r.next));
-    view.innerHTML = `${pageHeader("Ôn ngắt quãng", "Nhắc ôn những module có nguy cơ quên. Một lần trả lời đúng chưa phải là nhớ lâu.", "", "Hoa Tiêu · CFA Compass")}${subnav("review")}
-      <section class="card"><p class="text-2 small">Lịch mặc định: sau 1 → 3 → 7 → 14 → 30 ngày. Hệ thống kéo dài khoảng cách khi bạn nhớ tốt (≥ 80%) và rút ngắn khi quên (< 50%). Ước tính ghi nhớ = e^(−số ngày / độ bền), độ bền gắn với khoảng cách hiện tại — là heuristic, chưa được hiệu chỉnh bằng dữ liệu của bạn.</p>
-      ${rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Module</th><th>Lần ôn gần nhất</th><th>Lần ôn tới</th><th class="num">Ghi nhớ ước tính</th><th class="num">Mức</th><th></th></tr></thead><tbody>${rows.map(({ m, r, ret, due }) => `<tr><td><a href="#/module/${m}">${esc(modTitle(m))}</a></td><td>${dmy(r.last)}</td><td>${due ? chip("Đến hạn", "danger") : dmy(r.next)}</td><td class="num">${Math.round(ret * 100)}%</td><td class="num">${r.stage + 1}/5</td><td>${pool().supply[m] >= 3 ? `<a class="btn btn-sm btn-secondary" href="#/coach/exam/review/${m}">Ôn 5 câu</a>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="text-2">Chưa có module nào trong lịch ôn. Module xuất hiện ở đây sau khi bạn được xác nhận đã học (bài kiểm tra nhanh) hoặc có ≥ 2 câu trả lời trong bài chẩn đoán.</p>`}</section>`;
+    const c = C(), rows = Object.entries(c.rev).map(([m, r]) => ({ m, r, ret: CE.retention(r, today()), due: r.next <= today() })).sort((a, b) => (b.due - a.due) || a.r.next.localeCompare(b.r.next));
+    const due = rows.filter(x => x.due);
+    view.innerHTML = `${head("Ôn ngắt quãng", "Nhắc ôn những module có nguy cơ quên. Một lần trả lời đúng chưa phải là nhớ lâu.", "", "review")}
+      <section class="card"><div class="row-between"><p class="text-2 small" style="margin:0">Lịch mặc định 1 → 3 → 7 → 14 → 30 ngày; khoảng cách giãn khi bạn nhớ tốt (≥ 80%), co lại khi quên (&lt; 50%). Ghi nhớ ước tính = e^(−số ngày / độ bền), độ bền gắn với khoảng cách hiện tại — heuristic, chưa hiệu chỉnh bằng dữ liệu của bạn.</p>
+        ${due.length ? `<a class="btn btn-primary" href="#/coach/start/review/due">Ôn ${Math.min(4, due.length)} module đến hạn</a>` : ""}</div>
+      ${rows.length ? `<div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Module</th><th>Lần ôn gần nhất</th><th>Lần ôn tới</th><th class="num">Ghi nhớ ước tính</th><th class="num">Mức</th><th></th></tr></thead><tbody>
+        ${rows.map(({ m, r, ret, due: d }) => `<tr><td><a href="#/module/${m}">${esc(m)} ${esc(HT.modTitle(m))}</a></td><td>${dmy(r.last)}</td><td>${d ? chip("Đến hạn", "danger") : dmy(r.next)}</td><td class="num">${Math.round(ret * 100)}%</td><td class="num">${r.stage + 1}/5</td><td>${(HT.pool().supply[m] || 0) >= 3 ? `<a class="btn btn-sm btn-secondary" href="#/coach/start/review/${m}">Ôn 5 câu</a>` : ""}</td></tr>`).join("")}</tbody></table></div>`
+        : `<p class="text-2">Chưa có module nào trong lịch ôn. Module vào lịch sau khi bạn học xong (đã báo hoặc đã kiểm tra) hoặc có ≥ 2 câu trả lời trong một bài.</p>`}</section>`;
   }
 
-  // ======================= about / status =======================
-  function aboutPage() {
-    const P = pool(), coachQ = STARTER_QUESTIONS.filter(q => q.src === "coach").length;
-    const row = (name, ok, text) => `<tr><td>${esc(name)}</td><td>${ok === true ? chip("Hoạt động", "success") : ok === "partial" ? chip("Một phần", "warning") : chip("Chưa tích hợp", "danger")}</td><td class="text-2">${text}</td></tr>`;
-    view.innerHTML = `${pageHeader("Phương pháp & trạng thái", "Hoa Tiêu làm gì, dựa trên gì, và phần nào chưa có.", "", "Hoa Tiêu · CFA Compass")}${subnav("about")}
+  // ======================= question bank integration =======================
+  function bankPage() {
+    const P = HT.pool(), byT = {}, missing = { module: 0, skill: 0 };
+    STARTER_QUESTIONS.forEach(q => { const t = byT[q.topic] || (byT[q.topic] = { n: 0, d: [0, 0, 0, 0] }); t.n++; const m = HT.metaOf(q.id); t.d[m.diff]++; if (!q.module) missing.module++; if (!(q.skill || q.los)) missing.skill++; });
+    const own = DATA.questions.filter(q => !q.builtIn), ownMissing = own.filter(q => !q.chapter || !q.topic).length;
+    const thin = MODULES.filter(m => (P.supply[m.id] || 0) < 3);
+    const qb = HT.qbByModule(), qbSets = Object.values(qb).flat(), qbN = qbSets.reduce((s, x) => s + x.total, 0);
+    let qbUnmapped = 0; if (typeof QBANK_FILES !== "undefined" && typeof QBI !== "undefined" && typeof qbSetModule === "function") TOPICS.forEach(t => (QBANK_FILES[t.id] || []).forEach(f => { if (QBI[f[2]] && !qbSetModule(f[2])) qbUnmapped++; }));
+    const row = (name, st, txt) => `<tr><td>${esc(name)}</td><td>${st === true ? chip("Đang dùng", "success") : st === "partial" ? chip("Một phần", "warning") : chip("Chưa tích hợp", "danger")}</td><td class="text-2 small">${txt}</td></tr>`;
+    view.innerHTML = `${head("Ngân hàng câu hỏi", "Nguồn câu hỏi Hoa Tiêu dùng, metadata và độ phủ.", "", "bank")}
+      <section class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Nguồn</th><th>Trạng thái</th><th>Chi tiết</th></tr></thead><tbody>
+        ${row("Ngân hàng tích hợp của website", true, `${STARTER_QUESTIONS.length} câu gốc (trong đó ${STARTER_QUESTIONS.filter(q => q.src === "coach").length} câu viết riêng cho Hoa Tiêu: 18 câu mỗi môn, dễ–vừa–khó trộn lẫn). Dùng cho chẩn đoán, luyện, kiểm tra, thi thử. Không có câu do AI tự bịa.`)}
+        ${row("Question Bank trên thiết bị này", qbSets.length ? true : "partial", qbSets.length ? `${qbSets.length} set đã nạp (${qbN} câu) được gắn vào module: kế hoạch giao set khi câu tích hợp đã làm hết; đánh dấu của bạn được tính làm bằng chứng (0,6 câu mỗi đánh dấu).${qbUnmapped ? ` ${qbUnmapped} set chưa ghép được module.` : ""}` : `Chưa có set nào được nạp cho tài khoản này. <a href="#/qbank">Mở Question Bank</a> để nạp; sau đó kế hoạch sẽ dùng được.`)}
+        ${row("Câu hỏi bạn tự thêm", "partial", `${own.length} câu; ${ownMissing} câu thiếu topic hoặc module. Được tính khi bạn làm trong Practice; không dùng cho chẩn đoán vì chưa có độ khó chuẩn hoá.`)}
+        ${row("Kết nối API ngân hàng câu hỏi bên ngoài (Settings → Integrations)", false, "Website là trang tĩnh (GitHub Pages), không có máy chủ để giữ khóa API an toàn phía server. Theo yêu cầu bảo mật, khóa API không được nằm ở frontend, nên Hoa Tiêu không có ô nhập khóa. Cần một backend (ví dụ FastAPI + PostgreSQL) để kiểm tra kết nối, mã hóa khóa, đồng bộ metadata và phân quyền.")}</tbody></table></div></section>
+      <div class="grid grid-2 section">
+        <section class="card"><div class="card-head"><h2>Câu đủ điều kiện theo topic</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Topic</th><th class="num">Tổng</th><th class="num">Dễ</th><th class="num">Vừa</th><th class="num">Khó</th></tr></thead><tbody>
+          ${TOPICS.map(t => { const x = byT[t.id] || { n: 0, d: [0, 0, 0, 0] }; return `<tr><td>${t.id}</td><td class="num">${x.n}</td><td class="num">${x.d[1]}</td><td class="num">${x.d[2]}</td><td class="num">${x.d[3]}</td></tr>`; }).join("")}</tbody></table></div>
+          <p class="text-3 small">Metadata: ${missing.module} câu thiếu module, ${missing.skill} thiếu thẻ kỹ năng. Mỗi câu có: mã, topic, module, thẻ kỹ năng, năm curriculum ${CURRICULUM_YEAR}, độ khó, thời gian ước tính, nguồn, đáp án, lời giải.</p></section>
+        <section class="card"><div class="card-head"><h2>Module ít câu hỏi (&lt; 3)</h2></div>${thin.length ? `<div class="list">${thin.map(m => `<div class="list-item"><div class="list-main"><div class="list-title">${esc(m.id)} ${esc(m.title)}</div><div class="list-meta">${P.supply[m.id] || 0} câu · Resource not available cho luyện và ôn${qb[m.id] ? " · có set Question Bank" : ""}</div></div></div>`).join("")}</div>` : `<p class="text-2">Mọi module đều có ít nhất 3 câu.</p>`}
+          ${isOwner() ? `<p class="text-3 small">Chủ tài khoản có thể thêm câu ở Practice → Add question / Import CSV.</p>` : ""}</section></div>`;
+  }
+
+  // ======================= method, status, data =======================
+  function methodPage() {
+    const row = (name, st, txt) => `<tr><td>${esc(name)}</td><td>${st === true ? chip("Hoạt động", "success") : st === "partial" ? chip("Một phần", "warning") : chip("Chưa có", "danger")}</td><td class="text-2 small">${txt}</td></tr>`;
+    view.innerHTML = `${head("Phương pháp & trạng thái", "Hoa Tiêu làm gì, dựa trên gì, và phần nào chưa có.", "", "method")}
       <section class="card"><div class="card-head"><h2>Cách hoạt động</h2></div><ol class="co-steps small">
-        <li><b>Đo:</b> chỉ lần làm đầu tiên của mỗi câu là bằng chứng. Câu khó có trọng số 1,3 · vừa 1,0 · dễ 0,8. Tự đánh giá chỉ là ước tính ban đầu có trọng số bằng 2 câu hỏi.</li>
-        <li><b>Nói rõ độ tin cậy:</b> dưới ${CE.CONFIG.evidence.insufficient} câu, không kết luận; khoảng tin cậy 90% (Wilson) luôn được hiển thị.</li>
-        <li><b>Ưu tiên:</b> 0,30 lỗ hổng + 0,25 tỷ trọng đề + 0,20 nguy cơ quên + 0,15 nền tảng + 0,10 khẩn cấp, mỗi thành phần chuẩn hóa 0–1.</li>
-        <li><b>Lập lịch:</b> xếp theo giờ thật bạn khai, tối đa ${CO().profile ? CO().profile.maxSession : 90} phút/phiên; chia 4 giai đoạn theo hồ sơ; giữ một phần thời gian tối thiểu cho mọi topic; nếu không đủ giờ thì báo phần chưa xếp thay vì nhồi nhét.</li>
-        <li><b>Thích ứng:</b> bỏ lỡ nhiệm vụ không làm giảm điểm năng lực và không tự đánh dấu hoàn thành; lịch được tính lại, nhẹ hơn 20% trong 3 ngày sau ≥ 3 ngày nghỉ; nếu liên tục chỉ hoàn thành &lt; 60% thì lịch mới theo giờ bạn thật sự học.</li>
-        <li><b>Hoàn thành có bằng chứng:</b> nhiệm vụ luyện/ôn cần trả lời ≥ 80% số câu; nhiệm vụ học cần kiểm tra nhanh 5 câu (≥ 60%) hoặc ghi là “tự báo cáo” (không đổi mức nắm vững).</li>
-        <li><b>LLM:</b> CFA Tutor chỉ giải thích; điểm, ưu tiên và lịch do quy tắc tất định ở trên quyết định.</li></ol>
-        <p class="text-3 small">Các ngưỡng, trọng số và công thức là heuristic ban đầu của website này, không phải mô hình đã được CFA Institute hay ai khác xác nhận. Chỉ số sẵn sàng không phải xác suất đỗ.</p></section>
+        <li><b>Đo:</b> chỉ lần làm đầu tiên của mỗi câu là bằng chứng. Câu khó tính 1,3 · vừa 1,0 · dễ 0,8. Tự đánh giá là điểm xuất phát, có sức nặng như 3 câu và nhỏ dần khi có bài làm.</li>
+        <li><b>Nói rõ độ tin cậy:</b> dưới ${CE.CONFIG.evidence.insufficient} câu không kết luận; luôn hiện khoảng tin cậy 90% (Wilson).</li>
+        <li><b>Ưu tiên:</b> 0,30 lỗ hổng + 0,25 tỷ trọng đề + 0,20 nguy cơ quên + 0,15 nền tảng + 0,10 khẩn cấp, mỗi thành phần chuẩn hoá 0–1.</li>
+        <li><b>Lập lịch:</b> theo giờ thật bạn khai; học theo khối topic và thứ tự giáo trình (QM trước các topic dùng nó, FSA trước Equity); module dài chia thành phần ≤ ${CE.CONFIG.chunkMinutes} phút; ôn ngắt quãng 1/3/7/14/30 ngày; dự phòng mỗi tuần; thi thử 180 câu ở giai đoạn cuối; ngày trước kỳ thi ôn nhẹ. Thiếu giờ: mọi môn vẫn có phần quan trọng nhất và phần chưa xếp được được nói rõ. Thừa giờ: để trống, không nhồi việc.</li>
+        <li><b>Thích ứng:</b> sau mỗi bài đánh giá; mỗi ngày một lần khi có việc trễ hoặc ≥ 10 câu mới. Việc trễ không được tính là xong và không trừ điểm năng lực; sau ≥ 3 ngày nghỉ, 3 ngày tới nhẹ hơn 20%; nếu thường chỉ làm được &lt; 60% kế hoạch, lịch mới theo giờ bạn thật sự học. Sai ≥ 4/5 câu gần nhất của một kỹ năng → chuỗi khắc phục (kiểm tra nền tảng, lời giải từng bước, câu mới, kiểm tra lại) thay vì làm lại câu cũ.</li>
+        <li><b>Hoàn thành có bằng chứng:</b> luyện/ôn cần trả lời ≥ 80% số câu trong Hoa Tiêu; set Question Bank cần thêm đánh dấu mới; học cần kiểm tra nhanh 5 câu (≥ 60%) hoặc ghi “tự báo” (không đổi mức nắm vững).</li>
+        <li><b>AI:</b> CFA Tutor chỉ giải thích; điểm, ưu tiên và lịch do các quy tắc tất định ở trên quyết định và được kiểm thử tự động.</li></ol>
+        <p class="text-3 small">Ngưỡng, trọng số và công thức là heuristic ban đầu của website, không phải mô hình được CFA Institute hay ai khác xác nhận. Chỉ số sẵn sàng không phải xác suất đỗ. Thời gian tham khảo ${CE.CONFIG.recommendedHours} giờ là giả định để chia thời gian, có thể chỉnh trong CONFIG.</p></section>
       <section class="card section"><div class="card-head"><h2>Trạng thái các thành phần</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Thành phần</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody>
-        ${row("Hồ sơ, tự đánh giá 10 topic / ${P.mods.length} module".replace("${P.mods.length}", P.mods.length), true, "Lưu riêng cho từng tài khoản của website (cùng cơ chế xuất / xóa dữ liệu).")}
-        ${row("Chẩn đoán 45 / 90 phút", true, `Dùng ${P.rows.length} câu của ngân hàng tích hợp (trong đó ${coachQ} câu viết riêng cho Hoa Tiêu, 18 câu/topic, đủ dễ–vừa–khó). Không có câu do AI tự bịa.`)}
-        ${row("Phân tích 3 cấp + phân loại lỗi + khuyến nghị", true, "Cấp LOS dùng thẻ kỹ năng theo module; chưa có mã LOS chính thức.")}
-        ${row("Kế hoạch ngày / tuần / tháng / toàn kỳ, phiên bản", true, "Liên kết tới module, bài luyện và Mock exams có thật.")}
-        ${row("Ôn ngắt quãng", true, "Khoảng cách thích ứng theo kết quả; mô hình quên là heuristic.")}
-        ${row("CFA Tutor", "partial", "Dùng Tutor sẵn có của website (cần khóa API của bạn trong Tutor). Tutor đọc bản tóm tắt hồ sơ do nút “Hỏi CFA Tutor” gửi; không tự đọc dữ liệu và không sửa tiến độ.")}
-        ${row("Mock exam 180 câu", "partial", "Dùng trang Mock exams sẵn có; kết quả mock chưa được đưa vào phân tích Hoa Tiêu (chưa tích hợp).")}
-        ${row("Kết nối ngân hàng câu hỏi bằng API / khóa API", false, "Website là trang tĩnh (GitHub Pages), không có máy chủ nên không thể lưu khóa API an toàn phía server. Ngân hàng nội bộ đã dùng trực tiếp; kết nối API ngoài cần một backend.")}
-        ${row("Cơ sở dữ liệu PostgreSQL, phân quyền server-side, audit log", false, "Chưa có backend. Cô lập tài khoản dựa trên hồ sơ trình duyệt của website, không phải bảo mật máy chủ.")}
-        ${row("Trang quản trị, thống kê tổng hợp, quản lý phiên bản AI Planner", false, "Chưa có; yêu cầu backend và vai trò người dùng.")}
-        ${row("Đồng bộ nhiều thiết bị", false, "Dữ liệu nằm trong trình duyệt; dùng xuất / nhập bản sao lưu của website để chuyển máy.")}</tbody></table></div></section>
-      <section class="card section"><div class="card-head"><h2>Dữ liệu của bạn</h2></div><div class="row-gap"><button class="btn btn-secondary" id="co-export">${icon("download", 16)} Xuất dữ liệu Hoa Tiêu (JSON)</button><button class="btn btn-soft-danger" id="co-wipe">${icon("trash", 16)} Xóa dữ liệu Hoa Tiêu</button></div>
-        <p class="text-3 small">Chỉ xóa hồ sơ, bài chẩn đoán, kế hoạch và lịch ôn của Hoa Tiêu. Tiến độ học và câu hỏi khác của website được giữ nguyên.</p></section>`;
-    document.getElementById("co-export").onclick = () => downloadFile(`hoa-tieu-${today()}.json`, JSON.stringify({ app: "cfa-study-coach", exportedAt: new Date().toISOString(), profile: activeProfile().name, coach: { ...CO(), session: null } }, null, 2), "application/json");
-    document.getElementById("co-wipe").onclick = async () => { if (!(await confirmDialog({ title: "Xóa dữ liệu Hoa Tiêu?", message: "Hồ sơ học tập, bài chẩn đoán, kế hoạch (mọi phiên bản) và lịch ôn sẽ bị xóa khỏi tài khoản này. Không thể hoàn tác; hãy xuất dữ liệu trước nếu cần.", confirmText: "Xóa", danger: true, requireText: "XOA" }))) return; delete DATA.coach; save(); toast("Đã xóa dữ liệu Hoa Tiêu"); location.hash = "#/coach"; };
+        ${row("Hồ sơ, thời gian, tự đánh giá 10 topic / 102 module", true, "Lưu trong tài khoản của website trên thiết bị này; theo tài khoản khi xuất / nhập sao lưu.")}
+        ${row("Chẩn đoán 45 / 90 phút, kiểm tra xác nhận, kiểm tra topic & module", true, "Đồng hồ, tự lưu, tự nộp, xem lại trước khi nộp, không lộ đáp án trước khi nộp.")}
+        ${row("Thi thử 180 câu", true, "2 phiên × 90 câu × 135 phút trong Hoa Tiêu; phân tích thời gian và so sánh với lần trước. Trang Mock exams cũ vẫn giữ nguyên.")}
+        ${row("Phân tích 5 cấp, khuyến nghị, khắc phục", true, "Cấp LOS dùng thẻ kỹ năng theo module (chưa có mã LOS chính thức).")}
+        ${row("Kế hoạch ngày / tuần / tháng / toàn kỳ, phiên bản, in, lịch .ics, .csv", true, "Liên kết tới bài học, bài làm và set Question Bank có thật.")}
+        ${row("CFA Tutor", "partial", "Dùng Tutor có sẵn (cần khóa của bạn trong Tutor). Đọc bản tóm tắt do Hoa Tiêu gửi; không sửa tiến độ.")}
+        ${row("API ngân hàng câu hỏi ngoài, PostgreSQL, phân quyền server-side, audit log, rate limit", false, "Cần backend. Xem trang Ngân hàng câu hỏi.")}
+        ${row("Trang quản trị, thống kê tổng hợp nhiều người dùng", false, "Cần backend và vai trò người dùng.")}
+        ${row("Đồng bộ nhiều thiết bị", false, "Dùng xuất / nhập sao lưu của website (Settings).")}</tbody></table></div></section>
+      <section class="card section"><div class="card-head"><h2>Dữ liệu Hoa Tiêu của bạn</h2></div><div class="row-gap"><button class="btn btn-secondary" id="ht-export">${icon("download", 16)} Xuất dữ liệu (JSON)</button><button class="btn btn-soft-danger" id="ht-wipe">${icon("trash", 16)} Xóa dữ liệu Hoa Tiêu</button></div>
+        <p class="text-3 small">Chỉ xóa hồ sơ, bài làm trong Hoa Tiêu, kế hoạch (mọi phiên bản) và lịch ôn. Tiến độ khác của website giữ nguyên. Dữ liệu Hoa Tiêu hiện chiếm khoảng ${Math.round(JSON.stringify(DATA.coach || {}).length / 1024)} KB.</p></section>`;
+    document.getElementById("ht-export").onclick = () => downloadFile(`hoa-tieu-${today()}.json`, JSON.stringify({ app: "cfa-study-coach", version: 2, exportedAt: new Date().toISOString(), profile: activeProfile().name, coach: DATA.coach }, null, 2), "application/json");
+    document.getElementById("ht-wipe").onclick = async () => {
+      if (!(await confirmDialog({ title: "Xóa dữ liệu Hoa Tiêu?", message: "Hồ sơ học tập, bài làm, kế hoạch (mọi phiên bản) và lịch ôn sẽ bị xóa khỏi tài khoản này. Không thể hoàn tác.", confirmText: "Xóa", danger: true, requireText: "XOA" }))) return;
+      delete DATA.coach; HT.save(); toast("Đã xóa dữ liệu Hoa Tiêu"); location.hash = "#/coach";
+    };
   }
 })();

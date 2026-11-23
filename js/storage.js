@@ -170,11 +170,29 @@ function loadData() {
   }
 }
 
+// Built-in questions are rebuilt from the question files on every load (syncBuiltinQuestions), so only
+// your own progress on them is written to the browser: about 0.5 MB less per account. Every account on
+// this device shares one localStorage quota (about 5 MB), and a full quota means nothing new is saved.
+// Your own questions are stored in full. Backups (exportData) still contain everything.
+function storableQuestion(q) {
+  if (!q.builtIn) return q;
+  const out = { id: q.id, builtIn: true };
+  if (q.attempts && q.attempts.length) out.attempts = q.attempts;
+  if (q.inMistakeLog) out.inMistakeLog = true;
+  if (q.correctStreak) out.correctStreak = q.correctStreak;
+  if (q.flagged) out.flagged = true;
+  return out;
+}
+function storableData(data) { return { ...data, questions: (data.questions || []).map(storableQuestion) }; }
+
+let SAVE_OK = true;          // false after a failed save (pages can warn that recent changes are only in memory)
 function saveData() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storableData(DATA)));
+    SAVE_OK = true;
     return true;
   } catch (e) {
+    SAVE_OK = false;
     if (typeof toast === "function") toast("Could not save — storage may be full. Export a backup now.", "error");
     return false;
   }

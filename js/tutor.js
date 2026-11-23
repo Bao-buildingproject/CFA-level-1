@@ -522,7 +522,7 @@ function tutorClose() {
 function tutorRoute() {
   tutorMount();
   const [route, a] = currentRoute();
-  const hide = document.body.classList.contains("gated") || (route === "mock" && a === "run");
+  const hide = document.body.classList.contains("gated") || (route === "mock" && a === "run") || (route === "coach" && a === "run" && typeof coachExamRunning === "function" && coachExamRunning());
   document.body.classList.toggle("tutor-off", hide);
   if (hide && TUTOR.open) tutorClose();
   if (TUTOR.profile && TUTOR.profile !== PROFILES.active) { TUTOR.msgs = null; TUTOR.ctx = null; if (TUTOR.open) tutorRender(); }
