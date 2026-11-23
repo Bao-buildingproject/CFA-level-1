@@ -86,7 +86,7 @@
   #mobile-profile { display: grid; }
 
   .bottom-nav {
-    display: grid; grid-template-columns: repeat(5, 1fr);
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);   /* as many equal tabs as there are links (6) */
     position: fixed; inset: auto 0 0 0; z-index: 30;
     background: linear-gradient(180deg, #0f1833 0%, #0a1126 100%);
     border-top: 1px solid rgba(220, 186, 114, 0.22);
@@ -94,7 +94,7 @@
   }
   .bottom-nav a {
     position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 10px 0 9px; color: #9097ab; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 10px 0 9px; color: #9097ab; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
     transition: color 0.15s var(--ease);
   }
   .bottom-nav a:hover { text-decoration: none; color: #d8d3c4; }

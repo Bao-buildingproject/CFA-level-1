@@ -1,6 +1,6 @@
 # Hoa Tiêu · CFA Compass — huấn luyện viên học tập (v2)
 
-Route `#/coach`, nhóm **Plan** của website. Đo trình độ từng tài khoản bằng bài làm thật, lập lộ trình học riêng đến ngày thi, **hiện kế hoạch ngay sau khi tạo** (`#/coach/plan/ready`) và tự điều chỉnh khi có kết quả mới hoặc khi bỏ lỡ ngày học.
+Route `#/coach`, nhóm **Plan** của website. Trên điện thoại: thẻ **Hoa Tiêu** ở thanh dưới cùng, dòng đầu của mục *Today* ở trang Home và mục đầu tiên trong *More*. Đo trình độ từng tài khoản bằng bài làm thật, lập lộ trình học riêng đến ngày thi, **hiện kế hoạch ngay sau khi tạo** (`#/coach/plan/ready`) và tự điều chỉnh khi có kết quả mới hoặc khi bỏ lỡ ngày học.
 
 ## 1. Vì sao làm lại (v1 → v2)
 

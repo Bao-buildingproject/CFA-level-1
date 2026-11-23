@@ -24,9 +24,9 @@ const NAV_ITEMS = [
   { route: "calc", label: "BA II Plus", icon: "calc", group: "Test" },
   { route: "settings", label: "Settings", icon: "settings", group: "" }
 ];
-const MOBILE_NAV = ["dashboard", "study", "practice", "mock", "more"];
-const MOBILE_LABEL = { dashboard: "Home", study: "Study", practice: "Practice", mock: "Mock", more: "More", qbank: "Bank", cards: "Cards" };
-const MOBILE_NAV_LIMITED = ["dashboard", "study", "qbank", "cards", "more"];
+const MOBILE_NAV = ["dashboard", "coach", "study", "practice", "mock", "more"];
+const MOBILE_LABEL = { dashboard: "Home", coach: "Hoa Tiêu", study: "Study", practice: "Practice", mock: "Mock", more: "More", qbank: "Bank", cards: "Cards" };
+const MOBILE_NAV_LIMITED = ["dashboard", "coach", "study", "qbank", "cards", "more"];
 const TEST_ROUTES = ["practice", "mock"];          // hidden for profiles created with "hide Practice and Mock exams"
 function testsHidden() { try { return activeProfile().hideTests === true; } catch (e) { return false; } }
 const navItems = () => testsHidden() ? NAV_ITEMS.filter(n => !TEST_ROUTES.includes(n.route)) : NAV_ITEMS;
@@ -161,6 +161,21 @@ function topicLedgerHtml(opts = {}) {
 
 let ROUTE_ENTER = false;   // true while the router draws a page it has just navigated to
 
+// Hoa Tiêu on the dashboard's "Today" list (the way in on phones, where the side menu is hidden)
+function coachAgendaRow() {
+  const base = { ic: "target", label: "Hoa Tiêu · kế hoạch học" };
+  try {
+    if (typeof HT === "undefined") return null;
+    const c = DATA.coach;
+    if (!c || !c.profile) return { ...base, href: "#/coach", sub: "Lập lộ trình học riêng đến ngày thi (3 phút)", val: "Mới", hot: true };
+    const p = c.v === 2 ? HT.plan() : null;
+    if (!p) return { ...base, href: "#/coach", sub: "Mở để xem kế hoạch của bạn", val: "→" };
+    const d = p.days.find(x => x.date === todayStr()), tasks = d ? d.tasks : [], left = tasks.filter(t => t.status === "todo");
+    return { ...base, href: "#/coach/plan", sub: tasks.length ? `Hôm nay: ${tasks.length - left.length}/${tasks.length} nhiệm vụ xong · còn ${left.reduce((s, t) => s + t.min, 0)} phút` : "Hôm nay là ngày nghỉ trong kế hoạch",
+      val: left.length, hot: left.length > 0 };
+  } catch (e) { return { ...base, href: "#/coach", sub: "Lộ trình học riêng", val: "→" }; }
+}
+
 function renderDashboard() {
   const { daysLeft, week, phase } = countdownInfo();
   const all = overallProgress();
@@ -181,6 +196,7 @@ function renderDashboard() {
   const now = new Date();
 
   const agenda = [
+    coachAgendaRow(),
     { ic: "cards", href: "#/cards", label: "Flashcards due", sub: `${log.cardsReviewed || 0} reviewed today`, val: queue, hot: queue > 0 },
     tests && { ic: "alert", href: "#/practice", label: "Mistakes to redo", sub: `${log.questionsDone || 0} questions answered today`, val: qs.mistakes, hot: qs.mistakes > 0 },
     { ic: "flag", href: "#/qbank", label: "Question Bank to redo", sub: "Wrong or guessed answers", val: redo, hot: redo > 0 },
@@ -419,6 +435,7 @@ const ROUTES = {
 // ================= MORE (mobile menu) =================
 function renderMore() {
   const items = [
+    ["coach", "target", "Hoa tiêu · AI Coach", "Kế hoạch học của bạn: chẩn đoán, lộ trình theo ngày, ôn tập"],
     ["schweser", "book", "SchweserNotes", "4 books · reading checklist"],
     ["curriculum", "layers", "Curriculum", "102 learning modules · 10 volumes"],
     ["qbank", "flag", "Question Bank", "Your question sets · answer them here"],
@@ -426,7 +443,6 @@ function renderMore() {
     ["trading/derivatives", "candles", "Trading Arena · Phái sinh", "Long/Short hợp đồng tương lai · 100 triệu ₫ ảo"],
     ["bond", "layers", "Bond Empire · Trái phiếu", "Game Fixed Income: 7 chương, định giá, duration, tín dụng"],
     ["alt", "globe", "Alternative Empire · Đầu tư thay thế", "Game quản lý quỹ: PE, BĐS, hạ tầng, hedge fund, tài sản số"],
-    ["coach", "target", "Hoa tiêu · AI Coach", "Lộ trình học riêng: chẩn đoán, kế hoạch, ôn ngắt quãng"],
     ["analysis", "pulse", "Weak spots", "Accuracy by topic and module"],
     ["dist", "curve", "Distributions", "Normal, t, chi-square, lognormal · z-table"],
     ["cards", "cards", "Flashcards", `${todayQueue().length} to review today`],
@@ -852,7 +868,7 @@ function showUpdateBanner(v) {
   if (document.getElementById("update-bar")) return;
   const bar = document.createElement("div");
   bar.id = "update-bar"; bar.setAttribute("role", "status");
-  bar.innerHTML = `<span>A newer version of the site is available.</span><button class="btn btn-sm" id="update-now">Update now</button>`;
+  bar.innerHTML = `<span>Đã có phiên bản mới của trang.</span><button class="btn btn-sm" id="update-now">Cập nhật ngay</button>`;
   document.body.appendChild(bar);
   document.getElementById("update-now").onclick = reloadLatest;
 }
@@ -864,6 +880,14 @@ async function checkForUpdate(manual) {
   return v;
 }
 checkForUpdate(false);
+// phones often bring back a tab opened days ago without reloading it: check again when the page is shown
+let lastUpdateCheck = Date.now();
+function recheckForUpdate() {
+  if (document.visibilityState !== "visible" || Date.now() - lastUpdateCheck < 60 * 1000) return;
+  lastUpdateCheck = Date.now(); checkForUpdate(false);
+}
+document.addEventListener("visibilitychange", recheckForUpdate);
+window.addEventListener("pageshow", e => { if (e.persisted) { lastUpdateCheck = 0; recheckForUpdate(); } });
 
 (() => { const b = document.getElementById("side-version"); if (b) { b.textContent = "v" + APP_VERSION; b.onclick = () => checkForUpdate(true); } })();
 
