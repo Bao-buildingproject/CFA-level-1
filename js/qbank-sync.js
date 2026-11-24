@@ -140,8 +140,8 @@ async function qbkTutorSync(m, key) {
     tutorProbe(c.key, c.auth).then(({ models, auth }) => {
       const cur = tutorCfg();
       if (cur.key !== c.key || !models.length) return;
-      cur.models = models; cur.auth = auth;
-      if (!models.some(x => x.id === cur.model)) cur.model = models[0].id;
+      cur.models = models; cur.auth = auth; cur.listedAt = Date.now();
+      cur.model = typeof tutorModel === "function" ? tutorModel(cur) : models[0].id;
       tutorSaveCfg(cur);
     }).catch(() => { /* ignore */ });
     if (typeof TUTOR !== "undefined" && TUTOR.open) { TUTOR.view = "chat"; tutorRender(); }

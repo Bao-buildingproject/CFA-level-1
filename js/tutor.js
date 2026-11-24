@@ -5,13 +5,16 @@
 // account on it uses it; each account keeps its own chat. The key and the
 // chats stay in this browser only; messages go straight from the browser to
 // Google's Gemini API. Nothing is stored on GitHub.
+// Speed (tutor-core.js): answers stream as they are written; fast mode uses the
+// least "thinking" each model accepts and short answers; an overloaded model hands
+// over at once to a model of another family, and a slow one gets a backup after 3 s.
 // ============================================================
 
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
 const TUTOR_CFG = () => "cfaStudy_tutor_shared";                  // { key, model, models, scope } for every account
 const TUTOR_CFG_OLD = id => `cfaStudy_tutor_${id}`;                // before: one key per account
 const TUTOR_LOG = () => `cfaStudy_tutorlog_${PROFILES.active}`;   // [{ role, text, ctx }]
-const TUTOR_MAX_LOG = 40, TUTOR_SEND = 16;
+const TUTOR_MAX_LOG = 40;
 let TUTOR = { open: false, view: "chat", busy: false, abort: null, msgs: null, ctx: null, profile: null, note: "" };
 
 function tutorCfg() {
@@ -50,14 +53,16 @@ function tutorErr(status, j) {
   e.status = status; e.reason = (j && j.error && j.error.status) || "";
   return e;
 }
-function tutorErrText(e, setup) {
-  if (!e.status) return "Could not reach Google. Check your connection and try again.";
-  if (e.status === 400 && /api key/i.test(e.message)) return setup ? "Google says this key is not valid. Copy it again from AI Studio and paste the whole key." : "Google says this API key is not valid. Create a new key at aistudio.google.com/apikey.";
-  if (e.status === 401 || e.status === 403) return "This key is not allowed to use the Gemini API. Check it in Google AI Studio, or create a new key.";
-  if (e.status === 429) return "The free limit for this model is used up for now. Wait a minute (or until tomorrow).";
-  if (e.status === 404) return "This model is not available to your key. Try again later.";
-  if (e.status >= 500) return "Google's servers are busy. Try again in a moment.";
-  return `Google returned an error: ${e.message}`;
+function tutorErrText(e, setup, tried) {
+  const k = typeof TutorCore === "object" ? TutorCore.classify(e) : "";
+  if (k === "slow") return "Gemini không bắt đầu trả lời trong thời gian chờ. Bấm Thử lại.";
+  if (!e.status) return "Không kết nối được tới Google. Kiểm tra mạng rồi bấm Thử lại.";
+  if (e.status === 400 && /api key/i.test(e.message)) return setup ? "Google says this key is not valid. Copy it again from AI Studio and paste the whole key." : "Google báo khóa API không hợp lệ. Tạo khóa mới ở aistudio.google.com/apikey rồi dán lại trong cài đặt Tutor.";
+  if (e.status === 401 || e.status === 403) return setup ? "This key is not allowed to use the Gemini API. Check it in Google AI Studio, or create a new key." : "Khóa này chưa được phép dùng Gemini API. Kiểm tra trong Google AI Studio hoặc tạo khóa mới.";
+  if (e.status === 429) return "Đã hết lượt miễn phí của các model Gemini lúc này. Đợi khoảng một phút rồi bấm Thử lại.";
+  if (e.status === 404) return "Không có model Gemini nào dùng được với khóa này lúc này.";
+  if (e.status >= 500) return `Máy chủ Gemini đang quá tải${tried > 1 ? ` (đã thử ${tried} model)` : ""}. Bấm Thử lại sau vài giây.`;
+  return `Google báo lỗi: ${e.message}`;
 }
 // Models this key may use for chat, best first: Flash (generous free tier), then Pro, then Flash-Lite; newest first
 function tutorRank(id) {
@@ -93,11 +98,19 @@ async function tutorFetchModels(key, auth) {
     .sort((a, b) => tutorRank(b.id) - tutorRank(a.id));
 }
 
-// Always the fastest family: the newest Flash this key can use (no settings to change it)
-function tutorModel(cfg) {
-  const f = (cfg.models || []).find(m => /flash/.test(m.id) && !/lite/.test(m.id));
-  return f ? f.id : /flash/.test(cfg.model || "") ? cfg.model : "gemini-2.5-flash";
+// The models to ask, fastest and most available first (TutorCore.chain). cfg.model = the first one, for display.
+// Without a model list yet (a key set up from the Question Bank), the saved model and Google's "latest" aliases.
+const tutorMode = () => (tutorCfg().mode === "deep" ? "deep" : "fast");
+function tutorChain(cfg, mode) {
+  const list = cfg.models && cfg.models.length ? cfg.models : [cfg.model || "gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest"];
+  const c = TutorCore.chain(list, mode || "fast", cfg.rest || {}, Date.now());
+  return c.length ? c : ["gemini-2.5-flash"];
 }
+function tutorModel(cfg) { return tutorChain(cfg || tutorCfg(), "fast")[0]; }
+const TUTOR_STYLE = {
+  fast: "- FAST MODE: answer briefly. Lead with the key idea in one or two sentences, then at most five short bullet points or one short worked calculation. Stay under about 180 words unless the student asks for more detail (they can say “giải thích kỹ hơn”).",
+  deep: "- THOROUGH MODE: explain step by step — the intuition, the formula, a worked example with the numbers, and the common exam traps."
+};
 function tutorSystem() {
   const c = countdownInfo();
   const weak = TOPICS.map(t => ({ t, s: typeof qbTopicStats === "function" ? qbTopicStats(t.id) : { done: 0 } }))
@@ -115,6 +128,7 @@ function tutorSystem() {
     "- Write formulas in plain text or Unicode (PV = FV / (1 + r)^n, σ², √n). Never use LaTeX or $…$.",
     "- Use short paragraphs, bullet lists and small Markdown tables when useful. Be concise; Level I questions have three choices (A, B, C).",
     "- If asked for practice questions, write original ones in the CFA style with answers and short explanations at the end.",
+    TUTOR_STYLE[tutorMode()],
     ...(tutorCfg().scope === "all" ? [] : [
       "Scope (strict):",
       "- Only help with: the CFA Program and exam; finance and investments; portfolio management; corporate finance; financial reporting and accounting; economics; statistics and quantitative methods as used in finance; derivatives, fixed income, equity and alternative investments; ethics and professional standards in the investment industry; the BA II Plus calculator; and how to study for the CFA exam.",
@@ -124,62 +138,98 @@ function tutorSystem() {
   ].filter(Boolean).join("\n");
 }
 
-// The conversation for Gemini: failed exchanges and the empty reply being written are left out
-function tutorContents() {
+// The conversation for Gemini: failed or stopped exchanges and the empty reply being written are left out. Older
+// turns are shortened (a smaller request starts answering sooner); the new question goes in full.
+function tutorContents(mode) {
   const msgs = tutorMsgs(), out = [];
   msgs.forEach((m, i) => {
-    if (m.role === "user") { if (!(msgs[i + 1] && msgs[i + 1].error)) out.push(m); }
-    else if (m.text && !m.error) out.push(m);
+    const next = msgs[i + 1];
+    if (m.role === "user") { if (!(next && (next.error || next.void))) out.push(m); }
+    else if (m.text && !m.error && !m.void) out.push(m);
   });
-  let list = out.slice(-TUTOR_SEND);
+  let list = out.slice(-TutorCore.MODES[mode || "fast"].historyMessages);
   while (list.length && list[0].role !== "user") list = list.slice(1);
-  return list.map(m => ({
-    role: m.role === "user" ? "user" : "model",
-    parts: [{ text: m.role === "user" && m.ctx ? `Here is the question I am asking about:\n${m.ctx.text}\n\n${m.text}` : m.text }]
-  }));
+  const clip = (t, n) => (t.length > n ? t.slice(0, n) + " …" : t);
+  return list.map((m, i) => {
+    let text = m.role === "user" && m.ctx ? `Here is the question I am asking about:\n${m.ctx.text}\n\n${m.text}` : m.text;
+    if (i < list.length - 1) text = clip(text, m.role === "user" ? 2500 : 1500);
+    return { role: m.role === "user" ? "user" : "model", parts: [{ text }] };
+  });
 }
 
-async function tutorStream(key, model, contents, onText, signal, auth) {
-  const body = JSON.stringify({ systemInstruction: { parts: [{ text: tutorSystem() }] }, contents, generationConfig: { temperature: 0.4 } });
+// One streamed answer from one model. onText(textSoFar) runs whenever new words arrive. Once it has started
+// writing, an answer that goes quiet for TUTOR_STALL_MS counts as cut off (the student gets Try again).
+const TUTOR_STALL_MS = 30000;
+async function tutorStream(key, model, contents, gen, signal, onText, auth) {
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: tutorSystem() }] }, contents, generationConfig: gen });
+  const ctl = new AbortController(), quit = () => ctl.abort();
+  if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener("abort", quit, { once: true }); }
+  let stalled = false, idle = 0;
+  const watch = () => { clearTimeout(idle); idle = setTimeout(() => { stalled = true; ctl.abort(); }, TUTOR_STALL_MS); };
   const go = a => fetch(`${GEMINI_API}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
-    method: "POST", headers: { "Content-Type": "application/json", ...tutorHeaders(key, a) }, body, signal });
-  let r;
+    method: "POST", headers: { "Content-Type": "application/json", ...tutorHeaders(key, a) }, body, signal: ctl.signal });
   try {
-    r = await go(auth);
-    // a newer key refused one way: try the other way once, and keep it if it works
-    if (!r.ok && tutorAuthRetry(key, r.status)) {
-      const other = auth === "bearer" ? "header" : "bearer", r2 = await go(other);
-      if (r2.ok) { r = r2; const c = tutorCfg(); if (c.key === key) { c.auth = other; tutorSaveCfg(c); } }
+    let r;
+    try {
+      r = await go(auth);
+      // a newer key refused one way: try the other way once, and keep it if it works
+      if (!r.ok && tutorAuthRetry(key, r.status)) {
+        const other = auth === "bearer" ? "header" : "bearer", r2 = await go(other);
+        if (r2.ok) { r = r2; const c = tutorCfg(); if (c.key === key) { c.auth = other; tutorSaveCfg(c); } }
+      }
+    } catch (e) { if (e.name === "AbortError") throw e; throw tutorErr(0, null); }
+    if (!r.ok) throw tutorErr(r.status, await r.json().catch(() => ({})));
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "", text = "", finish = "";
+    const take = line => {
+      line = line.trim();
+      if (!line.startsWith("data:")) return;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") return;
+      let j;
+      try { j = JSON.parse(data); } catch (e) { return; }
+      if (j.error) throw tutorErr(j.error.code || 500, j);
+      const before = text, c = (j.candidates || [])[0];
+      if (c) {
+        ((c.content && c.content.parts) || []).forEach(p => { if (p.text && !p.thought) text += p.text; });
+        if (c.finishReason) finish = c.finishReason;
+      }
+      if (j.promptFeedback && j.promptFeedback.blockReason) finish = "BLOCKED";
+      if (text && text !== before) onText(text);
+    };
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) { take(buf.slice(0, i)); buf = buf.slice(i + 1); }
+      if (text) watch();
     }
-  } catch (e) { if (e.name === "AbortError") throw e; throw tutorErr(0, null); }
-  if (!r.ok) throw tutorErr(r.status, await r.json().catch(() => ({})));
-  const reader = r.body.getReader(), dec = new TextDecoder();
-  let buf = "", text = "", finish = "";
-  const take = line => {
-    line = line.trim();
-    if (!line.startsWith("data:")) return;
-    const data = line.slice(5).trim();
-    if (!data || data === "[DONE]") return;
-    let j;
-    try { j = JSON.parse(data); } catch (e) { return; }
-    if (j.error) throw tutorErr(j.error.code || 500, j);
-    const c = (j.candidates || [])[0];
-    if (c) {
-      ((c.content && c.content.parts) || []).forEach(p => { if (p.text && !p.thought) text += p.text; });
-      if (c.finishReason) finish = c.finishReason;
-    }
-    if (j.promptFeedback && j.promptFeedback.blockReason) finish = "BLOCKED";
-    onText(text);
-  };
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i;
-    while ((i = buf.indexOf("\n")) >= 0) { take(buf.slice(0, i)); buf = buf.slice(i + 1); }
+    if (buf) take(buf);
+    return { text, finish };
+  } catch (e) {
+    if (stalled) { const s = tutorErr(0, null); s.message = "The answer stopped coming"; throw s; }
+    throw e;
+  } finally {
+    clearTimeout(idle);
+    if (signal) signal.removeEventListener("abort", quit);
   }
-  if (buf) take(buf);
-  return { text, finish };
+}
+
+// One model, with the least thinking it accepts; if Google rejects that setting, the next one down is tried
+// and remembered for this model (cfg.fix).
+async function tutorAttempt(model, contents, mode, signal, onText) {
+  let last = null;
+  for (let k = 0; k < 3; k++) {
+    const cfg = tutorCfg(), gen = TutorCore.generation(model, mode, (cfg.fix || {})[model]);
+    try { return await tutorStream(cfg.key, model, contents, gen, signal, onText, cfg.auth); }
+    catch (e) {
+      last = e;
+      if (!gen.thinkingConfig || TutorCore.classify(e) !== "thinking") throw e;
+      const c = tutorCfg(); (c.fix || (c.fix = {}))[model] = TutorCore.nextFix(gen.thinkingConfig); tutorSaveCfg(c);
+    }
+  }
+  throw last;
 }
 
 // ---------- Sending ----------
@@ -190,42 +240,100 @@ async function tutorSend(text, ctx) {
   if (!cfg.key) { TUTOR.view = "setup"; tutorRender(); return; }
   const msgs = tutorMsgs();
   msgs.push({ role: "user", text, ctx: ctx || null });
-  const reply = { role: "model", text: "", model: "" };
+  TUTOR.ctx = null;
+  await tutorAnswer();
+}
+// Ask again after an error or a cut-off answer (the failed reply is replaced)
+function tutorRetry() {
+  if (TUTOR.busy) return;
+  const msgs = tutorMsgs(), last = msgs[msgs.length - 1];
+  if (!last || last.role !== "model") return;
+  msgs.pop();
+  tutorAnswer();
+}
+// why a model handed over, for the line under the typing dots
+const TUTOR_WHY = { busy: "đang quá tải", quota: "đã hết lượt miễn phí", missing: "không còn dùng được", network: "không kết nối được", thinking: "báo lỗi cấu hình" };
+async function tutorAnswer() {
+  const msgs = tutorMsgs(), reply = { role: "model", text: "", model: "" };
   msgs.push(reply);
-  TUTOR.ctx = null; TUTOR.busy = true; TUTOR.note = "";
+  TUTOR.busy = true; TUTOR.note = ""; TUTOR.status = "Đang kết nối Gemini…";
   TUTOR.abort = new AbortController();
   tutorRender();
-  const contents = tutorContents();
-  // the chosen model first, then the next best ones if it is over its limit or missing
-  // a model that just ran out of free requests is skipped for 10 minutes
-  const now = Date.now(), cool = TUTOR.cool || (TUTOR.cool = {});
-  const main = tutorModel(cfg);
-  let tryList = [main, ...(cfg.models || []).map(m => m.id)].filter((x, i, a) => x && a.indexOf(x) === i);
-  if (tryList.some(m => !(cool[m] > now))) tryList = tryList.filter(m => !(cool[m] > now));
-  tryList = tryList.slice(0, 3);
-  if (!tryList.length) tryList.push("gemini-2.5-flash");
-  let lastErr = null;
-  for (const model of tryList) {
-    try {
-      reply.model = model;
-      const out = await tutorStream(cfg.key, model, contents, t => { reply.text = t; tutorPaintLast(); }, TUTOR.abort.signal, tutorCfg().auth);
-      reply.text = out.text;
-      if (!out.text) { reply.error = true; reply.text = out.finish === "BLOCKED" || out.finish === "SAFETY" ? "Google blocked this answer. Try asking in a different way." : "No answer came back. Try again."; }
-      else if (out.finish === "MAX_TOKENS") reply.text += "\n\n*(The answer was cut off — ask “tiếp tục” to continue.)*";
-      if (model !== main) TUTOR.note = `Answered with ${model} because ${main} was not available.`;
-      lastErr = null;
-      break;
-    } catch (e) {
-      if (e.name === "AbortError") { lastErr = null; if (!reply.text) reply.text = "*(Stopped.)*"; break; }
-      lastErr = e;
-      if (e.status === 429) cool[model] = Date.now() + 10 * 60 * 1000;
-      if (!(e.status === 429 || e.status === 404 || e.status >= 500) || reply.text) break;
-    }
+  const mode = tutorMode(), M = TutorCore.MODES[mode], contents = tutorContents(mode);
+  const t0 = performance.now(), cfg0 = tutorCfg(), rest = cfg0.rest || { hot: {}, cool: {} };
+  const status = s => { TUTOR.status = s; tutorPaintStatus(); };
+  let prev = "", tried = 0, failed = null;
+  const marked = [];                       // models this answer found overloaded or slow
+  const run = models => TutorCore.race(models, (model, signal, onText) => tutorAttempt(model, contents, mode, signal, onText), {
+    hedgeMs: M.hedgeMs, firstTokenMs: M.firstTokenMs, signal: TUTOR.abort.signal,
+    onAttempt: (model, why) => {
+      tried++;
+      status(why === "slow" && prev ? `${prev} trả lời chậm, hỏi thêm ${model}…`
+        : why === "failed" && failed ? `${failed.model} ${TUTOR_WHY[failed.kind] || "báo lỗi"}, chuyển sang ${model}…`
+        : `Đang hỏi ${model}…`);
+      prev = model;
+    },
+    onFail: (model, e) => { const kind = TutorCore.rest(rest, model, e); failed = { model, kind }; if (rest.hot && rest.hot[model]) marked.push(model); if (kind === "missing") tutorDropModel(model); },
+    onWinner: model => { reply.model = model; reply.ms = Math.round(performance.now() - t0); TUTOR.lastModel = model; status(""); },
+    onText: t => { reply.text = t; tutorPaintLast(); }
+  });
+  let res = null, err = null;
+  try { res = await run(tutorChain({ ...cfg0, rest }, mode)); } catch (e) { err = e; }
+  // every model was busy: one more round after a short pause, before giving up
+  if (err && !err.partial && !err.byUser && ["busy", "network", "slow"].includes(TutorCore.classify(err)) && !TUTOR.abort.signal.aborted) {
+    status("Gemini đang bận, thử lại sau 1 giây…");
+    await new Promise(r => setTimeout(r, 1200));
+    if (!TUTOR.abort.signal.aborted) { err = null; prev = ""; try { res = await run(tutorChain({ ...cfg0, rest: {} }, mode).slice(0, 3)); } catch (e) { err = e; } }
+    else { err = Object.assign(new Error("Stopped"), { name: "AbortError", byUser: true }); }
   }
-  if (lastErr) { reply.error = true; reply.text = tutorErrText(lastErr); }
-  TUTOR.busy = false; TUTOR.abort = null;
+  // when every model was busy, none of them is worse than the others: Try again starts from the best ones again
+  if (!res && err && !err.partial && !err.byUser && ["busy", "network", "slow"].includes(TutorCore.classify(err))) marked.forEach(id => { delete rest.hot[id]; });
+  const now = Date.now();
+  ["hot", "cool"].forEach(k => Object.keys(rest[k] || {}).forEach(id => { if (rest[k][id] <= now) delete rest[k][id]; }));
+  const c = tutorCfg(); c.rest = rest; tutorSaveCfg(c);
+  if (res) {
+    reply.model = res.model; reply.mode = mode;
+    if (reply.ms == null) reply.ms = Math.round(performance.now() - t0);
+    reply.text = res.out.text;
+    if (!res.out.text) { reply.error = true; reply.retry = true; reply.text = res.out.finish === "BLOCKED" || res.out.finish === "SAFETY" ? "Google chặn câu trả lời này. Thử hỏi theo cách khác nhé." : "Không nhận được câu trả lời. Bấm Thử lại."; }
+    else if (res.out.finish === "MAX_TOKENS") reply.text += "\n\n*(Câu trả lời bị cắt — gõ “tiếp tục” để mình viết tiếp.)*";
+  } else if (err && (err.byUser || err.name === "AbortError")) {
+    reply.retry = true;
+    if (!reply.text) { reply.text = "*(Đã dừng.)*"; reply.void = true; }   // no answer: left out of the conversation
+  } else if (err && err.partial) {
+    reply.retry = true; reply.text += "\n\n*(Gemini bị ngắt giữa chừng — bấm Thử lại để trả lời lại.)*";
+  } else {
+    reply.error = true; reply.retry = true; reply.text = tutorErrText(err || tutorErr(0, null), false, tried);
+  }
+  TUTOR.busy = false; TUTOR.abort = null; TUTOR.status = "";
   tutorSaveMsgs();
   tutorRender();
+}
+function tutorDropModel(model) {
+  const c = tutorCfg();
+  if (c.models && c.models.some(m => m.id === model)) { c.models = c.models.filter(m => m.id !== model); tutorSaveCfg(c); }
+}
+// Keep the model list fresh (new models appear, old ones are retired) without slowing anything down
+function tutorRefreshModels(force) {
+  const cfg = tutorCfg();
+  if (!cfg.key || TUTOR.refreshing) return;
+  if (!force && cfg.models && cfg.models.length && cfg.listedAt && Date.now() - cfg.listedAt < 3 * 864e5) return;
+  TUTOR.refreshing = true;
+  tutorProbe(cfg.key, cfg.auth).then(({ models, auth }) => {
+    const cur = tutorCfg();
+    if (cur.key !== cfg.key || !models.length) return;
+    cur.models = models; cur.auth = auth; cur.listedAt = Date.now();
+    cur.model = TutorCore.chain(models, "fast", {}, Date.now())[0] || cur.model;
+    tutorSaveCfg(cur);
+    if (TUTOR.open && !TUTOR.busy) tutorRender();
+  }).catch(() => { /* keep the saved list */ }).finally(() => { TUTOR.refreshing = false; });
+}
+// Open the connection to Google while the student is still typing, so the first answer starts sooner
+function tutorWarm() {
+  const cfg = tutorCfg();
+  if (!cfg.key || Date.now() - (TUTOR.warmAt || 0) < 45000) return;
+  TUTOR.warmAt = Date.now();
+  fetch(`${GEMINI_API}/models?pageSize=1`, { headers: tutorHeaders(cfg.key, cfg.auth), cache: "no-store" }).catch(() => { /* ignore */ });
 }
 
 // Ask about the question on screen (Practice, Question Bank, mock review)
@@ -503,7 +611,7 @@ function tutorOpen() {
     qbkManifest().then(m => { QBS.manifest = QBS.manifest || m; return qbkTutorSync(m); }).catch(() => { /* ignore */ });
   }
   if (!tutorCfg().key) TUTOR.view = "setup";
-  else if (TUTOR.view === "setup") TUTOR.view = "chat";
+  else { if (TUTOR.view === "setup") TUTOR.view = "chat"; tutorRefreshModels(); tutorWarm(); }
   document.body.classList.add("tutor-open");
   tutorRender();
   tutorPlacePanel();
@@ -531,16 +639,25 @@ function tutorRoute() {
   if (!seen && !hide) setTimeout(() => { if (!TUTOR.open && !document.body.classList.contains("tutor-off")) tutorHint(true); }, 1400);
 }
 
+const tutorSecs = ms => `${(ms / 1000).toFixed(1).replace(".", ",")} s`;
 function tutorMsgHtml(m, i) {
   if (m.role === "user") return `<div class="tt-msg tt-user">${m.ctx ? `<div class="tt-ctx-tag">${icon("flag", 12)} ${esc(m.ctx.label)}</div>` : ""}<div class="tt-bubble">${esc(m.text).replace(/\n/g, "<br>")}</div></div>`;
-  const typing = TUTOR.busy && i === tutorMsgs().length - 1 && !m.text;
-  return `<div class="tt-msg tt-bot${m.error ? " tt-error" : ""}" data-i="${i}"><div class="tt-bubble">${typing ? `<span class="tt-typing"><i></i><i></i><i></i></span>` : tutorMd(m.text)}</div></div>`;
+  const live = TUTOR.busy && i === tutorMsgs().length - 1, typing = live && !m.text;
+  const meta = !live && m.model && m.ms != null && !m.error
+    ? `<div class="tt-meta" title="Thời gian tới chữ đầu tiên · model đã trả lời">${m.mode === "deep" ? "🎯" : "⚡"} ${tutorSecs(m.ms)} · ${esc(m.model)}</div>` : "";
+  const retry = !live && m.retry && i === tutorMsgs().length - 1 ? `<button class="btn btn-sm btn-secondary tt-retry" data-tt="retry">${icon("next", 14)} Thử lại</button>` : "";
+  return `<div class="tt-msg tt-bot${m.error ? " tt-error" : ""}" data-i="${i}"><div class="tt-bubble">${typing ? `<span class="tt-typing"><i></i><i></i><i></i></span><span class="tt-status" id="tt-status">${esc(TUTOR.status || "")}</span>` : tutorMd(m.text)}</div>${meta}${retry}</div>`;
+}
+function tutorPaintStatus() {
+  const el = document.getElementById("tt-status");
+  if (el) el.textContent = TUTOR.status || "";
 }
 function tutorHeadHtml(sub) {
   const cfg = tutorCfg();
   return `<header class="tt-head">
-    <div class="tt-title"><span class="tt-mark">${tutorOwlSvg("owl-mini")}</span><div><strong>CFA Tutor</strong><span>${sub || esc(tutorModel(cfg))}</span></div></div>
+    <div class="tt-title"><span class="tt-mark">${tutorOwlSvg("owl-mini")}</span><div><strong>CFA Tutor</strong><span>${sub || esc(TUTOR.lastModel || tutorModel(cfg))}</span></div></div>
     <div class="tt-tools">
+      ${TUTOR.view === "chat" && cfg.key ? `<button class="tt-mode" data-tt="mode" title="${tutorMode() === "deep" ? "Kỹ: giải thích chi tiết, suy nghĩ nhiều hơn (chậm hơn). Bấm để chuyển sang Nhanh." : "Nhanh: trả lời ngắn, gần như không suy nghĩ trước. Bấm để chuyển sang Kỹ."}" aria-label="Chế độ trả lời: ${tutorMode() === "deep" ? "Kỹ" : "Nhanh"}">${tutorMode() === "deep" ? "🎯 Kỹ" : "⚡ Nhanh"}</button>` : ""}
       ${TUTOR.view === "chat" && cfg.key ? `<button class="icon-btn" data-tt="new" title="New chat" aria-label="New chat">${icon("plus", 18)}</button>` : ""}
       <button class="icon-btn" data-tt="close" title="Close" aria-label="Close">${icon("x", 18)}</button>
     </div>
@@ -640,6 +757,12 @@ function tutorBind(p) {
     if (act === "close") tutorClose();
     else if (act === "unctx") { TUTOR.ctx = null; tutorRender(); }
     else if (act === "stop") { if (TUTOR.abort) TUTOR.abort.abort(); }
+    else if (act === "retry") tutorRetry();
+    else if (act === "mode") {
+      const c = tutorCfg(); c.mode = tutorMode() === "deep" ? "fast" : "deep"; tutorSaveCfg(c);
+      toast(c.mode === "deep" ? "Chế độ Kỹ: giải thích chi tiết hơn, chậm hơn" : "Chế độ Nhanh: trả lời ngắn, bắt đầu ngay");
+      tutorRender();
+    }
     else if (act === "send") { const ta = document.getElementById("tt-input"); if (ta) tutorSend(ta.value, TUTOR.ctx); }
     else if (act === "new") {
       if (!tutorMsgs().length) return;
@@ -652,6 +775,7 @@ function tutorBind(p) {
   if (ta) {
     const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 160) + "px"; };
     ta.oninput = grow;
+    ta.onfocus = tutorWarm;
     ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); tutorSend(ta.value, TUTOR.ctx); } };
   }
   const save = document.getElementById("tt-key-save");
@@ -664,7 +788,7 @@ function tutorBind(p) {
     try {
       const { models, auth } = await tutorProbe(key);
       if (!models.length) return fail("This key works, but no chat models are available to it.");
-      tutorSaveCfg({ key, model: tutorModel({ models }), models, auth });
+      tutorSaveCfg({ key, model: tutorModel({ models }), models, auth, listedAt: Date.now(), mode: tutorCfg().mode || "fast" });
       try { localStorage.removeItem("cfaStudy_tutor_skip"); } catch (e) { /* ignore */ }
       TUTOR.view = "chat"; toast("CFA Tutor is ready");
       tutorRender();
